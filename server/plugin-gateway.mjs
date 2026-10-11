@@ -5,6 +5,8 @@ import {createPluginConnectionStore} from "./plugin-connection-store.mjs";
 import {createPluginInstallStore} from "./plugin-install-store.mjs";
 import {createWorkbenchStore} from "./workbench-store.mjs";
 import {decision,validateRepo,safeFilePath,safeBranch} from "./agent-policy.mjs";
+import {createSupabaseMcpSession} from "./mcp-client.mjs";
+import {supabaseOAuthConfig,supabaseStartAuthorization,supabaseToken,supabaseIdentity} from "./supabase-oauth.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
@@ -97,7 +99,8 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  const router=express.Router();
  const folder=dir||env.CIRO_WORKSPACE_DATA_DIR||join(process.cwd(),".ciro-runtime");
  const store=createPluginConnectionStore({dir:folder,env});
- const installs=createPluginInstallStore({dir:folder});
+ const installs=createPluginInstallStore({dir:folder,readyProviders:{supabase:supabaseOAuthConfig(env).ready &&
+  Boolean((env.CIRO_SUPABASE_MCP_TOOLS||"").trim())}});
  // Workbench stores are independently persisted; load fresh policy on EVERY request.
  // Cached policy can silently retain access after a user revokes permission.
  const workbenchPolicy=()=>createWorkbenchStore(folder).get().policy;
@@ -128,13 +131,32 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   try{
    if(provider==="github")output=await runGithub(env,connection.secret,tool,args,fetchFn);
    else if(provider==="supabase"){
-    // Remote MCP endpoint is administrator-pinned; arbitrary URLs cannot be supplied by users/models.
-    const base=endpoint(env.CIRO_SUPABASE_MCP_URL||"");
-    const target=bounded(args.name||"",100,"MCP tool name");
-    if(!/^[a-zA-Z0-9_.:-]+$/.test(target))throw fail("Unsafe tool name");
-    if(tool==="supabase.list_tools")throw fail("Use discovery endpoint instead",400);
-    // Remote MCP handshake/session support is not yet certified; fail closed.
-    throw fail("Supabase MCP execution requires a verified OAuth and transport session",503);
+    const conf=supabaseOAuthConfig(env);
+    if(!conf.ready||connection.secret.projectRef!==conf.projectRef)
+      throw fail("User-scoped Supabase MCP configuration changed",403);
+    const allowed=new Set((env.CIRO_SUPABASE_MCP_TOOLS||"").split(",")
+      .map(x=>x.trim()).filter(x=>/^[A-Za-z0-9_.:-]{1,100}$/.test(x)));
+    if(!allowed.size)throw fail("No Supabase MCP tools allowlisted",403);
+    const mcp=await createSupabaseMcpSession({projectRef:conf.projectRef,
+      accessToken:connection.secret.accessToken,fetchFn});
+    try{
+      const visible=(await mcp.listTools()).filter(x=>allowed.has(x.name));
+      if(tool==="supabase.list_tools")output={tools:visible};
+      else if(tool==="supabase.call_tool"){
+        const name=bounded(args.name,100,"MCP tool name");
+        const declared=visible.find(x=>x.name===name);
+        if(!declared)throw fail("MCP tool outside allowlist or missing from discovery",403);
+        const params=args.arguments;
+        if(!params||typeof params!=="object"||Array.isArray(params)||JSON.stringify(params).length>32000)
+          throw fail("Invalid MCP arguments",400);
+        for(const field of declared.inputSchema.required||[]){
+          if(typeof field==="string"&&!Object.hasOwn(params,field))
+            throw fail("Missing required MCP argument",400);
+        }
+        output=await mcp.callTool(name,params);
+        if(output.isError)throw fail("MCP tool reported an error",502);
+      }else throw fail("Unsupported Supabase MCP operation",404);
+    }finally{await mcp.close();}
    }else throw fail("Unknown connector",404);
    store.change("tool.executed",()=>{}, {ownerId:user,provider,tool,source,outcome:"ok"});
    return {executed:true,provider,tool,result:output};
