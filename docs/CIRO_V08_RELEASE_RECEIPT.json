@@ -3,14 +3,14 @@
   "project": "kllcoco/frontend-UI",
   "candidate_branch": "feat/ciro-v08-plugin-marketplace",
   "base_branch": "feat/ciro-chat-client-v1",
-  "qualified_code_commit": "84ddbb0b058b12b6aa6590597a79028e2643b778",
+  "qualified_code_commit": "d0b5a86a600d078bf6c2228e1132c8cdc3188cec",
   "validated_at": "2026-10-11",
   "ci": {
-    "workflow_run_id": 38137037955,
-    "url": "https://github.com/kllcoco/frontend-UI/actions/runs/38137037955",
+    "workflow_run_id": 38138778445,
+    "url": "https://github.com/kllcoco/frontend-UI/actions/runs/38138778445",
     "conclusion": "success",
     "unit_and_security_tests": {
-      "passed": 91,
+      "passed": 99,
       "failed": 0
     },
     "production_build": "PASS",
@@ -61,6 +61,18 @@
       "id": "CIRO-V08-THIRD_PARTY",
       "description": "Arbitrary developer-published plugin packages with separately sandboxed executable runtimes",
       "status": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "CIRO-V08-DURABLE-JOBS",
+      "description": "Transactional per-owner encrypted read queue, idempotency keys, worker lease/recovery, foreground approved write ledger and uncertain-outcome quarantine",
+      "status": "CODE_AND_AUTOMATED_TESTS_PASSED",
+      "limit": "Single-host SQLite; only reads auto retry; approved writes never replayed"
+    },
+    {
+      "id": "CIRO-V08-DEDICATED-PILOT",
+      "description": "One-owner-per-dedicated-Linux-host edition with fail-closed configuration preflight, isolated service templates and supervised plugin read worker",
+      "status": "CODE_AND_AUTOMATED_TESTS_PASSED_DEPLOYMENT_PENDING",
+      "limit": "Real host/TLS/OAuth/Supabase/independent acceptance NOT RUN"
     }
   ],
   "graduation": {
@@ -69,14 +81,23 @@
     "external_resources": {
       "github_oauth_app": "NOT_VERIFIED_WITH_REAL_ACCOUNT",
       "supabase_projects_visible": 0,
-      "supabase_mcp_deployed": "NO_AVAILABLE_PROJECT"
+      "supabase_mcp_deployed": "NO_AVAILABLE_PROJECT",
+      "supabase_organizations_visible": [
+        {
+          "name": "Ciro",
+          "plan": "free"
+        }
+      ]
     },
     "next_acceptance": [
-      "Authorize a test GitHub OAuth app with real user and disposable allowlisted repository; test token rotation/revocation and write approval",
-      "Deploy the customer-scoped Supabase MCP Edge Function to a connected project with RLS and run two real user tests",
-      "Complete transactional public multitenant account/worker storage, distributed cancellation and durable queue proof",
-      "Qualify signed third-party extension ABI and isolated execution before advertising arbitrary executable plugin downloads",
-      "Run independent pre-release redteam with exact code SHA and signed evidence"
-    ]
+      "Obtain explicit owner selection and cost confirmation before creating a test Supabase project in the existing free Ciro organization",
+      "Deploy real user-RLS MCP and obtain independent two-consenting-user cross-account denial evidence",
+      "Complete browser-based real GitHub OAuth app authorization, disposable repository write approval, upstream revocation and replay rejection",
+      "Run dedicated Linux host preflight and reverse proxy security review using separate secrets and volumes for each paying customer",
+      "Prove worker restart, ambiguous writes, data backup/restore, client-specific billing and operator incident response on the deployment",
+      "Independently redteam the exact release SHA; only then permit a limited dedicated single-tenant paid pilot",
+      "Public shared multi-tenant SaaS still requires fully isolated Account/Workbench/Studio and distributed operations before a separate graduation"
+    ],
+    "pilot_decision": "CODE_READY_FOR_CONTROLLED_DEPLOYMENT_REVIEW; NOT LIVE_ACCEPTED"
   }
 }
