@@ -1,0 +1,82 @@
+{
+  "schema": "ciro.v08.release-receipt.v1",
+  "project": "kllcoco/frontend-UI",
+  "candidate_branch": "feat/ciro-v08-plugin-marketplace",
+  "base_branch": "feat/ciro-chat-client-v1",
+  "qualified_code_commit": "84ddbb0b058b12b6aa6590597a79028e2643b778",
+  "validated_at": "2026-10-11",
+  "ci": {
+    "workflow_run_id": 38137037955,
+    "url": "https://github.com/kllcoco/frontend-UI/actions/runs/38137037955",
+    "conclusion": "success",
+    "unit_and_security_tests": {
+      "passed": 91,
+      "failed": 0
+    },
+    "production_build": "PASS",
+    "browser_e2e": {
+      "passed": 28,
+      "failed": 0
+    }
+  },
+  "requirements": [
+    {
+      "id": "CIRO-V08-PLUGIN-MARKET",
+      "description": "Manual installation only from plugin center, installed list at left, market at right, uninstall/disable",
+      "status": "CODE_AND_AUTOMATED_TESTS_PASSED"
+    },
+    {
+      "id": "CIRO-V08-SIGNATURE",
+      "description": "Pinned HTTPS package registry and Ed25519-signed data-only connector manifests with explicit consent",
+      "status": "CODE_AND_AUTOMATED_TESTS_PASSED",
+      "limit": "Only compiled-in GitHub/Supabase adapters may execute"
+    },
+    {
+      "id": "CIRO-V08-DURABILITY",
+      "description": "Atomic SQLite plugin installation/OAuth/approval state and guarded legacy JSON migration",
+      "status": "CODE_AND_AUTOMATED_TESTS_PASSED",
+      "limit": "Single host WAL; not a full multi-tenant distributed database"
+    },
+    {
+      "id": "CIRO-V08-AUTH",
+      "description": "GitHub authorization, Supabase OAuth PKCE and encrypted credential refresh",
+      "status": "MOCK_VERIFIED_LIVE_PENDING"
+    },
+    {
+      "id": "CIRO-V08-MCP",
+      "description": "User-scoped Supabase Edge MCP source + RLS policies",
+      "status": "UNIT_VERIFIED_DEPLOYMENT_PENDING"
+    },
+    {
+      "id": "CIRO-V08-CHAT-AGENT",
+      "description": "Bounded structured model tool calls and scoped active-goal Agent capability",
+      "status": "MOCK_VERIFIED_LIVE_MODEL_PENDING"
+    },
+    {
+      "id": "CIRO-V08-COMMERCIAL",
+      "description": "Public multitenant accounts, durable queue, idempotent multi-worker execution and independent penetration tests",
+      "status": "NOT_QUALIFIED"
+    },
+    {
+      "id": "CIRO-V08-THIRD_PARTY",
+      "description": "Arbitrary developer-published plugin packages with separately sandboxed executable runtimes",
+      "status": "NOT_IMPLEMENTED"
+    }
+  ],
+  "graduation": {
+    "decision": "NOT_GRADUATED_FOR_PUBLIC_COMMERCIAL_RELEASE",
+    "reason": "External live OAuth, real user-scoped cloud RLS deployment and production multitenant isolation/queue have not passed independent evidence gates.",
+    "external_resources": {
+      "github_oauth_app": "NOT_VERIFIED_WITH_REAL_ACCOUNT",
+      "supabase_projects_visible": 0,
+      "supabase_mcp_deployed": "NO_AVAILABLE_PROJECT"
+    },
+    "next_acceptance": [
+      "Authorize a test GitHub OAuth app with real user and disposable allowlisted repository; test token rotation/revocation and write approval",
+      "Deploy the customer-scoped Supabase MCP Edge Function to a connected project with RLS and run two real user tests",
+      "Complete transactional public multitenant account/worker storage, distributed cancellation and durable queue proof",
+      "Qualify signed third-party extension ABI and isolated execution before advertising arbitrary executable plugin downloads",
+      "Run independent pre-release redteam with exact code SHA and signed evidence"
+    ]
+  }
+}
