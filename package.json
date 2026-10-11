@@ -1,9 +1,9 @@
 {
   "name": "ciro-client",
-  "version": "0.8.0-dev",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
-  "description": "Ciro conversational client",
+  "description": "Ciro desktop and web client — Windows installer preview",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:server": "node server/index.mjs",
@@ -15,7 +15,11 @@
     "test:e2e": "playwright test",
     "test:ci": "npm run test && npm run build && npm run test:e2e",
     "worker:plugins": "node server/plugin-worker.mjs",
-    "verify:single-tenant": "node scripts/verify-ciro-single-tenant.mjs"
+    "verify:single-tenant": "node scripts/verify-ciro-single-tenant.mjs",
+    "desktop:icon": "node desktop/generate-icon.mjs",
+    "desktop:dev": "npm run build && npm run desktop:icon && electron .",
+    "desktop:win": "npm run build && npm run desktop:icon && electron-builder --win nsis --x64 --publish never",
+    "desktop:smoke": "electron . --ciro-desktop-smoke"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -35,6 +39,44 @@
     "concurrently": "^9.1.2",
     "typescript": "~5.7.3",
     "vite": "^6.0.6",
-    "@playwright/test": "^1.56.0"
+    "@playwright/test": "^1.56.0",
+    "electron": "44.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "main": "desktop/main.mjs",
+  "build": {
+    "appId": "ai.ciro.desktop",
+    "productName": "Ciro",
+    "directories": {
+      "output": "release",
+      "buildResources": "desktop/assets"
+    },
+    "asar": true,
+    "npmRebuild": false,
+    "files": [
+      "dist/**/*",
+      "server/**/*",
+      "desktop/main.mjs",
+      "desktop/security.mjs",
+      "desktop/assets/ciro.ico",
+      "package.json",
+      "!**/*.map"
+    ],
+    "artifactName": "Ciro-Setup-${version}-${arch}.${ext}",
+    "win": {
+      "icon": "desktop/assets/ciro.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Ciro",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

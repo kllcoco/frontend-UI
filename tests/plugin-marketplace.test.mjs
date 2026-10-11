@@ -7,7 +7,8 @@ import {createPluginInstallStore} from "../server/plugin-install-store.mjs";
 
 function fixture(fn){
  const dir=mkdtempSync(join(tmpdir(),"ciro-marketplace-"));
- try{return fn(createPluginInstallStore({dir}),dir);}finally{rmSync(dir,{recursive:true,force:true});}
+ const store=createPluginInstallStore({dir});
+ try{return fn(store,dir);}finally{store.close();rmSync(dir,{recursive:true,force:true});}
 }
 test("marketplace installation requires matching, browser-session-bound, single-use consent",()=>{
  fixture(store=>{
@@ -48,5 +49,6 @@ test("installation remains persisted per owner across process restart",()=>{
   const loaded=createPluginInstallStore({dir});
   assert.equal(loaded.list("a").length,1);
   assert.equal(loaded.list("b").length,0);
+  loaded.close();
  });
 });

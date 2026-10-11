@@ -57,7 +57,8 @@ test("marketplace HTTP lifecycle requires deliberate installation, and removal i
       args:{repo:"demo/project",path:"README.md"}})).status,403);
   }finally{
     await new Promise(resolve=>listener.close(resolve));
-    rmSync(dir,{recursive:true,force:true});
+    gateway.jobs.close();gateway.installs.close();gateway.store.close();
+  rmSync(dir,{recursive:true,force:true});
   }
 });
 
@@ -112,6 +113,7 @@ test("Full Access still forces human approval and shows exact GitHub operation",
   assert.doesNotMatch(summary,/secret contents/);
  }finally{
   await new Promise(resolve=>server.close(resolve));
+  gateway.jobs.close();gateway.installs.close();gateway.store.close();
   rmSync(dir,{recursive:true,force:true});
  }
 });

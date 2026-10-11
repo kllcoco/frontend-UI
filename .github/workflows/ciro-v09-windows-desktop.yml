@@ -1,0 +1,104 @@
+name: CIRO V0.9 Windows desktop package and install acceptance
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - "server/index.mjs"
+      - "server/desktop-guard.mjs"
+      - "src/main.tsx"
+      - "package.json"
+      - "tests/desktop*.test.mjs"
+      - ".github/workflows/ciro-v09-windows-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ciro-windows-desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install desktop and application dependencies
+        run: npm install --no-audit --no-fund
+      - name: Node and desktop security tests
+        run: npm test
+      - name: Build Windows NSIS installer and unpacked app
+        run: npm run desktop:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Verify unpacked executable starts without a dev server
+        run: |
+          $exe = Join-Path (Get-Location) "release/win-unpacked/Ciro.exe"
+          if (!(Test-Path $exe)) { throw "Unpacked Ciro.exe missing" }
+          $env:CIRO_DESKTOP_SMOKE = "1"
+          $env:CIRO_DESKTOP_SMOKE_GUI = "1"
+          $receipt = Join-Path $env:TEMP ("ciro-unpacked-" + $env:GITHUB_RUN_ID + ".json")
+          $env:CIRO_DESKTOP_SMOKE_RECEIPT = $receipt
+          Start-Process -FilePath $exe -ArgumentList "--ciro-desktop-smoke" -PassThru | Out-Null
+          for ($i=0; $i -lt 90 -and !(Test-Path $receipt); $i++) { Start-Sleep -Milliseconds 500 }
+          if (!(Test-Path $receipt)) { throw "Unpacked Ciro.exe produced no real startup receipt" }
+          $result = Get-Content $receipt -Raw | ConvertFrom-Json
+          if ($result.status -ne "PASS" -or !$result.renderer -or !$result.unauthorizedDenied) {
+            throw "Packaged UI/desktop security acceptance failed"
+          }
+          Write-Output "CIRO_UNPACKED_DESKTOP_SMOKE_PASS"
+      - name: Install, run, uninstall and preserve user data
+        run: |
+          $setup = Get-ChildItem release -File -Filter "Ciro-Setup-*.exe" | Select-Object -First 1
+          if (!$setup) { throw "Windows NSIS setup EXE missing" }
+          $target = Join-Path $env:TEMP ("Ciro-Install-Acceptance-" + $env:GITHUB_RUN_ID)
+          $installer = Start-Process -FilePath $setup.FullName -ArgumentList "/S",("/D=" + $target) -Wait -PassThru
+          if ($installer.ExitCode -ne 0) { throw "Silent NSIS install failed: $($installer.ExitCode)" }
+          $exe = Join-Path $target "Ciro.exe"
+          if (!(Test-Path $exe)) { throw "Installed Ciro.exe missing" }
+          $env:CIRO_DESKTOP_SMOKE = "1"
+          $env:CIRO_DESKTOP_SMOKE_GUI = "1"
+          $receipt = Join-Path $env:TEMP ("ciro-installed-" + $env:GITHUB_RUN_ID + ".json")
+          $env:CIRO_DESKTOP_SMOKE_RECEIPT = $receipt
+          Start-Process -FilePath $exe -ArgumentList "--ciro-desktop-smoke" -PassThru | Out-Null
+          for ($i=0; $i -lt 90 -and !(Test-Path $receipt); $i++) { Start-Sleep -Milliseconds 500 }
+          if (!(Test-Path $receipt)) { throw "Installed Ciro.exe produced no startup receipt" }
+          $result = Get-Content $receipt -Raw | ConvertFrom-Json
+          if ($result.status -ne "PASS" -or !$result.renderer -or !$result.unauthorizedDenied) {
+            throw "Installed desktop UI/security acceptance failed"
+          }
+          $data = Join-Path $env:APPDATA "Ciro/state"
+          New-Item -ItemType Directory -Path $data -Force | Out-Null
+          $marker = Join-Path $data "uninstall-keep-my-data.txt"
+          Set-Content -Path $marker -Value "do not delete"
+          $uninstaller = Get-ChildItem $target -Filter "*Uninstall*.exe" -File | Select-Object -First 1
+          if (!$uninstaller) { throw "Uninstaller missing" }
+          $done = Start-Process -FilePath $uninstaller.FullName -ArgumentList "/S" -PassThru -Wait
+          if ($done.ExitCode -ne 0) { throw "Uninstall failed: $($done.ExitCode)" }
+          if (!(Test-Path $marker)) { throw "Uninstall deleted personal data" }
+          Write-Output "CIRO_DESKTOP_INSTALL_UNINSTALL_PASS"
+      - name: Installer SHA-256 receipt
+        if: success()
+        run: |
+          $setup = Get-ChildItem release -File -Filter "Ciro-Setup-*.exe" | Select-Object -First 1
+          $sha = (Get-FileHash -Algorithm SHA256 $setup.FullName).Hash.ToLower()
+          "$sha  $($setup.Name)" | Set-Content release/SHA256SUMS.txt
+          Write-Output "CIRO_INSTALLER_SHA256 $sha"
+      - name: Upload real Windows installer and receipt
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ciro-v09-windows-nsis-${{ github.run_number }}
+          path: |
+            release/Ciro-Setup-*.exe
+            release/SHA256SUMS.txt
+          retention-days: 14
+          if-no-files-found: error

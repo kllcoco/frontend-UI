@@ -68,7 +68,7 @@ test("GitHub OAuth callback is session-bound, one-shot, and revoke removes a ver
   assert.equal(calls.filter(x=>x.url.includes("/login/oauth/access_token")).length,1);
  }finally{
   await new Promise(resolve=>server.close(resolve));
-  gateway.store.close?.();gateway.installs.close?.();
+  gateway.jobs.close();gateway.store.close();gateway.installs.close();
   rmSync(dir,{recursive:true,force:true});
  }
 });
