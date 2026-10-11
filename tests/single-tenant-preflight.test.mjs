@@ -5,6 +5,8 @@ import {mkdtempSync,rmSync,writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {verifySingleTenantReadiness} from "../scripts/verify-ciro-single-tenant.mjs";
+// Unix-only file permission checks are validated on Linux, not Windows.
+const posixTest=process.platform==="win32"?test.skip:test;
 
 function fixture(){
  const dir=mkdtempSync(join(tmpdir(),"ciro-tenant-preflight-"));
@@ -23,7 +25,7 @@ function fixture(){
   CIRO_GITHUB_REPOS:"demo/project"};
  return {dir,env,close:()=>rmSync(dir,{recursive:true,force:true})};
 }
-test("single-tenant pilot preflight requires private data, scoped OAuth and safe loopback",()=>{
+posixTest("single-tenant pilot preflight requires private data, scoped OAuth and safe loopback",()=>{
  const f=fixture();
  try{
   const result=verifySingleTenantReadiness(f.env,{platform:"linux",uid:process.getuid()});
@@ -42,7 +44,7 @@ test("public tenant deployment cannot be relabelled as a single-tenant pilot",()
   assert.ok(result.failures.includes("public_multi_tenant_not_qualified"));
  }finally{f.close();}
 });
-test("insecure state files, missing credentials and untrusted backend abort admission",()=>{
+posixTest("insecure state files, missing credentials and untrusted backend abort admission",()=>{
  const f=fixture();
  try{
   writeFileSync(join(f.dir,"plugin-control.sqlite"),"staging", {mode:0o644});
@@ -60,7 +62,7 @@ test("insecure state files, missing credentials and untrusted backend abort admi
  }finally{f.close();}
 });
 
-test("single-owner commercial admission refuses unbootstrapped or still-bootstrap-enabled hosts",()=>{
+posixTest("single-owner commercial admission refuses unbootstrapped or still-bootstrap-enabled hosts",()=>{
  const f=fixture();
  try{
   rmSync(join(f.dir,"account-state.json"));
