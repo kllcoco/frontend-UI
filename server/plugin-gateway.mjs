@@ -8,6 +8,7 @@ import {decision,validateRepo,safeFilePath,safeBranch} from "./agent-policy.mjs"
 import {createSupabaseMcpSession} from "./mcp-client.mjs";
 import {supabaseOAuthConfig,supabaseStartAuthorization,supabaseToken,supabaseIdentity} from "./supabase-oauth.mjs";
 import {verifyAgentPluginCapability} from "./plugin-agent-capability.mjs";
+import {fetchSignedPluginPackage} from "./plugin-package-verifier.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
@@ -323,9 +324,25 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
    connections:store.publicConnections(owner(req)),approvals:store.publicApprovals(owner(req)),
    audit:store.audit(owner(req))})));
- router.post("/marketplace/:id/prepare",wrap((req,res)=>{
+ router.post("/marketplace/:id/prepare",wrap(async(req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required for plugin installation",403);
-  res.json(installs.prepare({ownerId:owner(req),sessionId:req.principal.sessionId,id:req.params.id}));
+  let verifiedPackage=null;
+  if(env.CIRO_PLUGIN_REGISTRY_ORIGIN){
+    if(typeof env.CIRO_PLUGIN_TRUSTED_KEYS_JSON!=="string"||
+       env.CIRO_PLUGIN_TRUSTED_KEYS_JSON.length>64000)
+      throw fail("Trusted plugin signer list is not configured",503);
+    let keys;
+    try{keys=JSON.parse(env.CIRO_PLUGIN_TRUSTED_KEYS_JSON);}
+    catch{throw fail("Invalid plugin trust configuration",503);}
+    const hosts=(env.CIRO_PLUGIN_REGISTRY_HOST_ALLOWLIST||"").split(",").map(x=>x.trim()).filter(Boolean);
+    verifiedPackage=await fetchSignedPluginPackage({id:req.params.id,
+      registryOrigin:env.CIRO_PLUGIN_REGISTRY_ORIGIN,
+      allowedRegistryHosts:hosts,keys,fetchFn});
+  }else if(env.CIRO_DEPLOYMENT_MODE==="production"){
+    throw fail("Production marketplace requires a pinned signed package registry",503);
+  }
+  res.json(installs.prepare({ownerId:owner(req),sessionId:req.principal.sessionId,
+    id:req.params.id,verifiedPackage}));
  }));
  router.post("/marketplace/:id/install",wrap((req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required for plugin installation",403);
