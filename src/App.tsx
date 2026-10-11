@@ -113,8 +113,11 @@ export default function App() {
   const [status, setStatus] = useState<ApiStatus>(PREVIEW);
   const [statusLoading, setStatusLoading] = useState(true);
   const [model, setModel] = useState("ciro");
-  const [studioOpen, setStudioOpen] = useState(() => new URLSearchParams(window.location.search).get("view")==="studio");
-  const [studioTab, setStudioTab] = useState<WorkbenchTab>(()=>new URLSearchParams(window.location.search).get("view")==="studio"?"studio":"goals");
+  const [studioOpen, setStudioOpen] = useState(() => ["studio","plugins"].includes(new URLSearchParams(window.location.search).get("view")||""));
+  const [studioTab, setStudioTab] = useState<WorkbenchTab>(()=>{
+    const view=new URLSearchParams(window.location.search).get("view");
+    return view==="studio"?"studio":view==="plugins"?"plugins":"goals";
+  });
   const [composerMode, setComposerMode] = useState<"chat" | AgentMode>("chat");
   const [reasoningMode,setReasoningMode]=useState<"fast"|"deep">("fast");
   const [reasoningPriority,setReasoningPriority]=useState<1|2|5>(1);
