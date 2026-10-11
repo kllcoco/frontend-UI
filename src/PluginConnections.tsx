@@ -4,7 +4,7 @@ import "./plugin-marketplace.css";
 
 type Entry={id:string;title:string;category:string;description:string;version:string;publisher:string;status?:string;tools:string[];permissions:string[];ready:boolean};
 type Installed={id:string;version:string;installedAt:string;enabled:boolean};
-type Connection={provider:string;account?:{login?:string};connectedAt:string};
+type Connection={provider:string;account?:{login?:string;email?:string;id?:string|number};connectedAt:string};
 type Approval={id:string;provider:string;summary:string;createdAt:string};
 type Prepared={nonce:string;fingerprint:string;plugin:Entry;expiresInSeconds:number};
 type Snapshot={catalog:Entry[];installed:Installed[];connections:Connection[];approvals:Approval[];audit:{id:string;at:string;event:string}[]};
@@ -104,15 +104,17 @@ export default function PluginConnections(){
         await api("/installed/"+current.id+"/enabled",{enabled:!active.enabled});
         setNotice(active.enabled?"插件已停用":"插件已启用");
        })}>{active.enabled?"暂停使用":"启用"}</button>
-       {current.id==="github"&&active.enabled&&(connected?<button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
-        await api("/github/disconnect",{});setNotice("已断开 GitHub 连接");
-       })}>断开 GitHub 账户 ({connected.account?.login||"已授权"})</button>:
+       {(current.id==="github"||current.id==="supabase")&&active.enabled&&(connected?<button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
+        await api("/"+current.id+"/disconnect",{});setNotice("第三方连接已断开");
+       })}>断开 {current.title} 账户 ({connected.account?.login||connected.account?.email||"已授权"})</button>:
        <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{
-        const out=await api<{authorizeUrl:string}>("/github/connect",{});
+        const out=await api<{authorizeUrl:string}>("/"+current.id+"/connect",{});
         const target=new URL(out.authorizeUrl);
-        if(target.origin!=="https://github.com")throw new Error("授权地址不可信");
+        if(current.id==="github"?target.origin!=="https://github.com":
+          !(target.protocol==="https:"&&target.hostname.endsWith(".supabase.co")))
+          throw new Error("授权地址不可信");
         window.location.assign(target.href);
-       })}>连接 GitHub 账户</button>)}
+       })}>连接 {current.title} 账户</button>)}
        {current.id==="github"&&connected&&active.enabled&&<div className="ciro-market-test">
          <h4>工具验证：读取仓库文件</h4>
          <input aria-label="GitHub 仓库" value={repo} onChange={e=>setRepo(e.target.value)} placeholder="owner/repo"/>
