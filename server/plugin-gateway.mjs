@@ -140,7 +140,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  router.get("/catalog",wrap((req,res)=>res.json({catalog:CATALOG,
    connections:store.publicConnections(owner(req)),approvals:store.publicApprovals(owner(req)),
    audit:store.audit(owner(req))})));
- router.get("/github/connect",wrap((req,res)=>{
+ router.post("/github/connect",wrap((req,res)=>{
   if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")
     throw fail("GitHub OAuth requires an authenticated browser session",403);
   const client=bounded(env.CIRO_GITHUB_OAUTH_CLIENT_ID,150,"GitHub OAuth client ID");
