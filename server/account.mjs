@@ -100,7 +100,15 @@ function confirmOrigin(req,env){
   const local=["http://localhost:5173","http://127.0.0.1:5173",
     "http://localhost:8787","http://127.0.0.1:8787"];
   const publicOrigin=env.CIRO_PUBLIC_ORIGIN;
-  if(![...local,publicOrigin].filter(Boolean).includes(origin))throw bad("Origin forbidden",403);
+  let sameOrigin=false;
+  try {
+    const parsed=new URL(origin),host=req.get("host")||"";
+    const localHost=/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host);
+    sameOrigin=parsed.host===host && (parsed.protocol==="https:" ||
+      (parsed.protocol==="http:"&&localHost));
+  }catch{/* malformed origin is denied */}
+  if(!sameOrigin && ![...local,publicOrigin].filter(Boolean).includes(origin))
+    throw bad("Origin forbidden",403);
 }
 function sessionCookie(req,env,raw){
   const site=env.CIRO_PUBLIC_ORIGIN||"";

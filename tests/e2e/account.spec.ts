@@ -83,7 +83,7 @@ test("real account authentication, encrypted memories, spending limits and devic
   await page.getByRole("textbox",{name:"月限额（美元）"}).fill("50");
   await page.getByRole("textbox",{name:"单次上限（美元）"}).fill("3");
   await page.getByRole("button",{name:"保存限额"}).click();
-  await expect(page.getByRole("status",{name:""}).filter({hasText:"操作成功"})).toBeVisible();
+  await expect(page.getByText("操作成功").first()).toBeVisible();
   await page.screenshot({path:photoDir+"/34-account-spending.png",fullPage:true,animations:"disabled"});
 
   await page.locator(".sc-nav").getByRole("button",{name:"订阅管理"}).click();

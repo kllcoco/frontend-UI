@@ -77,7 +77,15 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
         "http://127.0.0.1:5173","http://localhost:5173","http://127.0.0.1:8787","http://localhost:8787",
         ...(env.CIRO_ALLOWED_ORIGINS||"").split(",").map(x=>x.trim()).filter(Boolean)
       ]);
-      if(origin && !allowed.has(origin)) return res.status(403).json({error:"Origin is not authorized."});
+      let sameOrigin=false;
+      try {
+        const parsed=new URL(origin),host=req.get("host")||"";
+        const localHost=/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host);
+        sameOrigin=parsed.host===host && (parsed.protocol==="https:" ||
+          (parsed.protocol==="http:"&&localHost));
+      }catch{/* malformed origin denied */}
+      if(origin && !sameOrigin && !allowed.has(origin))
+        return res.status(403).json({error:"Origin is not authorized."});
       if(!req.is("application/json"))return res.status(415).json({error:"Only JSON requests are accepted."});
     }
     res.set("Cache-Control","no-store");

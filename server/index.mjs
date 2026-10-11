@@ -7,6 +7,13 @@ import { normalizeModels, validateChat, ValidationError } from "./validate.mjs";
 import { createWorkbenchRouter } from "./workbench.mjs";
 import {createAccountService} from "./account.mjs";
 
+// A single-owner JSON account store is intended to sit behind a loopback-only
+// HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
+const bindHost=process.env.HOST||"127.0.0.1";
+if(process.env.CIRO_ACCOUNTS_ENABLED==="true" &&
+   !["127.0.0.1","::1","localhost"].includes(bindHost)){
+  throw new Error("Authenticated Ciro must bind to loopback; terminate public TLS at a trusted reverse proxy.");
+}
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
