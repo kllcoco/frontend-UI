@@ -119,6 +119,13 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   useEffect(()=>()=>{recorderRef.current?.state==="recording"&&recorderRef.current.stop();
     recordStream.current?.getTracks().forEach(x=>x.stop());},[]);
   useEffect(()=>{
+    if(section!=="compute")return;
+    const timer=setInterval(()=>{
+      void studioApi<{events:Telemetry[]}>("/compute").then(data=>setTelemetry(data.events)).catch(()=>{});
+    },12000);
+    return ()=>clearInterval(timer);
+  },[section]);
+  useEffect(()=>{
     let active=true;
     const get=async()=>{
       try{
@@ -347,6 +354,13 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </section>
       </div>
       <JobResult job={thinkJob} refresh={()=>void poll("think")} language={language}/>
+      {thinkJob?.jobId&&caps?.thinking.provider.configured&&<div className="stu-actions stu-job-actions">
+        {(["pause","resume","cancel"] as const).map(action=><button className="stu-light-button" key={action}
+          onClick={()=>void run(async()=>{
+            const data=await studioApi<NativeJob>("/think/jobs/"+thinkJob.jobId+"/actions","POST",{action});
+            setThinkJob(old=>old?{...old,status:data.status}:old);
+          })}>{t(action==="pause"?"暂停任务":action==="resume"?"恢复任务":"取消任务")}</button>)}
+      </div>}
     </>}
 
     {section==="ide"&&<>
@@ -441,7 +455,12 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           <form className="stu-inline-form" onSubmit={e=>void searchKnowledge(e)}>
             <input aria-label={t("搜索知识库")} value={knowledgeQuery} required maxLength={120}
               onChange={e=>setKnowledgeQuery(e.target.value)} placeholder={t("搜索文本和代码来源")}/>
-            <button className="stu-primary"><Search size={15}/>{t("搜索知识库")}</button></form>
+            <button className="stu-primary"><Search size={15}/>{t("搜索知识库")}</button>
+            <button type="button" className="stu-light-button" disabled={!caps?.knowledge.embedding.configured}
+              onClick={()=>void run(async()=>{
+                const data=await studioApi<{results:KnowledgeHit[]}>("/knowledge/semantic","POST",{query:knowledgeQuery.trim()});
+                setKnowledgeHits(data.results);
+              })}>{t("语义搜索")}</button></form>
           {knowledgeHits.length===0&&<p className="stu-small">{t("没有检索结果")}</p>}
           {knowledgeHits.map(hit=><div className="stu-hit" key={hit.id}><strong>{hit.title}</strong>
             <p>{hit.excerpt}</p><code>{t("引用位置")}: {hit.citation} · {hit.sha256.slice(0,12)}</code></div>)}
@@ -450,6 +469,13 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       <section className="stu-card"><div className="stu-section-head"><h3><BookOpen size={17}/>{t("文档数量")}: {documents.length}</h3></div>
         {documents.map(doc=><div className="stu-document" key={doc.id}>
           <FileText size={17}/><span><strong>{doc.title}</strong><small>{humanBytes(doc.bytes,language)} · SHA256 {doc.sha256.slice(0,12)}</small></span>
+          <button className="stu-light-button" disabled={!caps?.knowledge.embedding.configured||Boolean(doc.indexedAt)}
+            onClick={()=>{if(window.confirm(t("建立语义索引需将该文档发送到你配置的原生服务，是否继续？")))
+              void run(async()=>{
+                await studioApi("/knowledge/"+doc.id+"/index","POST",{confirmExternalUpload:true});
+                const data=await studioApi<{documents:KnowledgeDoc[]}>("/knowledge");setDocuments(data.documents);
+              },"保存");}}>
+            <Layers size={14}/>{t(doc.indexedAt?"已建立索引":"建立语义索引")}</button>
           <button className="stu-light-button" onClick={()=>{if(window.confirm(t("删除文档")+"?"))void run(async()=>{
             await studioApi("/knowledge/"+doc.id,"DELETE");setDocuments(old=>old.filter(x=>x.id!==doc.id));
           });}}><X size={15}/>{t("删除文档")}</button></div>)}

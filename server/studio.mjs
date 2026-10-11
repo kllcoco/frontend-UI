@@ -4,7 +4,7 @@ import {join} from "node:path";
 import {createStudioStore,safeStudioPath} from "./studio-store.mjs";
 import {createWorkbenchStore} from "./workbench-store.mjs";
 import {decision} from "./agent-policy.mjs";
-import {verifySignedReceipt} from "./commercial-billing.mjs";
+import {verifySignedReceipt,assertBudgetAdmission} from "./commercial-billing.mjs";
 
 const problem=(reason,statusCode=400)=>Object.assign(new Error(reason),{statusCode});
 const bounded=(value,max,name)=>{
@@ -133,6 +133,7 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
     const policy=createWorkbenchStore(folder).get().policy;
     if(decision(policy,"task.run",{repo:policy.repo}).result!=="allow")
       throw problem("Sandbox execution requires an approved Workbench task.run policy",403);
+    assertBudgetAdmission(env,createWorkbenchStore(folder).get());
     const data=await invokeStudio(env,"code","/v1/ide/jobs",{
       contract:"ciro-ide-run.v1",task,projectId:project.id,projectRevision:project.revision,
       scope:{repo:policy.repo,permission:"task.run"},
@@ -157,6 +158,42 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
     if(typeof req.query.q!=="string")throw problem("Search string required");
     res.json({query:req.query.q,results:store.searchDocuments(req.query.q)});
   }));
+  router.post("/knowledge/:id/index",wrap(async(req,res)=>{
+    const entry=store.get().documents.find(x=>x.id===req.params.id);
+    if(!entry)throw problem("Knowledge source not found",404);
+    if(req.body?.confirmExternalUpload!==true)throw problem("External indexing requires explicit consent",403);
+    const data=await invokeStudio(env,"index","/v1/knowledge/documents",{
+      contract:"ciro-knowledge-index.v1",documentId:entry.id,title:entry.title,
+      source:entry.source,sha256:entry.sha256,content:entry.text
+    },{fetchFn,timeoutMs:20000});
+    if(data.accepted!==true||data.sha256!==entry.sha256||typeof data.indexId!=="string"||
+      !/^[a-zA-Z0-9_.:-]{4,120}$/.test(data.indexId))
+      throw problem("Index service did not confirm exact document digest",502);
+    store.change("knowledge.indexed",()=>{
+      entry.indexedAt=new Date().toISOString();entry.indexId=data.indexId;
+    });
+    res.json({indexed:true,documentId:entry.id,sha256:entry.sha256,indexId:data.indexId,
+      verified:false});
+  }));
+  router.post("/knowledge/semantic",wrap(async(req,res)=>{
+    const query=bounded(req.body?.query,120,"semantic search query");
+    const indexed=store.get().documents.filter(x=>x.indexedAt&&x.indexId);
+    if(!indexed.length)throw problem("Index at least one document before semantic search",409);
+    const data=await invokeStudio(env,"index","/v1/knowledge/search",{
+      contract:"ciro-knowledge-index.v1",query,maxResults:12,
+      corpus:indexed.map(x=>({documentId:x.id,indexId:x.indexId,sha256:x.sha256}))
+    },{fetchFn});
+    const matches=(Array.isArray(data.matches)?data.matches:[]).slice(0,20).flatMap(hit=>{
+      const doc=indexed.find(x=>x.id===hit?.documentId);
+      if(!doc||!Number.isSafeInteger(hit?.line)||hit.line<1||hit.line>doc.text.split("\n").length||
+        typeof hit?.score!=="number"||!Number.isFinite(hit.score)||hit.score<0||hit.score>1)return [];
+      const lines=doc.text.split("\n");
+      const excerpt=lines.slice(Math.max(0,hit.line-2),Math.min(lines.length,hit.line+2)).join("\n").slice(0,600);
+      return [{id:doc.id,title:doc.title,source:doc.source,sha256:doc.sha256,
+        citation:"knowledge:"+doc.id+":L"+hit.line,excerpt,line:hit.line,score:hit.score}];
+    });
+    res.json({query,results:matches,source:"indexed_adapter_hits_rebound_to_local_sha256"});
+  }));
   router.get("/knowledge/:id",wrap((req,res)=>{
     const entry=store.get().documents.find(x=>x.id===req.params.id);
     if(!entry)throw problem("Knowledge source not found",404);
@@ -172,6 +209,7 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
   router.post("/research",wrap(async(req,res)=>{
     const query=bounded(req.body?.query,900,"research query");
     const depth=["quick","deep"].includes(req.body?.depth)?req.body.depth:"quick";
+    assertBudgetAdmission(env,createWorkbenchStore(folder).get());
     const data=await invokeStudio(env,"research","/v1/research/jobs",{
       contract:"ciro-research.v1",query,depth,maxSources:depth==="deep"?12:6,
       evidenceRequired:true,mode:"user_initiated"
@@ -197,6 +235,7 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
     const priority=req.body?.priority;
     if(!Number.isSafeInteger(maxSeconds)||maxSeconds<30||maxSeconds>3600)throw problem("Thinking time must be 30-3600 seconds");
     if(![1,2,5].includes(priority))throw problem("Thinking priority must be 1, 2 or 5");
+    assertBudgetAdmission(env,createWorkbenchStore(folder).get());
     const data=await invokeStudio(env,"think","/v1/reasoning/jobs",{
       contract:"ciro-reasoning.v1",objective,maxSeconds,priority,
       allowUnboundedSpending:false,requireEvidence:true
@@ -212,6 +251,17 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
       summary:typeof data.summary==="string"?data.summary.slice(0,12000):null,
       evidence:Array.isArray(data.evidence)?data.evidence.slice(0,12):[],verified:false});
   }));
+  router.post("/think/jobs/:id/actions",wrap(async(req,res)=>{
+    if(!/^[a-zA-Z0-9_.:-]{5,120}$/.test(req.params.id))throw problem("Invalid reasoning jobId");
+    const action=req.body?.action;
+    if(!["pause","resume","cancel"].includes(action))throw problem("Unsupported reasoning job action");
+    const data=await invokeStudio(env,"think","/v1/reasoning/jobs/"+req.params.id+"/actions",{
+      contract:"ciro-reasoning.v1",action
+    },{fetchFn});
+    if(typeof data.status!=="string"||data.status.length>90)
+      throw problem("Reasoning adapter did not acknowledge state",502);
+    res.json({jobId:req.params.id,status:data.status,confirmedByAdapter:true});
+  }));
   router.post("/media/jobs",wrap(async(req,res)=>{
     const filename=bounded(req.body?.filename,150,"media filename");
     const mime=bounded(req.body?.mime,90,"media MIME type");
@@ -224,6 +274,7 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
     };
     if(!types[kind]?.includes(mime)||!Number.isSafeInteger(bytes)||bytes<1||bytes>150*1024*1024)
       throw problem("Unsupported or oversized media");
+    assertBudgetAdmission(env,createWorkbenchStore(folder).get());
     const data=await invokeStudio(env,"media","/v1/media/jobs",{
       contract:"ciro-media.v1",filename,mime,bytes,kind,task:"analyze",
       maxUploadBytes:150*1024*1024

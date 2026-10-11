@@ -19,7 +19,7 @@ export type DraftProject={
   id:string;name:string;createdAt:string;updatedAt:string;revision:number;
   files:DraftFile[];checkpoints:DraftCheckpoint[]
 };
-export type KnowledgeDoc={id:string;title:string;source:string;bytes:number;sha256:string;createdAt:string};
+export type KnowledgeDoc={id:string;title:string;source:string;bytes:number;sha256:string;createdAt:string;indexedAt?:string;indexId?:string};
 export type KnowledgeHit={id:string;title:string;source:string;sha256:string;citation:string;
   excerpt:string;line:number;score:number};
 export type NativeJob={jobId:string;status:string;summary?:string|null;

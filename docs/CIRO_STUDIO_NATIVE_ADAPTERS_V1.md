@@ -85,3 +85,11 @@ S6 市场和设备：签名包沙盒、真实安装二进制、双设备加密�
 S7 商业部署：Stripe 真实测试商户、事务型多租户存储、TLS、日志与备份独立审计。
 
 S1 即使完全通过，也不能写 S2-S7 PASSED。
+
+
+### V1.1 可用扩展：语义索引与任务控制
+
+- 文档主动建索引：POST /api/studio/knowledge/:id/index，body {confirmExternalUpload:true}。明确征得用户同意后，服务器把 {contract:"ciro-knowledge-index.v1",documentId,title,source,sha256,content} 发给 CIRO_KNOWLEDGE_INDEX_URL/v1/knowledge/documents，要求上游 accepted=true、同一 SHA256 和 indexId。
+- POST /api/studio/knowledge/semantic {query} 向 /v1/knowledge/search 发送仅包含已索引文档 indexId、SHA256 和 query 的 corpus；上游返回 matches:[{documentId,line,score}]，客户端服务器只接受存在的本地文档及合法行数，并**重新从本地全文生成摘录和引用行号**。上游伪造的 excerpt 字段被丢弃。
+- 持久推理可 POST /api/studio/think/jobs/:id/actions {action:"pause"|"resume"|"cancel"}；接线为 Native POST /v1/reasoning/jobs/:id/actions，只有返回有效 status 才更新页面。取消中算力硬停止、预算释放与回滚仍需原生 Runtime 实证。
+- IDE/推理/研究/媒体创建原生作业之前复用工作台配置的月度预算准入门；未接原生计算实时熔断前这仍不是硬性零超支保证。

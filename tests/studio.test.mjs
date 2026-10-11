@@ -219,3 +219,54 @@ test("Ed25519 marketplace manifests require trusted detached signatures, never a
     assert.equal((await f.request("/marketplace")).json.selected[0].id,item.id);
   }finally{await f.close();}
 });
+
+test("semantic knowledge integration requires consent, correct digest and rebinds citations to local source",async()=>{
+  const calls=[];let digest="",documentId="";
+  const mock=async(url,init)=>{
+    const body=JSON.parse(init.body||"{}");calls.push(url);
+    if(url.endsWith("/v1/knowledge/documents")){
+      digest=body.sha256;documentId=body.documentId;
+      return new Response(JSON.stringify({accepted:true,sha256:digest,indexId:"index-deterministic-001"}),{status:200});
+    }
+    return new Response(JSON.stringify({matches:[{documentId,line:2,score:0.91,
+      excerpt:"SERVER-INVENTED-CITATION"},{documentId:"unknown",line:1,score:0.9}]}),{status:200});
+  };
+  const f=await fixture({CIRO_KNOWLEDGE_INDEX_URL:"https://index.ciro.example",
+    CIRO_KNOWLEDGE_INDEX_TOKEN:"token"},mock);
+  try{
+    const created=await f.request("/knowledge/import","POST",{
+      title:"proof.md",text:"Line one\nReal deterministic proof H64\nLine three"
+    });
+    const id=created.json.document.id;
+    assert.equal((await f.request("/knowledge/"+id+"/index","POST",{confirmExternalUpload:false})).status,403);
+    assert.equal((await f.request("/knowledge/semantic","POST",{query:"H64"})).status,409);
+    const indexed=await f.request("/knowledge/"+id+"/index","POST",{confirmExternalUpload:true});
+    assert.equal(indexed.status,200);assert.equal(indexed.json.sha256,created.json.document.sha256);
+    const matched=await f.request("/knowledge/semantic","POST",{query:"H64"});
+    assert.equal(matched.status,200);assert.equal(matched.json.results.length,1);
+    assert.match(matched.json.results[0].excerpt,/Real deterministic proof H64/);
+    assert.ok(!matched.json.results[0].excerpt.includes("SERVER-INVENTED"));
+    assert.match(matched.json.results[0].citation,/^knowledge:.+:L2$/);
+    assert.equal(calls.length,2);
+  }finally{await f.close();}
+});
+test("native extended reasoning job supports acknowledged pause, resume and cancel actions",async()=>{
+  const seen=[];
+  const f=await fixture({CIRO_REASONING_URL:"https://reasoning.ciro.example",
+    CIRO_REASONING_TOKEN:"token"},async(url,opts)=>{
+    seen.push({url,method:opts.method,body:opts.body?JSON.parse(opts.body):null});
+    return new Response(JSON.stringify(
+      url.endsWith("/v1/reasoning/jobs")?{jobId:"thinking-job-001",status:"queued"}:
+      url.endsWith("/actions")?{status:"paused"}:{status:"queued",summary:"Still running"}
+    ),{status:200});
+  });
+  try{
+    const queued=await f.request("/think/jobs","POST",{objective:"Reason about a theorem",maxSeconds:120,priority:2});
+    assert.equal(queued.status,202);
+    assert.equal(queued.json.jobId,"thinking-job-001");
+    const paused=await f.request("/think/jobs/thinking-job-001/actions","POST",{action:"pause"});
+    assert.equal(paused.status,200);assert.equal(paused.json.status,"paused");
+    assert.equal((await f.request("/think/jobs/thinking-job-001/actions","POST",{action:"exec"})).status,400);
+    assert.equal(seen[1].body.action,"pause");
+  }finally{await f.close();}
+});

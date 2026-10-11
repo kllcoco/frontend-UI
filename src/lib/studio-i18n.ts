@@ -1,5 +1,12 @@
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
+  "语义搜索": "Semantic search",
+  "已建立索引": "Indexed",
+  "建立语义索引": "Build semantic index",
+  "建立语义索引需将该文档发送到你配置的原生服务，是否继续？": "Send this document to the configured native index service?",
+  "暂停任务": "Pause job",
+  "恢复任务": "Resume job",
+  "取消任务": "Cancel job",
   "融合工作台": "Unified Studio",
   "全能对话 + 自主执行": "Conversation + autonomous execution",
   "从灵感到交付，保持每一步可见。": "From an idea to evidence-backed delivery.",
