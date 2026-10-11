@@ -184,7 +184,7 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end", behavior: busy ? "instant" : "smooth" });
+    endRef.current?.scrollIntoView({ block: "end", behavior: (busy || preferences.reduceMotion) ? "instant" : "smooth" });
   }, [activeId, current?.messages.at(-1)?.content, busy]);
   useEffect(() => {
     function shortcuts(event: globalThis.KeyboardEvent) {

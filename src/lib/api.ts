@@ -75,7 +75,7 @@ export async function streamChat({ messages, model, signal, onDelta }: StreamOpt
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      pending += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      pending = (pending + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
       let split = pending.indexOf("\n\n");
       while (split !== -1) {
         const event = pending.slice(0, split);

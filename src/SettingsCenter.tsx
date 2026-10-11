@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { ArrowDownToLine, Check, ChevronRight, Clock3, Code2, Database, FileText, Globe2, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, X } from "lucide-react";
 import CiroMark from "./components/CiroMark";
@@ -65,6 +65,11 @@ export default function SettingsCenter({
   const inputRef = useRef<HTMLInputElement>(null);
   const totalMessages = conversations.reduce((sum, chat) => sum + chat.messages.length, 0);
   const wallpaper = backgroundUrl(appearance.preset, customImageUrl);
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [onClose]);
 
   function updateAppearance<K extends keyof AppearanceSettings>(key: K, value: AppearanceSettings[K]) {
     onAppearanceChange({ ...appearance, [key]: value });
