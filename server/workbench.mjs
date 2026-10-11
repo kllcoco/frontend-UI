@@ -91,6 +91,14 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     res.set("Cache-Control","no-store");
     next();
   });
+  // Authenticated accounts must use the installed-plugin gateway for GitHub.
+  // The V0.7 server-wide token endpoints are local development compatibility only.
+  router.use((req,res,next)=>{
+    if(env.CIRO_ACCOUNTS_ENABLED==="true" &&
+       (/^\/github(?:\/|$)/.test(req.path)||req.path==="/plugins/github/toggle"))
+      return res.status(410).json({error:"Use the per-user GitHub plugin in Plugin Center."});
+    next();
+  });
   const wrap=fn=>(req,res)=>Promise.resolve().then(()=>fn(req,res)).catch(error=>{
     res.status(error.statusCode||400).json({error:error.message||"Workbench action failed."});
   });
