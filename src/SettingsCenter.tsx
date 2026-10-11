@@ -106,10 +106,10 @@ export default function SettingsCenter({
           {section === "appearance" && <>
             <div className="sc-section-heading"><div><h3>把 Ciro 变成你的空间</h3><p>选一处风景，或上传只属于你的背景。每次调整都会立即生效。</p></div>
               <span className="sc-save-status"><Check size={14}/> 自动保存</span></div>
-            <div className="sc-preview" style={{
-              backgroundImage: "linear-gradient(rgba(1,12,14," + appearance.overlay / 100 + "),rgba(1,12,14," + appearance.overlay / 100 + ")),url('" + wallpaper + "')",
-              filter: "brightness(" + appearance.brightness / 100 + ")"
-            }}>
+            <div className="sc-preview">
+              <div className="sc-preview-wallpaper" style={{ backgroundImage: "url('" + wallpaper + "')",
+                filter: "blur(" + appearance.blur + "px) brightness(" + appearance.brightness / 100 + ")" }} aria-hidden="true"/>
+              <div className="sc-preview-dimmer" style={{ backgroundColor: "rgba(1,12,14," + appearance.overlay / 100 + ")" }} aria-hidden="true"/>
               <div className="sc-preview-glass"><CiroMark small/><span><strong>你好，我是 Ciro。</strong><small>让每一个想法，走得更远。</small></span></div>
               <span className="sc-preview-label">实时预览 · 模糊 {appearance.blur}px</span>
             </div>

@@ -191,3 +191,9 @@
   .sc-footer>span{font-size:9px}
   .sc-section-heading h3{font-size:13px}
 }
+
+.sc-preview-wallpaper,.sc-preview-dimmer{position:absolute;inset:-3%;pointer-events:none}
+.sc-preview-wallpaper{background-size:cover;background-position:center;transform:scale(1.06)}
+.sc-preview-dimmer{inset:0}
+.sc-preview-glass,.sc-preview-label{position:relative;z-index:1}
+.sc-preview-label{position:absolute}
