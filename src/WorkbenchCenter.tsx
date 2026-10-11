@@ -130,7 +130,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
     if(result) setFullConsent(false);
   }
   async function connectGithub(){
-    const result=await w.call<{policy:{repo:string}}>("/github/connect",{repo:repoInput.trim()},t("已验证连接"));
+    const result=await w.call<{policy:{repo:string;mode:PermissionMode}}>("/github/connect",{repo:repoInput.trim()},t("已验证连接"));
     if(result) {setPermissionMode(result.policy.mode);setGithubFile(null);}
   }
   async function readGithub(){

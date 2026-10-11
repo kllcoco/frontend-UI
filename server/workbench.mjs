@@ -132,9 +132,17 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     if(!caps.runner){store.change("goal.waiting_runtime",{id},()=>{initialGoal.status="waiting_runtime";log(initialGoal,"waiting","CIRO agent runtime is not connected.");});return;}
     running.add(id);
     try{
-      for(let loops=0;loops<16;loops++){
+      for(let loops=0;loops<40;loops++){
         const goal=findGoal(id);
         if(!goal||goal.status==="cancelled"||goal.status==="paused")break;
+        if(!store.get().plugins.runner || goal.repo!==store.get().policy.repo ||
+           (goal.policySnapshot && goal.policySnapshot!==JSON.stringify(store.get().policy))) {
+          store.change("goal.authorization.revoked",{id},()=>{
+            goal.status="paused";goal.error="Workspace permissions changed; resume requires fresh authorization.";
+            log(goal,"revoked",goal.error);
+          });
+          break;
+        }
         const step=PHASES.find(x=>x.phase===goal.phase);
         if(!step)break;
         if(step.service==="verifier"&&!caps.verifier){
@@ -228,9 +236,18 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
           if(goal.status==="blocked")break;
         }
       }
-    }finally{running.delete(id);}
+    }finally{
+      running.delete(id);
+      const latest=findGoal(id);
+      if(latest?.status==="queued")queueMicrotask(()=>void workGoal(id));
+      else if(latest?.status==="running")store.change("goal.phase.limit",{id},()=>{
+        latest.status="blocked";latest.error="Maximum workflow phase count reached.";
+        log(latest,"blocked",latest.error);
+      });
+    }
   }
   function requestStart(goal, action="task.run") {
+    if(goal.repo!==store.get().policy.repo) throw new Error("Goal repository scope changed; start a new scoped task.");
     const runtime=runtimeConfig(env);
     if(!store.get().plugins.runner) throw new Error("CIRO runtime plugin is disabled.");
     if(!runtime.runner){
@@ -244,7 +261,10 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
       store.change("goal.waiting_approval",{id:goal.id},()=>{goal.status="waiting_approval";log(goal,"approval",a.id);});
       return {status:"waiting_approval",goal,approval:a};
     }
-    store.change("goal.queued",{id:goal.id},()=>{goal.status="queued";log(goal,"queued","Delegated execution queued.");});
+    store.change("goal.queued",{id:goal.id},()=>{
+      goal.status="queued";goal.policySnapshot=JSON.stringify(store.get().policy);
+      log(goal,"queued","Delegated execution queued.");
+    });
     queueMicrotask(()=>void workGoal(goal.id));
     return {status:"queued",goal};
   }
@@ -252,17 +272,37 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
   router.post("/permissions",wrap((req,res)=>{
     const prev=store.get().policy;
     const next=normalizePolicy(req.body,prev);
+    const changed=JSON.stringify(prev)!==JSON.stringify(next);
     store.change("permissions.updated",{mode:next.mode,repo:next.repo},s=>{s.policy=next;});
+    if(changed) {
+      for(const id of running) {
+        activeRequests.get(id)?.abort();
+        const goal=findGoal(id);
+        if(goal)store.change("goal.permission.revoked",{id},()=>{
+          goal.status="paused";goal.error="Permissions changed during execution.";
+          log(goal,"revoked",goal.error);
+        });
+      }
+    }
     res.json({policy:next});
   }));
   router.get("/github/status",(_req,res)=>res.json(serverCapabilities(env,store).github));
   router.post("/github/connect",wrap(async(req,res)=>{
     const repo=checkedString(req.body?.repo,"repository",210);
     const verified=await verifyGitHubRepo(repo,adapterOptions);
+    const previousRepo=store.get().policy.repo;
     store.change("github.selected",{repo},s=>{
       const changed=s.policy.repo!==repo;
       s.policy={...s.policy,repo, ...(changed?{mode:"request"}:{})};
     });
+    if(previousRepo!==repo)for(const id of running){
+      activeRequests.get(id)?.abort();
+      const goal=findGoal(id);
+      if(goal)store.change("goal.repository.revoked",{id},()=>{
+        goal.status="paused";goal.error="Repository scope changed.";
+        log(goal,"revoked",goal.error);
+      });
+    }
     res.json({...verified,policy:store.get().policy});
   }));
   router.get("/github/file",wrap(async(req,res)=>{
@@ -283,7 +323,10 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     if(action==="task.run"){
       const g=findGoal(payload.goalId);
       if(!g)throw new Error("Goal no longer exists.");
-      store.change("goal.approved",{id:g.id},()=>{g.status="queued";log(g,"approved","Execution approved.");});
+      store.change("goal.approved",{id:g.id},()=>{
+        g.status="queued";g.policySnapshot=JSON.stringify(store.get().policy);
+        log(g,"approved","Execution approved.");
+      });
       queueMicrotask(()=>void workGoal(g.id));return {goalId:g.id,status:"queued"};
     }
     if(action==="schedule.run"){
@@ -403,14 +446,23 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     if(!Object.hasOwn(PLUGIN_LABELS,id))throw new Error("Plugin is not in the built-in catalog.");
     const item=serverCapabilities(env,store).plugins.find(x=>x.id===id);
     if(req.body?.enabled===true&&!item.ready)throw new Error("Plugin adapter has not been configured.");
-    store.change("plugin.toggled",{id,enabled:req.body?.enabled===true},s=>{s.plugins[id]=req.body?.enabled===true;});
+    const enabled=req.body?.enabled===true;
+    store.change("plugin.toggled",{id,enabled},s=>{s.plugins[id]=enabled;});
+    if(id==="runner"&&!enabled)for(const goalId of running){
+      activeRequests.get(goalId)?.abort();
+      const goal=findGoal(goalId);
+      if(goal)store.change("goal.runtime.revoked",{id:goalId},()=>{
+        goal.status="paused";goal.error="Runtime was disabled.";
+        log(goal,"revoked",goal.error);
+      });
+    }
     res.json({ok:true,enabled:store.get().plugins[id]});
   }));
   function createGoalFromSchedule(schedule){
     const goal={id:store.id(),title:schedule.title,goal:schedule.goal,mode:"goal",
       repo:store.get().policy.repo,createdAt:now(),updatedAt:now(),phase:"plan",status:"draft",attempt:0,
       plan:[],evidence:[],events:[],lastResult:null,error:null};
-    store.change("schedule.goal.created",{scheduleId:schedule.id,id:goal.id},s=>{s.goals.unshift(goal);});
+    store.change("schedule.goal.created",{scheduleId:schedule.id,id:goal.id},s=>{s.goals.unshift(goal);s.goals=s.goals.slice(0,90);});
     return requestStart(goal,"task.run");
   }
   function tick(at=new Date()){
