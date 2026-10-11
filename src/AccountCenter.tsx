@@ -13,10 +13,9 @@ import {accountApi,getAccountSession,refreshAuthAfterLogin,invalidateAccountSess
 import type {AccountTab,SessionSnapshot} from "./lib/account-api";
 import {commercialApi,formatUsdMicros} from "./lib/commercial-api";
 import {loadConversations} from "./lib/storage";
-import type {Conversation} from "./types";
 import {autoSyncEnabled,configureAutoSync,currentSyncState,readLocalSnapshot,
   persistCloudSnapshot} from "./lib/cloud-sync";
-import type {SyncSignal} from "./lib/cloud-sync";
+import type {SyncSignal,SyncPayload} from "./lib/cloud-sync";
 
 type Props={language:Language;section:AccountTab};
 type Profile={user:NonNullable<SessionSnapshot["user"]>;sessions:{id:string;createdAt:string;expiresAt:number}[];
@@ -26,8 +25,7 @@ type Notification={id:string;type:string;title:string;body:string;createdAt:stri
 type MemoryEntry={id:string;category:string;content:string;createdAt:string};
 type Spending={dailyLimitMicros:number|null;monthlyLimitMicros:number|null;singleRequestLimitMicros:number|null;
   reservedCount:number;dailyCommittedPlusReservedMicros:number;monthlyCommittedPlusReservedMicros:number;admissionRequiresSignedRuntime:boolean};
-type CloudSnapshot={conversations:Conversation[];activeId:string|null;preferences:Record<string,unknown>};
-type SyncState={version:number;snapshot:CloudSnapshot|null;updatedAt:string|null};
+type SyncState={version:number;snapshot:SyncPayload|null;updatedAt:string|null};
 const labels:Record<AccountTab,string>={
   account:"账户与安全",subscription:"订阅管理", "api-keys":"API 密钥",
   spending:"消费限额",notifications:"通知中心",memory:"记忆管理",sync:"跨设备同步"
@@ -143,7 +141,7 @@ export default function AccountCenter({language,section}:Props){
   }
   async function saveSpending(e:FormEvent<HTMLFormElement>){
     e.preventDefault();
-    await action(()=>commercialApi("/billing/spending","POST",{
+    await action(()=>commercialApi("/billing/spending",{
       dailyUsd:daily.trim()?daily.trim():null,monthlyUsd:monthly.trim()?monthly.trim():null,
       singleRequestUsd:single.trim()?single.trim():null
     }));
