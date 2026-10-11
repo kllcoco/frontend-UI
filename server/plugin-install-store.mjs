@@ -37,17 +37,33 @@ export function createPluginInstallStore({dir,readyProviders={}}={}){
   return database.read().installed.filter(x=>x.ownerId===ownerId)
     .map(({ownerId:_,...record})=>record);
  }
- function prepare({ownerId,sessionId,id}){
+ function prepare({ownerId,sessionId,id,verifiedPackage=null}){
   const plugin=getPlugin(id);
   if(!plugin)throw fail("Plugin not found",404);
   if(!plugin.ready)throw fail("Plugin is not ready for installation",409);
+  let signedPackage=null;
+  if(verifiedPackage){
+    const incoming=verifiedPackage.manifest;
+    if(incoming?.id!==id||incoming.version!==plugin.version||
+       incoming.runtime?.adapter!==id||
+       JSON.stringify(incoming.permissions)!==JSON.stringify(plugin.permissions)||
+       JSON.stringify(incoming.tools)!==JSON.stringify(plugin.tools)||
+       !/^[a-f0-9]{64}$/.test(verifiedPackage.digest)||
+       !Number.isFinite(Date.parse(incoming.expiresAt))||
+       Date.parse(incoming.expiresAt)<=Date.now())
+      throw fail("Signed package does not match approved adapter capabilities",403);
+    signedPackage={digest:verifiedPackage.digest,issuer:verifiedPackage.signer,
+      expiresAt:incoming.expiresAt};
+  }
   const nonce=randomUUID();
   const fingerprint=digest({id:plugin.id,version:plugin.version,permissions:plugin.permissions,tools:plugin.tools});
   return mutate("install.prepared",ownerId,id,state=>{
     if(find(state,ownerId,id))throw fail("Plugin already installed",409);
     state.intents=state.intents.filter(x=>x.ownerId!==ownerId||x.id!==id);
-    state.intents.push({nonce,ownerId,sessionId,id,fingerprint,expiresAt:Date.now()+300000});
-    return {nonce,plugin:{...plugin},fingerprint,expiresInSeconds:300};
+    state.intents.push({nonce,ownerId,sessionId,id,fingerprint,signedPackage,
+      expiresAt:Date.now()+300000});
+    return {nonce,plugin:{...plugin},fingerprint,expiresInSeconds:300,
+      signedPackage};
   });
  }
  function install({ownerId,sessionId,id,nonce,fingerprint,confirm}){
@@ -61,8 +77,12 @@ export function createPluginInstallStore({dir,readyProviders={}}={}){
       permissions:plugin.permissions,tools:plugin.tools})!==fingerprint)
       throw fail("Plugin changed; review permissions again",409);
     if(find(state,ownerId,id))throw fail("Already installed",409);
+    if(intent.signedPackage&&Date.parse(intent.signedPackage.expiresAt)<=Date.now())
+      throw fail("Signed plugin package expired before confirmation",403);
     state.intents=state.intents.filter(x=>x!==intent);
-    const record={id,version:plugin.version,manifestHash:fingerprint,installedAt:new Date().toISOString(),enabled:true};
+    const record={id,version:plugin.version,manifestHash:fingerprint,installedAt:new Date().toISOString(),enabled:true,
+      ...(intent.signedPackage?{packageDigest:intent.signedPackage.digest,
+        packageIssuer:intent.signedPackage.issuer}:{})};
     state.installed.push({ownerId,...record});
     return record;
   });
