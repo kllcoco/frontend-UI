@@ -39,3 +39,17 @@ jobs:
         run: npm run test:e2e
         env:
           CI: "true"
+      - name: Browser failure context
+        if: failure()
+        run: |
+          find test-results -type f -name 'error-context.md' -print -exec sed -n '1,160p' {} \; || true
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ciro-plugin-e2e-failure-${{ github.run_number }}
+          path: |
+            test-results/
+            artifacts/playwright-report/
+          retention-days: 3
+          if-no-files-found: ignore
