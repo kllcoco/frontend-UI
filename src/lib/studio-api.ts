@@ -8,7 +8,7 @@ export type StudioCapabilities={
   ide:{draftEditor:boolean;projectCheckpoint:boolean;sandboxExecution:NativeService};
   knowledge:{localTextIndex:boolean;embedding:NativeService};
   research:NativeService;media:NativeService;
-  compute:{signedTelemetry:boolean;status:string};
+  compute:{signedTelemetry:boolean;status:string;modelControl:NativeService};
   conversations:{folderAndBranch:string;checkpoint:string};
   marketplace:{builtInDirectory:boolean;remoteRegistry:NativeService};
   devices:{pwaShell:boolean;nativeApps:string;accountSync:string}
@@ -24,6 +24,12 @@ export type KnowledgeHit={id:string;title:string;source:string;sha256:string;cit
   excerpt:string;line:number;score:number};
 export type NativeJob={jobId:string;status:string;summary?:string|null;
   evidence?:unknown[];sources?:{title:string;url:string;excerpt:string}[];verified?:boolean};
+export type ModelOverview={
+  source:string;models:Record<string,string|number>[];trainingRuns:Record<string,string|number>[];
+  datasets:Record<string,string|number>[];checkpoints:Record<string,string|number>[]
+};
+export type TrainingDetail={id:string;status:string;source:string;evidenceSha256:string|null;
+  metrics:{step:number;loss:number;validationLoss?:number}[]};
 export type Telemetry={eventId:string;observedAt:string;receivedAt:string;source:string;
   metrics:Record<string,number>};
 export type MarketEntry={id:string;kind:"app"|"skill";title:string;description:string;version:string;

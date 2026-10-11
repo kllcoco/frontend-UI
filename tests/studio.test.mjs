@@ -270,3 +270,36 @@ test("native extended reasoning job supports acknowledged pause, resume and canc
     assert.equal(seen[1].body.action,"pause");
   }finally{await f.close();}
 });
+
+test("model training dashboard only returns native metadata, sanitized runs and actual loss points",async()=>{
+  const seen=[];
+  const mock=async(url)=>{
+    seen.push(url);
+    if(url.endsWith("/overview"))return new Response(JSON.stringify({
+      models:[{id:"ciro-h64",version:"gen1",architecture:"NCPA",qualification:"candidate"}],
+      trainingRuns:[{id:"train-A",status:"running",step:240,loss:1.21}],
+      datasets:[{id:"atoms-v1",version:"1",examples:200000,sha256:"a".repeat(64)}],
+      checkpoints:[{id:"ckpt-240",modelId:"ciro-h64",step:240,sha256:"b".repeat(64)}]
+    }),{status:200});
+    return new Response(JSON.stringify({
+      status:"running",evidenceSha256:"c".repeat(64),
+      metrics:[{step:1,loss:3.4},{step:100,loss:1.9},{step:-5,loss:0.0},
+        {step:240,loss:1.21,validationLoss:1.31}]
+    }),{status:200});
+  };
+  const f=await fixture({CIRO_MODEL_CONTROL_URL:"https://model.ciro.example",
+    CIRO_MODEL_CONTROL_TOKEN:"long-secret"},mock);
+  try{
+    assert.equal((await f.request("/capabilities")).json.compute.modelControl.configured,true);
+    const overview=await f.request("/model-control");
+    assert.equal(overview.status,200);assert.equal(overview.json.models[0].id,"ciro-h64");
+    assert.equal(overview.json.source,"configured_native_model_control_unverified");
+    const series=await f.request("/model-control/runs/train-A");
+    assert.equal(series.status,200);assert.equal(series.json.metrics.length,3);
+    assert.deepEqual(series.json.metrics.map(x=>x.step),[1,100,240]);
+    assert.equal(seen.length,2);
+  }finally{await f.close();}
+  const empty=await fixture();
+  try{assert.equal((await empty.request("/model-control")).status,503);}
+  finally{await empty.close();}
+});

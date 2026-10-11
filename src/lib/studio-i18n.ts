@@ -1,5 +1,17 @@
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
+  "模型与训练控制台": "Model & training console",
+  "从原生模型读取": "Read from native runtime",
+  "尚无来自 CIRO 的训练数据": "No verified CIRO training data yet",
+  "模型版本": "Model versions",
+  "训练任务": "Training runs",
+  "查看训练曲线": "View training curve",
+  "数据集": "Datasets",
+  "训练损失曲线": "Training loss curve",
+  "训练数据不足以绘制曲线": "Not enough data for a loss curve",
+  "真实训练指标": "Native training metrics",
+  "无独立证据": "No independent evidence",
+  "未独立验收": "Not independently verified",
 "原生桥接协议":"Native shell protocol",
 "检测到桥接，但尚未独立认证":"Bridge detected; not independently attested",
 "尚未检测到签约的原生容器":"No trusted native container detected",

@@ -14,7 +14,7 @@ import type {Language} from "./lib/i18n";
 import {studioTranslate} from "./lib/studio-i18n";
 import {studioApi,humanBytes} from "./lib/studio-api";
 import type {StudioTab,StudioCapabilities,DraftProject,KnowledgeDoc,KnowledgeHit,
-  NativeJob,Telemetry,MarketEntry,NativeService} from "./lib/studio-api";
+  NativeJob,Telemetry,MarketEntry,NativeService,ModelOverview,TrainingDetail} from "./lib/studio-api";
 import {probeNativeShell,sendNativeNotification} from "./lib/native-shell";
 import type {NativeShellStatus} from "./lib/native-shell";
 import {commercialApi} from "./lib/commercial-api";
@@ -92,6 +92,8 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     [recording,setRecording]=useState(false);
   const recorderRef=useRef<MediaRecorder|null>(null),chunksRef=useRef<Blob[]>([]),recordStream=useRef<MediaStream|null>(null);
   const [telemetry,setTelemetry]=useState<Telemetry[]>([]),[commercial,setCommercial]=useState<CommerceState|null>(null);
+  const [modelOverview,setModelOverview]=useState<ModelOverview|null>(null);
+  const [trainingDetail,setTrainingDetail]=useState<TrainingDetail|null>(null);
   const [registry,setRegistry]=useState<{connected:boolean;items:MarketEntry[];selected:{id:string}[]}|null>(null);
   const [libraryQuery,setLibraryQuery]=useState(""),[folderDraft,setFolderDraft]=useState(""),
     [branchAt,setBranchAt]=useState(0),[libraryActive,setLibraryActive]=useState<string|null>(null);
@@ -148,6 +150,10 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           if(active)setDocuments(x.documents);
         }
         if(section==="compute"){
+          if(caps?.compute.modelControl.configured){
+            const overview=await studioApi<ModelOverview>("/model-control");
+            if(active)setModelOverview(overview);
+          }
           const [x,b]=await Promise.all([
             studioApi<{events:Telemetry[]}>("/compute"),commercialApi<CommerceState>("/state")
           ]);
@@ -161,7 +167,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     };
     void get();
     return ()=>{active=false;};
-  },[section]);
+  },[section,caps?.compute.modelControl.configured]);
   async function run(task:()=>Promise<void>,success=""){
     setError("");setNotice("");setLoading(true);
     try{await task();if(success)setNotice(t(success));}
@@ -557,7 +563,57 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       </section>
     </>}
 
-    {section==="library"&&<>
+      <section className="stu-card stu-model-console">
+        <div className="stu-section-head"><h3><BrainCircuit size={18}/>{t("模型与训练控制台")}</h3>
+          <button type="button" className="stu-light-button" disabled={!caps?.compute.modelControl.configured}
+            onClick={()=>void run(async()=>setModelOverview(await studioApi<ModelOverview>("/model-control")))}>
+            <RefreshCcw size={15}/>{t("从原生模型读取")}</button></div>
+        <NativeNote provider={caps?.compute.modelControl} language={language}/>
+        {!modelOverview?<p className="stu-small">{t("尚无来自 CIRO 的训练数据")}</p>:
+          <div className="stu-model-grid">
+            <div><h4>{t("模型版本")} · {modelOverview.models.length}</h4>
+              {modelOverview.models.map((m,i)=><div className="stu-model-item" key={String(m.id||i)}>
+                <strong>{String(m.id||"")}</strong><small>{String(m.version||"—")} · {String(m.architecture||"—")}</small>
+                <code>{String(m.qualification||"未独立验收")}</code></div>)}</div>
+            <div><h4>{t("训练任务")} · {modelOverview.trainingRuns.length}</h4>
+              {modelOverview.trainingRuns.map((m,i)=><button className="stu-model-item stu-model-run" key={String(m.id||i)}
+                onClick={()=>void run(async()=>{
+                  setTrainingDetail(await studioApi<TrainingDetail>("/model-control/runs/"+encodeURIComponent(String(m.id))));
+                })}>
+                <strong>{String(m.id||"")}</strong><small>{String(m.status||"unknown")} · step {String(m.step??"—")}</small>
+                <span>{t("查看训练曲线")} <ArrowRight size={13}/></span></button>)}</div>
+            <div><h4>{t("数据集")} · {modelOverview.datasets.length}</h4>
+              {modelOverview.datasets.map((m,i)=><div className="stu-model-item" key={String(m.id||i)}>
+                <strong>{String(m.id||"")}</strong><small>{String(m.version||"—")} · {String(m.examples??"—")} items</small>
+                <code>{String(m.sha256||"—").slice(0,24)}</code></div>)}</div>
+            <div><h4>Checkpoint · {modelOverview.checkpoints.length}</h4>
+              {modelOverview.checkpoints.map((m,i)=><div className="stu-model-item" key={String(m.id||i)}>
+                <strong>{String(m.id||"")}</strong><small>step {String(m.step??"—")} · {String(m.modelId||"—")}</small>
+                <code>{String(m.sha256||"—").slice(0,24)}</code></div>)}</div>
+          </div>}
+        {trainingDetail&&<div className="stu-training-graph">
+          <h4>{t("训练损失曲线")} · {trainingDetail.id} <span>{trainingDetail.status}</span></h4>
+          {trainingDetail.metrics.length>1?<svg viewBox="0 0 500 148" role="img" aria-label={t("训练损失曲线")}
+            preserveAspectRatio="none">
+            {(()=>{
+              const rows=trainingDetail.metrics;
+              const lo=Math.min(...rows.map(r=>r.loss)),hi=Math.max(...rows.map(r=>r.loss));
+              const first=rows[0].step,last=rows[rows.length-1].step;
+              const points=rows.map(r=>{
+                const x=12+(r.step-first)/Math.max(1,last-first)*476;
+                const y=130-(r.loss-lo)/Math.max(1e-8,hi-lo)*111;
+                return x.toFixed(1)+","+y.toFixed(1);
+              }).join(" ");
+              return <polyline points={points} stroke="#36996a" strokeWidth={2.5}
+                fill="none" strokeLinejoin="round" strokeLinecap="round"/>;
+            })()}
+          </svg>:<p className="stu-small">{t("训练数据不足以绘制曲线")}</p>}
+          <div className="stu-training-foot"><span>{t("真实训练指标")} · {trainingDetail.metrics.length}</span>
+            <span>SHA256: {trainingDetail.evidenceSha256||t("无独立证据")}</span></div>
+        </div>}
+      </section>
+
+        {section==="library"&&<>
       <Banner>{t("本地会话可搜索、分支和恢复；打开跨设备同步后将随对话快照同步。")}</Banner>
       <label className="stu-search-bar"><Search size={17}/>
         <input aria-label={t("历史对话与版本")} value={libraryQuery} onChange={e=>setLibraryQuery(e.target.value)}

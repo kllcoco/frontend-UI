@@ -98,3 +98,17 @@ S1 即使完全通过，也不能写 S2-S7 PASSED。
 ### Native shell 进阶接线（不冒充已打包）
 
 页面通过 window.ciroNativeBridge.handshake({contract:"ciro-native-shell.v1",origin,nonce}) 侦测未来 Tauri/Capacitor 原生容器，要求回显同一 origin/nonce 并声明平台、版本与允许通知/深链的最小能力。不会暴露任意 host shell、文件系统或密钥。真实通知仅在用户点击后调用受控 notify({title,body})。当前握手仅能表明桥接存在，不能证明原生端已做可信签名/attestation；真正 Windows/macOS/Android/iOS 仍须平台构建和来源隔离审计。前端将状态明确标为未独立验证。
+
+
+### CIRO 原生模型/训练控制台 (read-only V1)
+
+只有配置 CIRO_MODEL_CONTROL_URL/TOKEN 时，用户点击才会调用
+GET /api/studio/model-control → Native GET /v1/model-control/overview 。
+期望 JSON 中有 models[] (id,version,architecture,parameters,qualification,checkpointSha256)、
+trainingRuns[] (id,status,step,loss,datasetId,latestCheckpointSha256,startedAt)、
+datasets[] (id,version,examples,sha256,license)、
+checkpoints[] (id,modelId,step,sha256,sizeBytes)；客户端过滤并限制每个字段长度/数据条数。
+GET /api/studio/model-control/runs/:id → Native GET /v1/model-control/runs/:id:
+{status,evidenceSha256,metrics:[{step:int>=0,loss:number>=0,validationLoss?:number}]}。
+仅真实数据绘制训练 loss 折线，未配置时显示空，绝不虚构 checkpoint 或训练成功。
+本接口**只读**，训练启动/停止/改数据与算力调度不暴露在公网客户端；今后需严格权限、预算和独立训练权威。

@@ -17,7 +17,8 @@ const knownServices={
   research:["CIRO_RESEARCH_SERVICE_URL","CIRO_RESEARCH_SERVICE_TOKEN"],
   media:["CIRO_MEDIA_SERVICE_URL","CIRO_MEDIA_SERVICE_TOKEN"],
   index:["CIRO_KNOWLEDGE_INDEX_URL","CIRO_KNOWLEDGE_INDEX_TOKEN"],
-  market:["CIRO_MARKETPLACE_URL","CIRO_MARKETPLACE_TOKEN"]
+  market:["CIRO_MARKETPLACE_URL","CIRO_MARKETPLACE_TOKEN"],
+  model:["CIRO_MODEL_CONTROL_URL","CIRO_MODEL_CONTROL_TOKEN"]
 };
 function trustedEndpoint(value){
   if(typeof value!=="string"||value.length>350)throw problem("Invalid adapter endpoint",503);
@@ -47,7 +48,7 @@ export function studioCapabilities(env=process.env){
     ide:{draftEditor:true,projectCheckpoint:true,sandboxExecution:providers.code},
     knowledge:{localTextIndex:true,embedding:providers.index},
     research:providers.research,media:providers.media,
-    compute:{signedTelemetry:true,status:"requires_signed_native_runtime_receipts"},
+    compute:{signedTelemetry:true,status:"requires_signed_native_runtime_receipts",modelControl:providers.model},
     conversations:{folderAndBranch:"local_browser",checkpoint:"local_browser"},
     marketplace:{builtInDirectory:true,remoteRegistry:providers.market},
     devices:{pwaShell:true,nativeApps:"not_packaged",accountSync:"v0.6_optional"}
@@ -307,6 +308,38 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
     res.json({jobId:req.params.id,status:typeof data.status==="string"?data.status:"unknown",
       summary:typeof data.summary==="string"?data.summary.slice(0,12000):null,
       evidence:Array.isArray(data.evidence)?data.evidence.slice(0,12):[]});
+  }));
+  router.get("/model-control",wrap(async(_req,res)=>{
+    const data=await invokeStudio(env,"model","/v1/model-control/overview",null,{fetchFn,method:"GET"});
+    const pick=(x,fields)=>Object.fromEntries(fields.flatMap(k=>{
+      const v=x?.[k];
+      return (typeof v==="string"&&v.length<=2000)||(typeof v==="number"&&Number.isFinite(v))?
+        [[k,v]]:[];
+    }));
+    res.json({
+      source:"configured_native_model_control_unverified",
+      models:(Array.isArray(data.models)?data.models:[]).slice(0,60)
+        .map(x=>pick(x,["id","version","architecture","parameters","qualification","checkpointSha256"])),
+      trainingRuns:(Array.isArray(data.trainingRuns)?data.trainingRuns:[]).slice(0,70)
+        .map(x=>pick(x,["id","status","step","loss","datasetId","latestCheckpointSha256","startedAt"])),
+      datasets:(Array.isArray(data.datasets)?data.datasets:[]).slice(0,70)
+        .map(x=>pick(x,["id","version","examples","sha256","license"])),
+      checkpoints:(Array.isArray(data.checkpoints)?data.checkpoints:[]).slice(0,70)
+        .map(x=>pick(x,["id","modelId","step","sha256","sizeBytes"]))
+    });
+  }));
+  router.get("/model-control/runs/:id",wrap(async(req,res)=>{
+    if(!/^[A-Za-z0-9_.:-]{3,120}$/.test(req.params.id))throw problem("Invalid native training run ID");
+    const data=await invokeStudio(env,"model","/v1/model-control/runs/"+req.params.id,null,{fetchFn,method:"GET"});
+    const metrics=(Array.isArray(data.metrics)?data.metrics:[]).slice(-300).flatMap(item=>{
+      if(!Number.isSafeInteger(item?.step)||item.step<0||
+        typeof item.loss!=="number"||!Number.isFinite(item.loss)||item.loss<0)return [];
+      return [{step:item.step,loss:item.loss,
+        ...(typeof item.validationLoss==="number"&&Number.isFinite(item.validationLoss)?{validationLoss:item.validationLoss}:{})}];
+    });
+    res.json({id:req.params.id,source:"native_unverified",
+      status:typeof data.status==="string"?data.status.slice(0,70):"unknown",metrics,
+      evidenceSha256:typeof data.evidenceSha256==="string"&&/^[a-f0-9]{64}$/.test(data.evidenceSha256)?data.evidenceSha256:null});
   }));
   router.get("/compute",(_req,res)=>{
     const events=store.get().telemetry.slice(-100);
