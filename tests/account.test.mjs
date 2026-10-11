@@ -250,3 +250,61 @@ test("spending reservation denies unmetered and limits per call, per day, monthl
     reservationId:"reserve-unit-004",estimatedCostUsd:"1"
   }),/without signed metering/);
 });
+
+
+test("signed CIRO metering and compute reservation bypass user cookies but not HMAC",async()=>{
+  const ctx=await setup();
+  try{
+    await ctx.bootstrap();
+    const payload={
+      eventId:"evt-signed-meter-01",unit:"CWU",category:"chat",
+      units:1000000,model:"ciro",receiptSha256:"f".repeat(64),
+      observedAt:new Date().toISOString()
+    };
+    const raw=JSON.stringify(payload);
+    const stamp=String(Date.now());
+    const sig=createHmac("sha256",ctx.config.CIRO_BILLING_EVENT_SECRET).update(stamp+".").update(raw).digest("hex");
+    const headers={"x-ciro-timestamp":stamp,"x-ciro-signature":sig};
+    assert.equal((await ctx.request("/api/workbench/commercial/billing/ingest",{method:"POST",raw,auth:false})).status,401);
+    const result=await ctx.request("/api/workbench/commercial/billing/ingest",{method:"POST",raw,headers,auth:false});
+    assert.equal(result.status,201);
+    assert.equal((await ctx.request("/api/workbench/commercial/billing/spending",{auth:false})).status,401);
+    const reservation={reservationId:"reserve-runtime-001",estimatedCostUsd:"1.25"};
+    const reserveText=JSON.stringify(reservation),t=String(Date.now());
+    const reserveSig=createHmac("sha256",ctx.config.CIRO_BILLING_EVENT_SECRET).update(t+".").update(reserveText).digest("hex");
+    const reserved=await ctx.request("/api/workbench/commercial/billing/reservations",{
+      method:"POST",raw:reserveText,auth:false,
+      headers:{"x-ciro-timestamp":t,"x-ciro-signature":reserveSig}
+    });
+    assert.equal(reserved.status,201);
+    assert.equal(reserved.json.reservation.amountMicros,1250000);
+  }finally{await ctx.close();}
+});
+test("verified Stripe subscription arriving before checkout is preserved and bound by owner metadata",async()=>{
+  const cfg={...env(),CIRO_STRIPE_SECRET_KEY:"sk_test_long_testing_key_not_real",
+    CIRO_STRIPE_PRICE_ID:"price_abc",
+    CIRO_STRIPE_WEBHOOK_SECRET:"whsec_demo_real_test_long_secret",
+    CIRO_PUBLIC_ORIGIN:"https://ciro.example.com"};
+  const ctx=await setup(cfg);
+  try{
+    await ctx.bootstrap();
+    const user=ctx.service.store.get().owner.id;
+    async function webhook(body){
+      const raw=JSON.stringify(body),stamp=Math.floor(Date.now()/1000);
+      const sig=createHmac("sha256",cfg.CIRO_STRIPE_WEBHOOK_SECRET).update(stamp+"."+raw).digest("hex");
+      return ctx.request("/api/account/subscription/webhook",{
+        method:"POST",auth:false,raw,headers:{"stripe-signature":"t="+stamp+",v1="+sig}
+      });
+    }
+    const changed=await webhook({id:"evt_early_sub",type:"customer.subscription.created",data:{object:{
+      id:"sub_order_test",customer:"cus_early",status:"active",metadata:{ciro_owner_id:user}
+    }}});
+    assert.equal(changed.json.applied,true);
+    const late=await webhook({id:"evt_late_checkout",type:"checkout.session.completed",data:{object:{
+      client_reference_id:user,customer:"cus_early",subscription:"sub_order_test"
+    }}});
+    assert.equal(late.json.applied,true);
+    const latest=(await ctx.request("/api/account/profile")).json.subscription;
+    assert.equal(latest.status,"active");
+  }finally{await ctx.close();}
+});

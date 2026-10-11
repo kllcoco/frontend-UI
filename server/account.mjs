@@ -199,6 +199,14 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     try{
       if(!enabled){req.principal={mode:"local",id:"local",scopes:["*"]};return next();}
       if(req.path==="/status")return next();
+      // Only these machine-to-machine mutations bypass cookie/session auth.
+      // Every target route independently validates the exact raw-body HMAC
+      // and timestamp. All other Workbench routes still require user auth.
+      if(req.method==="POST" && (
+        req.path==="/workbench/commercial/billing/ingest" ||
+        req.path==="/workbench/commercial/billing/reservations" ||
+        /^\/workbench\/commercial\/billing\/reservations\/[a-zA-Z0-9_:-]{8,120}\/release$/.test(req.path)
+      ))return next();
       const p=principal(req);
       if(!p)return res.status(401).json({error:"Sign in to Ciro first"});
       confirmOrigin(req,env);
@@ -412,7 +420,8 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const params={
       mode:"subscription","line_items[0][price]":env.CIRO_STRIPE_PRICE_ID,
       "line_items[0][quantity]":"1",success_url:origin+"/?billing=success",
-      cancel_url:origin+"/?billing=cancel",client_reference_id:owner.id
+      cancel_url:origin+"/?billing=cancel",client_reference_id:owner.id,
+      "subscription_data[metadata][ciro_owner_id]":owner.id
     };
     if(sub.customerId)params.customer=sub.customerId;else params.customer_email=owner.email;
     const session=await stripeCall(env,"checkout/sessions",params,fetchFn);
@@ -436,15 +445,18 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const type=event.type;
     const checkout=type==="checkout.session.completed" && payload.client_reference_id===owner.id;
     const subscription=type.startsWith("customer.subscription.")&&
-      sub.customerId&&payload.customer===sub.customerId;
+      typeof payload.customer==="string" &&
+      (payload.customer===sub.customerId || payload.metadata?.ciro_owner_id===owner.id);
     store.change("stripe.webhook."+type,s=>{
       s.webhookEvents.push(event.id);s.webhookEvents=s.webhookEvents.slice(-1200);
       if(checkout){
         s.subscription.customerId=typeof payload.customer==="string"?payload.customer:s.subscription.customerId;
         s.subscription.subscriptionId=typeof payload.subscription==="string"?payload.subscription:s.subscription.subscriptionId;
-        s.subscription.status="pending_confirmation";
+        if(["not_connected","pending_confirmation","unverified"].includes(s.subscription.status))
+          s.subscription.status="pending_confirmation";
         s.subscription.updatedAt=new Date().toISOString();
       } else if(subscription){
+        if(!s.subscription.customerId)s.subscription.customerId=payload.customer;
         s.subscription.subscriptionId=payload.id||s.subscription.subscriptionId;
         s.subscription.status=["active","trialing","past_due","canceled","incomplete","unpaid","paused"].includes(payload.status)
           ?payload.status:"unverified";

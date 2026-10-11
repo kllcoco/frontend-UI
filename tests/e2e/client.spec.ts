@@ -252,7 +252,7 @@ test("GitHub settings require server authorization rather than browser tokens", 
   await page.getByRole("button",{name:"设置与连接"}).click();
   await page.getByRole("button",{name:"GitHub 连接",exact:true}).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByText("GitHub 集成")).toBeVisible();
+  await expect(page.locator(".sc-scroll .wb-block-title").getByText("GitHub 集成")).toBeVisible();
 });
 
 test("plan composer sends a plan job to the workbench", async ({page})=>{
