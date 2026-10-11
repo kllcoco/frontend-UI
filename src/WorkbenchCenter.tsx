@@ -179,7 +179,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
     {!embedded&&<nav className="wb-nav" aria-label={t("自主协作工作台")}>
       {tabs.map(({id,title,Icon})=><button key={id} type="button"
         className={tab===id?"wb-nav-item wb-nav-item--active":"wb-nav-item"}
-        onClick={()=>{setTab(id);w.setError("");}}><Icon size={17}/>{t(title)}</button>)}
+        onClick={()=>{if(onNavigate)onNavigate(id);else setTab(id);w.setError("");}}><Icon size={17}/>{t(title)}</button>)}
     </nav>}
     <div className="wb-body">
       {w.error&&<div role="alert" className="wb-alert wb-alert--error"><CircleAlert size={17}/><span>{w.error}</span><button aria-label={t("关闭设置")} onClick={()=>w.setError("")}><X size={15}/></button></div>}
