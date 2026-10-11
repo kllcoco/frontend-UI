@@ -111,14 +111,54 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   if(!record||!record.enabled)throw fail("Install and enable the plugin in the marketplace first",403);
   return record;
  }
- function credentialFor(user,provider){
-  const credential=store.connection(user,provider);
+ const tokenRefreshLocks=new Map();
+ async function credentialFor(user,provider){
+  let credential=store.connection(user,provider);
   if(!credential)throw fail("Connect this plugin before invoking it",403);
+  const needsRefresh=x=>Number.isFinite(x?.secret?.expiresAt) &&
+    x.secret.expiresAt < Date.now()+60000;
+  if(!needsRefresh(credential))return credential;
+  const key=user+":"+provider;
+  if(!tokenRefreshLocks.has(key)){
+   const job=(async()=>{
+    const current=store.connection(user,provider);
+    if(!current||!needsRefresh(current))return;
+    if(typeof current.secret.refreshToken!=="string"||!current.secret.refreshToken)
+      throw fail("Plugin OAuth session expired: reconnect your account",401);
+    let next;
+    if(provider==="supabase"){
+      next=await supabaseToken(env,{type:"refresh_token",refreshToken:current.secret.refreshToken},fetchFn);
+    }else if(provider==="github"){
+      const client=bounded(env.CIRO_GITHUB_OAUTH_CLIENT_ID,150,"GitHub client ID");
+      const secret=bounded(env.CIRO_GITHUB_OAUTH_CLIENT_SECRET,500,"GitHub client secret");
+      const form=new URLSearchParams({client_id:client,client_secret:secret,
+       grant_type:"refresh_token",refresh_token:current.secret.refreshToken});
+      const response=await fetchFn("https://github.com/login/oauth/access_token",{
+        method:"POST",redirect:"error",signal:AbortSignal.timeout(14000),
+        headers:{"Accept":"application/json","Content-Type":"application/x-www-form-urlencoded"},
+        body:form.toString()});
+      if(!response.ok)throw fail("GitHub refresh failed: reconnect account",401);
+      const data=await response.json();
+      if(typeof data.access_token!=="string"||!data.access_token||
+         typeof data.refresh_token!=="string"||!data.refresh_token||
+         !Number.isFinite(data.expires_in)||data.expires_in<=0)
+        throw fail("GitHub refresh response invalid",502);
+      next={accessToken:data.access_token,refreshToken:data.refresh_token,
+       expiresAt:Date.now()+data.expires_in*1000};
+    }else throw fail("Provider token refresh unsupported",403);
+    store.rotateConnectionSecret(user,provider,current.generation,next);
+   })();
+   tokenRefreshLocks.set(key,job);
+   void job.finally(()=>{if(tokenRefreshLocks.get(key)===job)tokenRefreshLocks.delete(key);}).catch(()=>{});
+  }
+  await tokenRefreshLocks.get(key);
+  credential=store.connection(user,provider);
+  if(!credential)throw fail("Connection was revoked during refresh",403);
   return credential;
  }
  async function execute(user,provider,tool,args,source,approval=false){
   assertInstalled(user,provider);
-  const connection=credentialFor(user,provider);
+  const connection=await credentialFor(user,provider);
   const verdict=checkToolPolicy(policy(),provider,tool,args,source);
   if(verdict.result==="deny")throw fail(verdict.reason||"Permission denied",403);
   if(verdict.result==="approval"&&!approval){
@@ -238,7 +278,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   url.searchParams.set("client_id",client);
   url.searchParams.set("redirect_uri",origin+"/api/plugins/github/callback");
   url.searchParams.set("state",state);
-  url.searchParams.set("scope","repo read:user");
+  url.searchParams.set("scope","repo read:user offline_access");
   res.json({authorizeUrl:url.toString(),expiresInSeconds:600});
  }));
  router.get("/github/callback",wrap(async(req,res)=>{
@@ -260,7 +300,9 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    accept:"application/vnd.github+json"});
   if(!Number.isInteger(identity.id)||typeof identity.login!=="string")throw fail("GitHub account could not be verified",502);
   store.putConnection({ownerId:owner(req),provider:"github",
-   account:{id:identity.id,login:identity.login},secret:{accessToken:data.access_token},
+   account:{id:identity.id,login:identity.login},secret:{accessToken:data.access_token,
+    refreshToken:typeof data.refresh_token==="string"?data.refresh_token:null,
+    expiresAt:Number.isFinite(data.expires_in)?Date.now()+data.expires_in*1000:null},
    scopes:typeof data.scope==="string"?data.scope.split(","):[]});
   res.redirect(303,"/settings?section=plugins&connection=github");
  }));
@@ -318,7 +360,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    store.finishApproval(user,item.id,"rejected");return res.json({status:"rejected"});
   }
   try{
-   const current=credentialFor(user,item.provider);
+   const current=await credentialFor(user,item.provider);
    if(current.generation!==item.generation||sha(JSON.stringify(policy()))!==item.policySignature)
      throw fail("Connection or permissions changed; create a new request",403);
    const result=await execute(user,item.provider,item.request.tool,item.request.args,item.request.source,true);
