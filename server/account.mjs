@@ -228,6 +228,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       if(req.method==="POST" && (
         req.path==="/workbench/commercial/billing/ingest" ||
         req.path==="/studio/compute/ingest" ||
+        req.path==="/plugins/agent/invoke" ||
         req.path==="/workbench/commercial/billing/reservations" ||
         /^\/workbench\/commercial\/billing\/reservations\/[a-zA-Z0-9_:-]{8,120}\/release$/.test(req.path)
       ))return next();
