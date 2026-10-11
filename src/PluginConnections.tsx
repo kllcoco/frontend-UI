@@ -138,6 +138,7 @@ export default function PluginConnections(){
          </div>
          <p className="ciro-market-muted">当前范围：{githubScope?.selectedRepository||"尚未选择"} · {githubScope?.writesEnabled?"允许请求写入，执行前仍要批准":"服务器禁止写入"}</p>
         </>:<p className="ciro-market-error">服务器还没有设置 GitHub 仓库白名单（CIRO_GITHUB_REPOS）。请联系部署管理员；不用输入个人 Token。</p>}
+        <p className="ciro-market-muted">注意：GitHub OAuth 的 repo 授权本身可能覆盖多个仓库；CIRO 工具网关只允许使用这里选中的仓库。请在 GitHub 授权页核对权限。</p>
         {!githubScope?.oauthConfigured&&<p className="ciro-market-muted">GitHub OAuth 尚未由服务器管理员配置。你可以安装插件、选择仓库，但暂时不能连接账户；不需要把密钥发给 CIRO。</p>}
        </div>}
        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
