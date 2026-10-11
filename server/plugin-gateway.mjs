@@ -374,7 +374,16 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }
 
  router.use((_req,res,next)=>{res.set("Cache-Control","no-store");next();});
- router.get("/catalog",wrap((req,res)=>res.json({catalog:installs.catalog,
+ router.get("/catalog",wrap((req,res)=>res.json({
+   catalog:installs.catalog,
+   githubScope:{
+    allowedRepositories:(env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim())
+      .filter(x=>/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/.test(x)&&!x.includes("..")),
+    selectedRepository:policy().repo||"",
+    mode:policy().mode,
+    custom:policy().custom,
+    writesEnabled:env.CIRO_GITHUB_WRITES==="true"
+   },
    installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
    jobs:jobs.list(owner(req)),
    connections:store.publicConnections(owner(req)),approvals:store.publicApprovals(owner(req)),

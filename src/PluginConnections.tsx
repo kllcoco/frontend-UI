@@ -6,9 +6,14 @@ type Entry={id:string;title:string;category:string;description:string;version:st
 type Installed={id:string;version:string;installedAt:string;enabled:boolean};
 type Connection={provider:string;account?:{login?:string;email?:string;id?:string|number};connectedAt:string};
 type Approval={id:string;provider:string;summary:string;createdAt:string};
+type GitHubScope={allowedRepositories:string[];selectedRepository:string;mode:string;
+ custom:Record<string,boolean>;writesEnabled:boolean};
+type DiscoveredTool={name:string;description:string};
 type Prepared={nonce:string;fingerprint:string;plugin:Entry;expiresInSeconds:number};
 type PluginJob={id:string;provider:string;tool:string;status:string;effect:boolean;attempts:number;createdAt:number;code?:string|null};
-type Snapshot={catalog:Entry[];installed:Installed[];connections:Connection[];approvals:Approval[];jobs?:PluginJob[];audit:{id:string;at:string;event:string}[]};
+type Snapshot={catalog:Entry[];installed:Installed[];connections:Connection[];
+ approvals:Approval[];jobs?:PluginJob[];githubScope?:GitHubScope;
+ audit:{id:string;at:string;event:string}[]};
 async function api<T>(path:string,body?:unknown):Promise<T>{
  const response=await accountFetch("/api/plugins"+path,{
   method:body===undefined?"GET":"POST",
@@ -30,8 +35,17 @@ export default function PluginConnections(){
  const [repo,setRepo]=useState("");
  const [path,setPath]=useState("README.md");
  const [result,setResult]=useState("");
+ const [repoChoice,setRepoChoice]=useState("");
+ const [discoveredTools,setDiscoveredTools]=useState<DiscoveredTool[]>([]);
  const refresh=useCallback(async()=>{
-  try{setState(await api<Snapshot>("/catalog"));setError("");}
+  try{
+   const snapshot=await api<Snapshot>("/catalog");
+   setState(snapshot);
+   setRepoChoice(snapshot.githubScope?.selectedRepository||
+     snapshot.githubScope?.allowedRepositories[0]||"");
+   setRepo(snapshot.githubScope?.selectedRepository||"");
+   setError("");
+  }
   catch(e){setError(e instanceof Error?e.message:String(e));}
  },[]);
  useEffect(()=>{void refresh();},[refresh]);
@@ -95,18 +109,41 @@ export default function PluginConnections(){
       {pending?.plugin.id===current.id&&!active&&<div className="ciro-market-confirm">
        <strong>确认安装 {current.title}？</strong><p>版本 {pending.plugin.version} · 请确认以上权限。</p>
        <button className="wb-secondary" onClick={()=>setPending(null)}>取消</button>
-       <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{
+       <button className="wb-primary" disabled={busy||(current.id==="github"&&!state.githubScope?.selectedRepository)} onClick={()=>void action(async()=>{
         await api("/marketplace/"+current.id+"/install",{nonce:pending.nonce,fingerprint:pending.fingerprint,confirm:true});
         setPending(null);setNotice("安装成功。可在左侧管理。");
        })}>确认安装</button>
       </div>}
       {active&&<div className="ciro-market-management"><h4>已安装插件管理</h4>
+       {current.id==="github"&&<div className="ciro-market-scope">
+        <h4>GitHub 仓库授权范围</h4>
+        <p className="ciro-market-muted">先选择服务端已允许的仓库。聊天和 Agent 只能操作这个仓库；切换仓库时权限恢复为逐次审批。</p>
+        {!!state.githubScope?.allowedRepositories.length?<>
+         <div className="ciro-market-scope-picker">
+          <select aria-label="GitHub 允许的仓库" value={repoChoice} onChange={e=>setRepoChoice(e.target.value)}>
+           {state.githubScope.allowedRepositories.map(name=><option key={name} value={name}>{name}</option>)}
+          </select>
+          <button className="wb-secondary" disabled={busy||!repoChoice||
+            repoChoice===state.githubScope?.selectedRepository} onClick={()=>void action(async()=>{
+             const response=await accountFetch("/api/workbench/permissions",{
+              method:"POST",headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({mode:"request",repo:repoChoice,custom:state.githubScope?.custom||{}})
+             });
+             const data=await response.json();
+             if(!response.ok)throw new Error(data.error||"无法设置仓库权限");
+             setDiscoveredTools([]);
+             setNotice("当前仓库："+data.policy.repo+"；已恢复逐次审批模式。");
+          })}>选择仓库</button>
+         </div>
+         <p className="ciro-market-muted">当前范围：{state.githubScope?.selectedRepository||"尚未选择"} · {state.githubScope?.writesEnabled?"允许请求写入，执行前仍要批准":"服务器禁止写入"}</p>
+        </>:<p className="ciro-market-error">服务器还没有设置 GitHub 仓库白名单（CIRO_GITHUB_REPOS）。请联系部署管理员；不用输入个人 Token。</p>}
+       </div>}
        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
         await api("/installed/"+current.id+"/enabled",{enabled:!active.enabled});
         setNotice(active.enabled?"插件已停用":"插件已启用");
        })}>{active.enabled?"暂停使用":"启用"}</button>
        {(current.id==="github"||current.id==="supabase")&&active.enabled&&(connected?<button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
-        await api("/"+current.id+"/disconnect",{});setNotice("第三方连接已断开");
+        await api("/"+current.id+"/disconnect",{});setDiscoveredTools([]);setNotice("第三方连接已断开");
        })}>断开 {current.title} 账户 ({connected.account?.login||connected.account?.email||"已授权"})</button>:
        <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{
         const out=await api<{authorizeUrl:string}>("/"+current.id+"/connect",{});
@@ -116,6 +153,18 @@ export default function PluginConnections(){
           throw new Error("授权地址不可信");
         window.location.assign(target.href);
        })}>连接 {current.title} 账户</button>)}
+       {current.id==="supabase"&&connected&&active.enabled&&<div className="ciro-market-scope">
+        <h4>Supabase 已授权 MCP 工具</h4>
+        <p className="ciro-market-muted">只读取工具目录，不执行数据修改。数据写入仍需单独批准。</p>
+        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
+          const out=await api<{result?:{tools?:DiscoveredTool[]}}>("/invoke",{
+            provider:"supabase",tool:"supabase.list_tools",args:{},source:"manual"
+          });
+          setDiscoveredTools(out.result?.tools||[]);
+          setNotice("已刷新当前账户可用的 MCP 工具。");
+        })}>发现已授权工具</button>
+        {discoveredTools.map(tool=><p key={tool.name}><strong>{tool.name}</strong> — {tool.description}</p>)}
+       </div>}
        {current.id==="github"&&connected&&active.enabled&&<div className="ciro-market-test">
          <h4>工具验证：读取仓库文件</h4>
          <input aria-label="GitHub 仓库" value={repo} onChange={e=>setRepo(e.target.value)} placeholder="owner/repo"/>

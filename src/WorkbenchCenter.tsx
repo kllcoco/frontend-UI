@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import CommercialCenter from "./CommercialCenter";
 import PluginConnections from "./PluginConnections";
+import {getAccountSession} from "./lib/account-api";
 import type { FormEvent } from "react";
 import {
   Activity, ArrowRight, CalendarClock, Check, CheckCircle2, CircleAlert, Clock3,
@@ -86,6 +87,12 @@ function readable(time:string,language:Language){
 }
 export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal="",onNavigate}:Props) {
   const w=useWorkbench();
+  const [githubMarketOnly,setGithubMarketOnly]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    void getAccountSession().then(s=>{if(active)setGithubMarketOnly(s.enabled);}).catch(()=>{});
+    return ()=>{active=false;};
+  },[]);
   const t=(value:string)=>workbenchTranslate(language,value);
   const [tab,setTab]=useState<WorkbenchTab>(initialTab);
   const [goalTitle,setGoalTitle]=useState("");
@@ -249,7 +256,16 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
         <Approvals language={language} state={state} call={w.call}/>
       </div>}
 
-      {state&&currentTab==="github"&&<div className="wb-admin">
+      {state&&currentTab==="github"&&githubMarketOnly&&<div className="wb-admin">
+        <section className="wb-card">
+          <h2>{t("GitHub 已迁移到插件中心")}</h2>
+          <p className="wb-muted">登录用户请在插件中心安装 GitHub、选择允许的仓库、通过 OAuth 连接账户。旧的全局服务器令牌接口已停用，避免绕开插件权限。</p>
+          <button className="wb-primary" onClick={()=>{if(onNavigate)onNavigate("plugins");else setTab("plugins");}}>
+            <PlugZap size={17}/>{t("打开插件中心")}
+          </button>
+        </section>
+      </div>}
+      {state&&currentTab==="github"&&!githubMarketOnly&&<div className="wb-admin">
         <div className="wb-block-title"><div><h2>{t("GitHub 集成")}</h2>
           <p>{t("连接须由服务端安全持有凭据，客户端不会索要 Token。")}</p></div><GitBranch size={23}/></div>
         <div className="wb-capabilities">
