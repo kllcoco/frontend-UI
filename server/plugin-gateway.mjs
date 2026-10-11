@@ -217,26 +217,43 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     required:["repo","branch","path","content","message"]}
  });
  function listModelTools(user) {
-  if(!installs.installed(user,"github")?.enabled || !store.connection(user,"github"))return [];
-  const permission=policy(),repo=permission.repo;
-  if(!repo || !(env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim()).includes(repo))return [];
   const result=[];
-  for(const [functionName,item] of Object.entries(MODEL_TOOLS)){
-   const action=item.name==="github.read_file"?"github.read":
-    item.name==="github.create_branch"?"github.branch":"github.write";
-   if(action!=="github.read"&&env.CIRO_GITHUB_WRITES!=="true")continue;
-   if(decision(permission,action,{repo}).result==="deny")continue;
-   result.push({type:"function",function:{name:functionName,description:item.description,
+  if(installs.installed(user,"github")?.enabled && store.connection(user,"github")){
+   const permission=policy(),repo=permission.repo;
+   if(repo && (env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim()).includes(repo)){
+    for(const [functionName,item] of Object.entries(MODEL_TOOLS)){
+     const action=item.name==="github.read_file"?"github.read":
+      item.name==="github.create_branch"?"github.branch":"github.write";
+     if(action!=="github.read"&&env.CIRO_GITHUB_WRITES!=="true")continue;
+     if(decision(permission,action,{repo}).result==="deny")continue;
+     result.push({type:"function",function:{name:functionName,description:item.description,
+      parameters:{type:"object",additionalProperties:false,properties:{
+       ...item.properties,repo:{type:"string",enum:[repo]}
+      },required:item.required}}});
+    }
+   }
+  }
+  if(installs.installed(user,"supabase")?.enabled&&store.connection(user,"supabase")&&
+     supabaseOAuthConfig(env).ready &&
+     !(policy().mode==="custom"&&!policy().custom.externalNetwork)){
+   const names=(env.CIRO_SUPABASE_MCP_TOOLS||"").split(",")
+     .map(x=>x.trim()).filter(x=>/^[A-Za-z0-9_.:-]{1,100}$/.test(x));
+   if(names.length)result.push({type:"function",function:{
+    name:"ciro_supabase_call_tool",description:"调用用户自行授权的 Supabase RLS 隔离 MCP 工具。每次调用需要用户批准。",
     parameters:{type:"object",additionalProperties:false,properties:{
-      ...item.properties,repo:{type:"string",enum:[repo]}
-    },required:item.required}}});
+     name:{type:"string",enum:names},
+     arguments:{type:"object",description:"按 MCP 工具参数定义传参"}
+    },required:["name","arguments"]}}});
   }
   return result;
  }
  async function executeModelTool(user,functionName,args,source="chat") {
-  const mapping=MODEL_TOOLS[functionName];
-  if(!mapping||!listModelTools(user).some(x=>x.function.name===functionName))
+  if(!listModelTools(user).some(x=>x.function.name===functionName))
    throw fail("Tool not installed, connected or granted",403);
+  if(functionName==="ciro_supabase_call_tool")
+   return execute(user,"supabase","supabase.call_tool",args,source);
+  const mapping=MODEL_TOOLS[functionName];
+  if(!mapping)throw fail("Unknown plugin function",404);
   return execute(user,"github",mapping.name,args,source);
  }
 
