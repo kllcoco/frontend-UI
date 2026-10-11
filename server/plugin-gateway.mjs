@@ -143,6 +143,41 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    throw e;
   }
  }
+
+ const MODEL_TOOLS=Object.freeze({
+  ciro_github_read_file:{name:"github.read_file",description:"读取 GitHub 仓库中已授权范围内的文本文件。",
+    properties:{repo:{type:"string"},path:{type:"string"},branch:{type:"string"}},required:["repo","path"]},
+  ciro_github_create_branch:{name:"github.create_branch",description:"在已授权仓库创建功能分支（可能需要用户审批）。",
+    properties:{repo:{type:"string"},branch:{type:"string"}},required:["repo","branch"]},
+  ciro_github_write_file:{name:"github.write_file",description:"写入已授权功能分支的仓库文件（可能需要用户审批）。",
+    properties:{repo:{type:"string"},branch:{type:"string"},path:{type:"string"},
+      content:{type:"string"},message:{type:"string"},expectedSha:{type:"string"}},
+    required:["repo","branch","path","content","message"]}
+ });
+ function listModelTools(user) {
+  if(!installs.installed(user,"github")?.enabled || !store.connection(user,"github"))return [];
+  const permission=policy(),repo=permission.repo;
+  if(!repo || !(env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim()).includes(repo))return [];
+  const result=[];
+  for(const [functionName,item] of Object.entries(MODEL_TOOLS)){
+   const action=item.name==="github.read_file"?"github.read":
+    item.name==="github.create_branch"?"github.branch":"github.write";
+   if(action!=="github.read"&&env.CIRO_GITHUB_WRITES!=="true")continue;
+   if(decision(permission,action,{repo}).result==="deny")continue;
+   result.push({type:"function",function:{name:functionName,description:item.description,
+    parameters:{type:"object",additionalProperties:false,properties:{
+      ...item.properties,repo:{type:"string",enum:[repo]}
+    },required:item.required}}});
+  }
+  return result;
+ }
+ async function executeModelTool(user,functionName,args,source="chat") {
+  const mapping=MODEL_TOOLS[functionName];
+  if(!mapping||!listModelTools(user).some(x=>x.function.name===functionName))
+   throw fail("Tool not installed, connected or granted",403);
+  return execute(user,"github",mapping.name,args,source);
+ }
+
  router.use((_req,res,next)=>{res.set("Cache-Control","no-store");next();});
  router.get("/catalog",wrap((req,res)=>res.json({catalog:installs.catalog,
    installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
@@ -239,5 +274,5 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    store.finishApproval(user,item.id,"approved");res.json({status:"approved",result});
   }catch(error){store.finishApproval(user,item.id,"failed");throw error;}
  }));
- return {router,store,installs};
+ return {router,store,installs,listModelTools,executeModelTool};
 }
