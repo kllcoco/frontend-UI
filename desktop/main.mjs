@@ -1,7 +1,7 @@
 import {app,BrowserWindow,Menu,dialog,screen,session,shell,utilityProcess} from "electron";
 import {randomBytes,createHash} from "node:crypto";
 import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync} from "node:fs";
-import {join} from "node:path";
+import {join,isAbsolute} from "node:path";
 import {pathToFileURL} from "node:url";
 import {once} from "node:events";
 import {config as loadDotEnv} from "dotenv";
@@ -194,6 +194,17 @@ async function boot(){
     }
     if(!loaded)throw new Error("Packaged renderer did not mount CIRO UI");
     hidden.destroy();
+   }
+   const receipt=process.env.CIRO_DESKTOP_SMOKE_RECEIPT;
+   if(receipt){
+    if(!isAbsolute(receipt)||!receipt.toLowerCase().endsWith(".json"))
+     throw new Error("Invalid desktop acceptance receipt path");
+    writeFileSync(receipt,JSON.stringify({
+     schema:"ciro.desktop.windows.acceptance.v1",
+     status:"PASS",api:true,unauthorizedDenied:true,
+     packagedHtml:true,renderer:process.env.CIRO_DESKTOP_SMOKE_GUI==="1",
+     appVersion:app.getVersion(),testAt:new Date().toISOString()
+    }),{encoding:"utf8",flag:"w",mode:0o600});
    }
    console.log("CIRO_DESKTOP_SMOKE_PASS packaged API, UI, auth boundary, appData");
    app.exit(0);return;
