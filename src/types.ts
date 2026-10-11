@@ -14,6 +14,9 @@ export type Conversation = {
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
+  folder?:string;
+  parentId?:string;
+  checkpoints?:{id:string;label:string;createdAt:number;messages:ChatMessage[]}[];
 };
 
 export type ApiStatus = {
@@ -21,4 +24,5 @@ export type ApiStatus = {
   model: string;
   models: string[];
   mode: "preview" | "configured";
+  reasoningModes?: ("fast"|"deep")[];
 };

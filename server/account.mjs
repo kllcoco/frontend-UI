@@ -151,18 +151,33 @@ function validateSnapshot(value){
   const raw=JSON.stringify(value);
   if(Buffer.byteLength(raw)>650000)throw bad("Sync data exceeds 650 KB");
   if(value.conversations.length>100)throw bad("Too many conversations");
+  const mapMessage=m=>{
+    if(!m||typeof m.id!=="string"||m.id.length>100||
+      !["user","assistant"].includes(m.role)||typeof m.content!=="string"||
+      m.content.length>30000||!Number.isFinite(m.createdAt))throw bad("Invalid chat message");
+    return {id:m.id,role:m.role,content:m.content,createdAt:m.createdAt,...(m.preview===true?{preview:true}:{})};
+  };
   const conversations=value.conversations.map(c=>{
     if(!c||typeof c!=="object"||typeof c.id!=="string"||c.id.length>100||
       typeof c.title!=="string"||c.title.length>180||
       !Number.isFinite(c.createdAt)||!Number.isFinite(c.updatedAt)||
       !Array.isArray(c.messages)||c.messages.length>240)throw bad("Invalid conversation");
+    if(c.folder!==undefined&&(typeof c.folder!=="string"||c.folder.length>60))throw bad("Invalid folder");
+    if(c.parentId!==undefined&&(typeof c.parentId!=="string"||c.parentId.length>100))throw bad("Invalid branch parent");
+    if(c.checkpoints!==undefined&&(!Array.isArray(c.checkpoints)||c.checkpoints.length>10))
+      throw bad("Invalid checkpoints");
+    const checkpoints=(c.checkpoints||[]).map(x=>{
+      if(!x||typeof x.id!=="string"||x.id.length>100||
+        typeof x.label!=="string"||x.label.length>100||
+        !Number.isFinite(x.createdAt)||!Array.isArray(x.messages)||x.messages.length>240)
+        throw bad("Invalid checkpoint");
+      return {id:x.id,label:x.label,createdAt:x.createdAt,messages:x.messages.map(mapMessage)};
+    });
     return {id:c.id,title:c.title,createdAt:c.createdAt,updatedAt:c.updatedAt,
-      messages:c.messages.map(m=>{
-        if(!m||typeof m.id!=="string"||m.id.length>100||
-          !["user","assistant"].includes(m.role)||typeof m.content!=="string"||
-          m.content.length>30000||!Number.isFinite(m.createdAt))throw bad("Invalid chat message");
-        return {id:m.id,role:m.role,content:m.content,createdAt:m.createdAt,...(m.preview===true?{preview:true}:{})};
-      })};
+      messages:c.messages.map(mapMessage),
+      ...(c.folder!==undefined?{folder:c.folder}:{}),
+      ...(c.parentId!==undefined?{parentId:c.parentId}:{}),
+      ...(checkpoints.length?{checkpoints}:{})};
   });
   const p=value.preferences||{};
   if(!p||typeof p!=="object"||Array.isArray(p))throw bad("Invalid preferences");
@@ -212,6 +227,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       // and timestamp. All other Workbench routes still require user auth.
       if(req.method==="POST" && (
         req.path==="/workbench/commercial/billing/ingest" ||
+        req.path==="/studio/compute/ingest" ||
         req.path==="/workbench/commercial/billing/reservations" ||
         /^\/workbench\/commercial\/billing\/reservations\/[a-zA-Z0-9_:-]{8,120}\/release$/.test(req.path)
       ))return next();

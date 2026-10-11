@@ -1,0 +1,54 @@
+{
+  "name": "Ciro — Unified AI Studio",
+  "short_name": "Ciro",
+  "description": "AI conversations and an autonomous project workspace",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "zh-CN",
+  "categories": [
+    "productivity",
+    "developer-tools"
+  ],
+  "icons": [
+    {
+      "src": "/ciro-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "url": "/?view=chat",
+      "icons": [
+        {
+          "src": "/ciro-mark.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Studio",
+      "short_name": "Studio",
+      "url": "/?view=studio",
+      "icons": [
+        {
+          "src": "/ciro-mark.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

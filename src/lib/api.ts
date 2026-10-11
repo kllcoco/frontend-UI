@@ -15,7 +15,8 @@ export async function getApiStatus(): Promise<ApiStatus> {
     configured: value.configured === true,
     model: typeof value.model === "string" ? value.model : "ciro",
     models: value.models.filter((model): model is string => typeof model === "string"),
-    mode: value.configured === true ? "configured" : "preview"
+    mode: value.configured === true ? "configured" : "preview",
+    reasoningModes:Array.isArray(value.reasoningModes)?value.reasoningModes.filter((m):m is "fast"|"deep"=>m==="fast"||m==="deep"):["fast"]
   };
 }
 
@@ -23,6 +24,7 @@ type StreamOptions = {
   messages: ChatMessage[];
   model: string;
   instructions?: CustomInstructions;
+  reasoning?:{mode:"fast"|"deep";maxSeconds:number;priority:1|2|5};
   signal: AbortSignal;
   onDelta: (text: string) => void;
 };
@@ -54,7 +56,7 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void): boolean
   return false;
 }
 
-export async function streamChat({ messages, model, instructions, signal, onDelta }: StreamOptions): Promise<void> {
+export async function streamChat({ messages, model, instructions, reasoning, signal, onDelta }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -62,7 +64,8 @@ export async function streamChat({ messages, model, instructions, signal, onDelt
     body: JSON.stringify({
       model,
       messages: messages.map(({ role, content }) => ({ role, content })),
-      ...(instructions?.enabled ? { instructions } : {})
+      ...(instructions?.enabled ? { instructions } : {}),
+      ...(reasoning?.mode==="deep"?{reasoning}:{})
     })
   });
 

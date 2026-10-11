@@ -7,7 +7,7 @@ import {
   Copy, FileText, Lightbulb, Menu, MessageCircle, Moon, MoreHorizontal,
   Paperclip, Pencil, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw,
   Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Workflow, X,
-  Wallet, LayoutGrid, Blocks, UserCircle, Bell, Cloud
+  Wallet, LayoutGrid, Blocks, UserCircle, Bell, Cloud, Layers
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -19,6 +19,8 @@ import {
 import type { ApiStatus, ChatMessage, Conversation } from "./types";
 import WorkbenchCenter from "./WorkbenchCenter";
 import AccountCenter from "./AccountCenter";
+import StudioCenter from "./StudioCenter";
+import type {StudioTab} from "./lib/studio-api";
 import {startAutoSync,stopAutoSync,queueAutoSync} from "./lib/cloud-sync";
 import type {SyncPayload} from "./lib/cloud-sync";
 import type {AccountTab} from "./lib/account-api";
@@ -114,6 +116,9 @@ export default function App() {
   const [studioOpen, setStudioOpen] = useState(false);
   const [studioTab, setStudioTab] = useState<WorkbenchTab>("goals");
   const [composerMode, setComposerMode] = useState<"chat" | AgentMode>("chat");
+  const [reasoningMode,setReasoningMode]=useState<"fast"|"deep">("fast");
+  const [reasoningPriority,setReasoningPriority]=useState<1|2|5>(1);
+  const [reasoningSeconds,setReasoningSeconds]=useState(300);
   const [theme, setTheme] = useState<"light" | "dark">(loadTheme);
   const [language, setLanguage] = useState<Language>(loadLanguage);
   const [appearance, setAppearance] = useState(loadAppearance);
@@ -296,6 +301,7 @@ export default function App() {
       await streamChat({
         model,
         instructions,
+        reasoning:{mode:reasoningMode,maxSeconds:reasoningSeconds,priority:reasoningPriority},
         messages: history,
         signal: controller.signal,
         onDelta: (text) => {
@@ -361,7 +367,7 @@ export default function App() {
     } finally { setBusy(false); }
   }
   function handleSlash(text: string): boolean {
-    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|account|subscription|keys|spending|notifications|memory|sync|help)(?:\s+([\s\S]*))?$/i.exec(text);
+    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|account|subscription|keys|spending|notifications|memory|sync|studio|think|ide|knowledge|research|media|compute|library|market|devices|help)(?:\s+([\s\S]*))?$/i.exec(text);
     if (!match) return false;
     const command=match[1].toLowerCase();
     const argument=(match[2]||"").trim();
@@ -379,7 +385,12 @@ export default function App() {
         command==="billing"?"billing":command==="apps"?"apps":command==="skills"?"skills":
         command==="account"?"account":command==="subscription"?"subscription":command==="keys"?"api-keys":
         command==="spending"?"spending":command==="notifications"?"notifications":
-        command==="memory"?"memory":command==="sync"?"sync":"goals";
+        command==="memory"?"memory":command==="sync"?"sync":
+        command==="studio"?"studio":command==="think"?"thinking":
+        command==="ide"?"ide":command==="knowledge"?"knowledge":
+        command==="research"?"research":command==="media"?"media":
+        command==="compute"?"compute":command==="library"?"library":
+        command==="market"?"marketplace":command==="devices"?"devices":"goals";
       openStudio(tab);
     }
     setDraft("");
@@ -450,6 +461,40 @@ export default function App() {
     if (generatingId === chat.id) controllerRef.current?.abort();
     setConversations((prev) => prev.filter((item) => item.id !== chat.id));
     if (activeId === chat.id) setActiveId(null);
+  }
+
+  function organizeChat(operation:"folder"|"branch"|"checkpoint"|"restore",id:string,value:string|number){
+    const source=conversations.find(c=>c.id===id);
+    if(!source)return;
+    const now=Date.now();
+    if(operation==="folder"){
+      const folder=String(value).trim().slice(0,60);
+      setConversations(old=>old.map(c=>c.id===id?{...c,folder,updatedAt:now}:c));
+      setToast(t("已归档"));return;
+    }
+    if(operation==="checkpoint"){
+      setConversations(old=>old.map(c=>c.id===id?{
+        ...c,checkpoints:[{id:newId(),label:String(value).slice(0,90),createdAt:now,
+          messages:c.messages.map(m=>({...m}))},...(c.checkpoints||[])].slice(0,10),
+        updatedAt:now
+      }:c));
+      setToast(t("创建检查点"));return;
+    }
+    if(operation==="restore"){
+      const saved=source.checkpoints?.find(c=>c.id===value);
+      if(!saved)return;
+      setConversations(old=>old.map(c=>c.id===id?{...c,
+        messages:saved.messages.map(m=>({...m})),updatedAt:now}:c));
+      setToast(t("恢复此版本"));return;
+    }
+    const count=Number(value);
+    if(!Number.isSafeInteger(count)||count<1||count>source.messages.length)return;
+    const forkId=newId();
+    const branch:Conversation={id:forkId,parentId:source.id,folder:source.folder,
+      title:source.title+" · branch",createdAt:now,updatedAt:now,
+      messages:source.messages.slice(0,count).map(m=>({...m,id:newId()}))};
+    setConversations(old=>[branch,...old]);setActiveId(forkId);setStudioOpen(false);
+    setToast(t("创建分支"));
   }
 
   function clearHistory() {
@@ -569,10 +614,17 @@ export default function App() {
           <button className="new-chat" onClick={createNew} title={t("新对话 (Ctrl/⌘ + Shift + O)")}>
             <Plus size={18} strokeWidth={2.2} /><span>{t("开启新对话")}</span>
           </button>
+          <button className="studio-hub-launch" onClick={()=>openStudio("studio")}
+            title={t("融合工作台")} aria-label={t("融合工作台")}>
+            <Layers size={18}/><span>{t("融合工作台")}</span><span className="studio-launch-dot"/>
+          </button>
           <button className="studio-launch" onClick={() => openStudio("goals")} title={t("协作空间")} aria-label={t("协作空间")}>
             <Workflow size={18}/><span>{t("协作空间")}</span><span className="studio-launch-dot" />
           </button>
           <div className="studio-quick-links">
+            <button className="studio-quick-link" onClick={()=>openStudio("ide")} aria-label={t("代码工作区")}><Code2 size={17}/><span>{t("代码工作区")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("research")} aria-label={t("研究工作台")}><Search size={17}/><span>{t("研究工作台")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("knowledge")} aria-label={t("知识与文件")}><FileText size={17}/><span>{t("知识与文件")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("account")} aria-label={t("账户与安全")}><UserCircle size={17}/><span>{t("账户与安全")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("notifications")} aria-label={t("通知中心")}><Bell size={17}/><span>{t("通知中心")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("sync")} aria-label={t("跨设备同步")}><Cloud size={17}/><span>{t("跨设备同步")}</span></button>
@@ -630,17 +682,21 @@ export default function App() {
           <button className="sidebar-setting" onClick={() => setSettingsOpen(true)} title={t("设置")}>
             <Settings2 size={18} /><span>{t("设置与连接")}</span>
           </button>
-          <div className="sidebar-version">CIRO CLIENT <span>V0.6 CLIENT</span></div>
+          <div className="sidebar-version">CIRO CLIENT <span>V0.7 STUDIO</span></div>
         </div>
       </aside>
 
       {studioOpen ? <main className="workspace workspace--studio">
         <div className="wb-mobile-top"><button type="button" onClick={()=>setSidebarOpen(true)} aria-label={t("打开侧栏")}><Menu size={19}/></button>
-          <CiroMark small/><span>Ciro Workbench</span></div>
+          <CiroMark small/><span>Ciro Studio</span></div>
         {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(studioTab)
           ? <div className="acc-workspace"><AccountCenter key={studioTab} language={language} section={studioTab as AccountTab}/></div>
-          : <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
-          onNavigate={route=>{if(route==="chat")createNew();else openStudio(route as WorkbenchTab);}}/>}
+          : (["studio","thinking","ide","knowledge","research","media","compute","library","marketplace","devices"] as string[]).includes(studioTab)
+            ? <div className="stu-workspace"><StudioCenter key={studioTab} language={language} section={studioTab as StudioTab}
+                conversations={conversations} onLibraryAction={organizeChat}
+                onNavigate={route=>{if(route==="chat")createNew();else openStudio(route as WorkbenchTab);}}/></div>
+            : <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
+              onNavigate={route=>{if(route==="chat")createNew();else openStudio(route as WorkbenchTab);}}/>}
       </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
         data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}>
         {showWallpaper && <>
@@ -758,6 +814,23 @@ export default function App() {
               {([["chat","普通对话"],["goal","目标模式"],["plan","计划模式"]] as const).map(([value,label])=>
                 <button type="button" key={value} aria-pressed={composerMode===value} className={composerMode===value?"composer-mode-choice composer-mode-choice--active":"composer-mode-choice"}
                   onClick={()=>setComposerMode(value)}>{t(label)}</button>)}
+              {composerMode==="chat"&&<div className="reasoning-controls">
+                <BrainCircuit size={14}/>
+                <select aria-label={t("选择思考方式")} value={reasoningMode}
+                  onChange={e=>setReasoningMode(e.target.value as "fast"|"deep")}>
+                  <option value="fast">{t("快速回答")}</option>
+                  <option value="deep" disabled={!status.reasoningModes?.includes("deep")}>{t("深度思考")}</option>
+                </select>
+                {reasoningMode==="deep"&&<>
+                  <select aria-label={t("时间预算（秒）")} value={reasoningSeconds}
+                    onChange={e=>setReasoningSeconds(Number(e.target.value))}>
+                    {[60,180,300,600,1800].map(v=><option key={v} value={v}>{v}s</option>)}</select>
+                  <select aria-label={t("优先级")} value={reasoningPriority}
+                    onChange={e=>setReasoningPriority(Number(e.target.value) as 1|2|5)}>
+                    {[1,2,5].map(v=><option key={v} value={v}>{v}×</option>)}</select>
+                </>}
+              </div>}
+              <button type="button" className="composer-workspace-link" onClick={()=>openStudio("studio")}><Layers size={14}/>{t("融合工作台")}</button>
               <button type="button" className="composer-workspace-link" onClick={()=>openStudio("goals")}><Workflow size={14}/>{t("协作空间")}</button>
             </div>
             {!status.configured && !statusLoading && <div className="preview-hint">

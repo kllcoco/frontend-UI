@@ -15,7 +15,7 @@ export function normalizeModels(rawModels, fallback = "ciro") {
   return unique.length ? unique : [fallback];
 }
 
-export function validateChat(input, availableModels) {
+export function validateChat(input, availableModels, supportedModes=["fast"]) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new ValidationError("请求格式不正确");
   }
@@ -60,5 +60,20 @@ export function validateChat(input, availableModels) {
         (style.trim() ? "Preferred response style: " + style.trim() : "") });
     }
   }
-  return { model, messages: sanitized, stream: true };
+  const reasoning=input.reasoning;
+  let ciro_reasoning;
+  if(reasoning!==undefined){
+    if(!reasoning||typeof reasoning!=="object"||Array.isArray(reasoning))
+      throw new ValidationError("Invalid reasoning options");
+    const mode=reasoning.mode;
+    if(!["fast","deep"].includes(mode)||!supportedModes.includes(mode))
+      throw new ValidationError("Selected reasoning mode is not supported by the native model");
+    if(mode==="deep"){
+      if(!Number.isSafeInteger(reasoning.maxSeconds)||reasoning.maxSeconds<30||reasoning.maxSeconds>3600||
+        ![1,2,5].includes(reasoning.priority))
+        throw new ValidationError("Invalid reasoning budget or priority");
+      ciro_reasoning={mode,maxSeconds:reasoning.maxSeconds,priority:reasoning.priority};
+    }
+  }
+  return { model, messages: sanitized, stream: true,...(ciro_reasoning?{ciro_reasoning}:{}) };
 }

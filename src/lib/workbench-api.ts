@@ -1,7 +1,8 @@
 import {accountFetch} from "./account-api";
+import type {StudioTab} from "./studio-api";
 export type PermissionMode = "request" | "auto" | "full" | "custom";
 export type AgentMode = "goal" | "plan";
-export type WorkbenchTab = "goals" | "permissions" | "github" | "plugins" | "schedules" | "billing" | "apps" | "skills" | "account" | "subscription" | "api-keys" | "spending" | "notifications" | "memory" | "sync";
+export type WorkbenchTab = "goals" | "permissions" | "github" | "plugins" | "schedules" | "billing" | "apps" | "skills" | "account" | "subscription" | "api-keys" | "spending" | "notifications" | "memory" | "sync" | StudioTab;
 export type PermissionCustom = {
   githubRead: boolean; githubWrite: boolean; taskExecution: boolean;
   recurringTasks: boolean; externalNetwork: boolean
