@@ -86,6 +86,8 @@ test("Connected tool calls respect repository policy and reject revoked access",
 test("Write approval is one-shot and binds credential generation and policy",async()=>{
  const f=fixture(),s=await serve(f);
  try{
+  const intent=f.runtime.installs.prepare({ownerId:"alice",sessionId:"session-a",id:"github"});
+  f.runtime.installs.install({ownerId:"alice",sessionId:"session-a",id:"github",nonce:intent.nonce,fingerprint:intent.fingerprint,confirm:true});
   f.runtime.store.putConnection({ownerId:"alice",provider:"github",account:{id:42,login:"example"},
    secret:{accessToken:"test-token"},scopes:["repo"]});
   f.runtime.store.get();
