@@ -9,9 +9,11 @@ import {createAccountService} from "./account.mjs";
 import {createStudioRouter,studioCapabilities} from "./studio.mjs";
 import {createPluginGateway} from "./plugin-gateway.mjs";
 import {runPluginChat} from "./plugin-chat-runtime.mjs";
+import {assertPluginDeploymentSafe} from "./plugin-release-gate.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
+assertPluginDeploymentSafe(process.env);
 const bindHost=process.env.HOST||"127.0.0.1";
 if(process.env.CIRO_ACCOUNTS_ENABLED==="true" &&
    !["127.0.0.1","::1","localhost"].includes(bindHost)){
