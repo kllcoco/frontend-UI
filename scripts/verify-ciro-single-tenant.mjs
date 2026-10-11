@@ -1,4 +1,4 @@
-import {existsSync,lstatSync,realpathSync,statSync} from "node:fs";
+import {existsSync,lstatSync,realpathSync,statSync,readFileSync} from "node:fs";
 import {isAbsolute,resolve,join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {assertPluginDeploymentSafe} from "../server/plugin-release-gate.mjs";
@@ -25,6 +25,22 @@ export function verifySingleTenantReadiness(env=process.env,{platform=process.pl
  const absolute=env.CIRO_WORKSPACE_DATA_DIR;
  requireCondition(typeof absolute==="string"&&isAbsolute(absolute),"absolute_private_state_directory_required");
  if(typeof absolute==="string"&&isAbsolute(absolute)){
+  // Never route a brand-new account over the public TLS proxy before the
+  // trusted operator completes a local, token-guarded initial bootstrap.
+  const accountPath=join(absolute,"account-state.json");
+  try{
+   const account=JSON.parse(readFileSync(accountPath,"utf8"));
+   const owner=account?.owner;
+   requireCondition(account?.version===1&&Array.isArray(account.sessions)&&
+    Array.isArray(account.apiKeys)&&typeof owner?.id==="string"&&owner.id.length>10&&
+    typeof owner?.email==="string"&&owner.email.includes("@")&&
+    typeof owner?.passwordHash==="string"&&/^[a-f0-9]{128}$/.test(owner.passwordHash)&&
+    typeof owner?.salt==="string"&&owner.salt.length>=20,
+    "trusted_owner_bootstrap_required_before_public_pilot");
+  }catch{failures.push("trusted_owner_bootstrap_required_before_public_pilot");}
+  if(typeof env.CIRO_BOOTSTRAP_TOKEN==="string"&&env.CIRO_BOOTSTRAP_TOKEN)
+   failures.push("remove_one_time_bootstrap_token_before_public_pilot");
+
   try{
    const meta=lstatSync(absolute);
    requireCondition(meta.isDirectory()&&!meta.isSymbolicLink(),"unsafe_state_directory_type");

@@ -22,6 +22,13 @@ Never install two unrelated customers into one instance or use the same CIRO enc
 
 The supplied systemd templates at \`deploy/ciro-single-owner-api.service\` and \`deploy/ciro-single-owner-worker.service\` illustrate a restricted operator deployment. Adjust paths and Node binary to the actual host only after security review. Both services use \`StateDirectory=ciro\`, \`UMask=0077\`, and the same \`CIRO_WORKSPACE_DATA_DIR\`.
 
+
+## First-owner bootstrap (must happen BEFORE routing public traffic)
+
+A fresh installation has no owner. Initial owner creation is protected by the **one-time** server-side \`CIRO_BOOTSTRAP_TOKEN\`; do not expose a new instance to the public reverse proxy before bootstrap. On a private loopback or restricted operator-only connection, bootstrap one real owner using a strong one-time token and password. The service account must write the private \`account-state.json\`; the operator should then **remove** the bootstrap token from the persistent systemd environment.
+
+Only after the owner record is present and \`node scripts/verify-ciro-single-tenant.mjs\` reports PASS should the trusted TLS reverse proxy forward external traffic. Bootstrap credentials, cookies and OAuth secrets must never appear in shell history, tickets or GitHub.
+
 ## Preflight and start
 
 Run from the checked-out exact candidate:

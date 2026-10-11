@@ -8,6 +8,12 @@ import {verifySingleTenantReadiness} from "../scripts/verify-ciro-single-tenant.
 
 function fixture(){
  const dir=mkdtempSync(join(tmpdir(),"ciro-tenant-preflight-"));
+ writeFileSync(join(dir,"account-state.json"),JSON.stringify({
+  version:1,owner:{id:"11111111-2222-3333-4444-555555555555",
+   email:"owner@example.org",passwordHash:"a".repeat(128),
+   salt:Buffer.alloc(16,3).toString("base64")},
+  sessions:[],apiKeys:[]
+ }),{mode:0o600});
  const env={CIRO_DEPLOYMENT_MODE:"single-owner",CIRO_ACCOUNTS_ENABLED:"true",
   HOST:"127.0.0.1",CIRO_ACCOUNT_DATA_KEY:randomBytes(32).toString("base64"),
   CIRO_WORKSPACE_DATA_DIR:dir,CIRO_PUBLIC_ORIGIN:"https://ciro.example.org",
@@ -51,5 +57,18 @@ test("insecure state files, missing credentials and untrusted backend abort admi
   assert.ok(bad.failures.includes("configured_safe_model_backend_required"));
   assert.ok(bad.failures.includes("stable_32_byte_account_encryption_key_required"));
   assert.ok(bad.failures.includes("github_oauth_app_not_configured"));
+ }finally{f.close();}
+});
+
+test("single-owner commercial admission refuses unbootstrapped or still-bootstrap-enabled hosts",()=>{
+ const f=fixture();
+ try{
+  rmSync(join(f.dir,"account-state.json"));
+  const missing=verifySingleTenantReadiness(f.env,{platform:"linux",uid:process.getuid()});
+  assert.equal(missing.passed,false);
+  assert.ok(missing.failures.includes("trusted_owner_bootstrap_required_before_public_pilot"));
+  const secret=verifySingleTenantReadiness({...f.env,CIRO_BOOTSTRAP_TOKEN:"token-kept-by-accident"},{platform:"linux",uid:process.getuid()});
+  assert.equal(secret.passed,false);
+  assert.ok(secret.failures.includes("remove_one_time_bootstrap_token_before_public_pilot"));
  }finally{f.close();}
 });
