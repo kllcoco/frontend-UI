@@ -30,7 +30,7 @@ function endpoint(value){
    throw fail("Connector requires configured HTTPS endpoint",503);
  return url.href.replace(/\/+$/,"");
 }
-async function jsonRequest(url,{method="GET",body,token,fetchFn=fetch,timeoutMs=12000,accept="application/json"}={}){
+async function jsonRequest(url,{method="GET",body,token,fetchFn=fetch,timeoutMs=12000,accept="application/json",externalSignal}={}){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
  const relay=()=>controller.abort();
  if(externalSignal?.aborted)relay();
