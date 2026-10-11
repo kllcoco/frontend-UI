@@ -244,7 +244,7 @@ test("scheduled tasks and manually installed marketplace render without fake plu
   await expect(page.getByRole("heading",{name:"发现插件"})).toBeVisible();
   await expect(page.getByRole("heading",{name:"我的插件"})).toBeVisible();
   await expect(page.getByRole("button",{name:"安装插件"})).toBeVisible();
-  await expect(page.getByRole("button",{name:"暂未开放"}).first()).toBeDisabled();
+  await expect(page.getByText("即将开放").first()).toBeVisible();
   await page.screenshot({path:imageDir+"/20-workbench-plugins.png",fullPage:true,animations:"disabled"});
 });
 
