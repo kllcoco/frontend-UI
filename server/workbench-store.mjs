@@ -7,7 +7,8 @@ function initial() {
   return { version: 1, policy: defaultPolicy(), goals: [], schedules: [], approvals: [],
     plugins: { github: true, scheduler: true, runner: true }, audit: [],
     commercial: { events: [], pinnedApps: ["chat", "workbench"], skills: {},
-      billing: { monthlyBudgetMicros: null, alertThresholdPct: 80 } } };
+      billing: { monthlyBudgetMicros: null, alertThresholdPct: 80 },
+      spending:{dailyLimitMicros:null,monthlyLimitMicros:null,singleRequestLimitMicros:null,reservations:[]} } };
 }
 export function createWorkbenchStore(dir) {
   const target = join(dir, "state.json");

@@ -9,6 +9,8 @@ import type { ApiStatus, Conversation } from "./types";
 import { translate } from "./lib/i18n";
 import type { Language } from "./lib/i18n";
 import WorkbenchCenter from "./WorkbenchCenter";
+import AccountCenter from "./AccountCenter";
+import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
@@ -52,7 +54,14 @@ const sections: { id: Section; label: string; icon: typeof Palette }[] = [
   { id: "schedules", label: "定时任务", icon: CalendarClock },
   { id: "billing", label: "账单与用量", icon: Wallet },
   { id: "apps", label: "官方应用", icon: LayoutGrid },
-  { id: "skills", label: "技能中心", icon: Sparkles }
+  { id: "skills", label: "技能中心", icon: Sparkles },
+  { id: "account", label: "账户与安全", icon: Settings2 },
+  { id: "subscription", label: "订阅管理", icon: Wallet },
+  { id: "api-keys", label: "API 密钥", icon: GitBranch },
+  { id: "spending", label: "消费限额", icon: Wallet },
+  { id: "notifications", label: "通知中心", icon: CalendarClock },
+  { id: "memory", label: "记忆管理", icon: Database },
+  { id: "sync", label: "跨设备同步", icon: RefreshCcw }
 ];
 function SettingBlock({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return <section className="sc-section"><div className="sc-section-intro"><h3>{title}</h3>{subtitle && <p>{subtitle}</p>}</div>{children}</section>;
@@ -126,6 +135,8 @@ export default function SettingsCenter({
         <header className="sc-header"><div><span className="sc-kicker">PERSONALIZE YOUR CIRO</span><h2 id="sc-title">{t(heading)}</h2></div>
           <button className="sc-close" onClick={onClose} title={t("关闭设置")} aria-label={t("关闭设置")}><X size={20}/></button></header>
         <div className="sc-scroll">
+          {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
+            <AccountCenter key={section} language={language} section={section as AccountTab}/>}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "appearance" && <>

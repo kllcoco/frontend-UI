@@ -1,6 +1,7 @@
+import {accountFetch} from "./account-api";
 export type PermissionMode = "request" | "auto" | "full" | "custom";
 export type AgentMode = "goal" | "plan";
-export type WorkbenchTab = "goals" | "permissions" | "github" | "plugins" | "schedules" | "billing" | "apps" | "skills";
+export type WorkbenchTab = "goals" | "permissions" | "github" | "plugins" | "schedules" | "billing" | "apps" | "skills" | "account" | "subscription" | "api-keys" | "spending" | "notifications" | "memory" | "sync";
 export type PermissionCustom = {
   githubRead: boolean; githubWrite: boolean; taskExecution: boolean;
   recurringTasks: boolean; externalNetwork: boolean
@@ -36,7 +37,7 @@ export type WorkbenchState = {
 export type GithubFile = { repo:string;path:string;sha:string;content:string };
 export type WorkbenchResponse = {status:string;approval?:{id:string;summary:string}};
 export async function workbenchApi<T>(path:string, payload?:unknown):Promise<T> {
-  const response=await fetch("/api/workbench"+path,{
+  const response=await accountFetch("/api/workbench"+path,{
     method:payload===undefined?"GET":"POST",
     headers:payload===undefined?undefined:{"Content-Type":"application/json"},
     cache:"no-store",

@@ -1,3 +1,4 @@
+import {accountFetch} from "./account-api";
 export type CommerceTab="billing"|"apps"|"skills";
 export type MeterUnit="CWU"|"GWU";
 export type UsageEvent={
@@ -26,7 +27,7 @@ export type OfficialSkill={
 };
 export type CommerceState={billing:BillingOverview;apps:OfficialApp[];skills:OfficialSkill[]};
 export async function commercialApi<T>(path:string,body?:unknown):Promise<T>{
-  const result=await fetch("/api/workbench/commercial"+path,{
+  const result=await accountFetch("/api/workbench/commercial"+path,{
     method:body===undefined?"GET":"POST",
     cache:"no-store",
     headers:body===undefined?undefined:{"Content-Type":"application/json"},

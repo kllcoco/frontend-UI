@@ -2,6 +2,13 @@ export type Language = "zh-CN" | "en";
 const STORAGE_KEY = "ciro.language.v1";
 export const DEFAULT_LANGUAGE: Language = "zh-CN";
 const translations: Readonly<Record<string,string>> = {
+  "账户与安全": "Account & security",
+  "订阅管理": "Subscriptions",
+  "API 密钥": "API keys",
+  "消费限额": "Spending limits",
+  "通知中心": "Notifications",
+  "记忆管理": "Memory",
+  "跨设备同步": "Device sync",
   "账单与用量": "Billing & usage",
   "官方应用": "Official apps",
   "技能中心": "Skills",

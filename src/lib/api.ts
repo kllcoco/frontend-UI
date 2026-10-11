@@ -1,3 +1,4 @@
+import {accountFetch} from "./account-api";
 import type { ApiStatus, ChatMessage } from "../types";
 import type { CustomInstructions } from "./instructions";
 
@@ -54,7 +55,7 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void): boolean
 }
 
 export async function streamChat({ messages, model, instructions, signal, onDelta }: StreamOptions): Promise<void> {
-  const response = await fetch("/api/chat", {
+  const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
     headers: { "Content-Type": "application/json" },

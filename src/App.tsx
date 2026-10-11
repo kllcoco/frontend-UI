@@ -7,7 +7,7 @@ import {
   Copy, FileText, Lightbulb, Menu, MessageCircle, Moon, MoreHorizontal,
   Paperclip, Pencil, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw,
   Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Workflow, X,
-  Wallet, LayoutGrid, Blocks
+  Wallet, LayoutGrid, Blocks, UserCircle, Bell, Cloud
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -18,6 +18,8 @@ import {
 } from "./lib/storage";
 import type { ApiStatus, ChatMessage, Conversation } from "./types";
 import WorkbenchCenter from "./WorkbenchCenter";
+import AccountCenter from "./AccountCenter";
+import type {AccountTab} from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
 import CiroMark from "./components/CiroMark";
@@ -326,7 +328,7 @@ export default function App() {
     } finally { setBusy(false); }
   }
   function handleSlash(text: string): boolean {
-    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|help)(?:\s+([\s\S]*))?$/i.exec(text);
+    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|account|subscription|keys|spending|notifications|memory|sync|help)(?:\s+([\s\S]*))?$/i.exec(text);
     if (!match) return false;
     const command=match[1].toLowerCase();
     const argument=(match[2]||"").trim();
@@ -337,11 +339,14 @@ export default function App() {
       return true;
     }
     if (command==="help") {
-      setToast("/goal · /plan · /work · /github · /schedule · /plugins · /permissions · /billing · /apps · /skills");
+      setToast("/goal · /plan · /work · /github · /schedule · /plugins · /permissions · /billing · /apps · /skills · /account · /subscription · /keys · /spending · /notifications · /memory · /sync");
     } else {
       const tab: WorkbenchTab=command==="github"?"github":command==="schedule"?"schedules":
         command==="plugins"?"plugins":command==="permissions"?"permissions":
-        command==="billing"?"billing":command==="apps"?"apps":command==="skills"?"skills":"goals";
+        command==="billing"?"billing":command==="apps"?"apps":command==="skills"?"skills":
+        command==="account"?"account":command==="subscription"?"subscription":command==="keys"?"api-keys":
+        command==="spending"?"spending":command==="notifications"?"notifications":
+        command==="memory"?"memory":command==="sync"?"sync":"goals";
       openStudio(tab);
     }
     setDraft("");
@@ -535,6 +540,9 @@ export default function App() {
             <Workflow size={18}/><span>{t("协作空间")}</span><span className="studio-launch-dot" />
           </button>
           <div className="studio-quick-links">
+            <button className="studio-quick-link" onClick={()=>openStudio("account")} aria-label={t("账户与安全")}><UserCircle size={17}/><span>{t("账户与安全")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("notifications")} aria-label={t("通知中心")}><Bell size={17}/><span>{t("通知中心")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("sync")} aria-label={t("跨设备同步")}><Cloud size={17}/><span>{t("跨设备同步")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("apps")} aria-label={t("官方应用")}><LayoutGrid size={17}/><span>{t("官方应用")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("skills")} aria-label={t("技能中心")}><Blocks size={17}/><span>{t("技能中心")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("billing")} aria-label={t("账单与用量")}><Wallet size={17}/><span>{t("账单与用量")}</span></button>
@@ -596,8 +604,10 @@ export default function App() {
       {studioOpen ? <main className="workspace workspace--studio">
         <div className="wb-mobile-top"><button type="button" onClick={()=>setSidebarOpen(true)} aria-label={t("打开侧栏")}><Menu size={19}/></button>
           <CiroMark small/><span>Ciro Workbench</span></div>
-        <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
-          onNavigate={route=>{if(route==="chat")createNew();else openStudio(route as WorkbenchTab);}}/>
+        {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(studioTab)
+          ? <div className="acc-workspace"><AccountCenter key={studioTab} language={language} section={studioTab as AccountTab}/></div>
+          : <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
+          onNavigate={route=>{if(route==="chat")createNew();else openStudio(route as WorkbenchTab);}}/>}
       </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
         data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}>
         {showWallpaper && <>

@@ -8,6 +8,7 @@ import "./white.css";
 import "./workbench.css";
 import "./workbench-entry.css";
 import "./commercial.css";
+import "./account.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

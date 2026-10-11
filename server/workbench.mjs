@@ -63,12 +63,12 @@ function serverCapabilities(env,store){
     }))
   };
 }
-export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automaticScheduler=true}={}) {
+export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automaticScheduler=true,notify=()=>{}}={}) {
   const router=express.Router(),store=createWorkbenchStore(dir || env.CIRO_WORKSPACE_DATA_DIR || join(process.cwd(),".ciro-runtime"));
   const adapterOptions={env,fetchFn};
   const running=new Set();
   const activeRequests=new Map();
-  const commercial=createCommercialRouter({env,store});
+  const commercial=createCommercialRouter({env,store,notify});
   // Intentional local-only API. For production, add real login, CSRF and per-user isolation.
   router.use((req,res,next)=>{
     if(["POST","PUT","PATCH","DELETE"].includes(req.method)){

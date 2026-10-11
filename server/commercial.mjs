@@ -5,11 +5,13 @@ import {
 import {
   validateUsageEvent,verifySignedReceipt,usageSummary,parseUsdToMicros,receiptCsv
 } from "./commercial-billing.mjs";
+import {mountSpendingEndpoints,settleReservationOnUsage} from "./spending.mjs";
 
 const INITIAL_PINS=["chat","workbench"];
 function commercial(state){
   const saved=state.commercial||{};
   return {
+    ...saved,
     events:Array.isArray(saved.events)?saved.events:[],
     pinnedApps:Array.isArray(saved.pinnedApps)?saved.pinnedApps:INITIAL_PINS,
     skills:saved.skills||{},
@@ -24,11 +26,12 @@ function publicError(error,res){
   const status=error.statusCode||400;
   res.status(status).json({error:error.message||"Invalid commercial request"});
 }
-export function createCommercialRouter({env=process.env,store}={}){
+export function createCommercialRouter({env=process.env,store,notify=()=>{}}={}){
   if(!store)throw new Error("Commercial store is required");
   const router=express.Router();
   router.use((_req,res,next)=>{res.set("Cache-Control","no-store");next();});
   const wrap=fn=>(req,res)=>Promise.resolve().then(()=>fn(req,res)).catch(e=>publicError(e,res));
+  mountSpendingEndpoints(router,{env,store,wrap});
 
   router.get("/state",(_req,res)=>res.json(publicState(env,store.get())));
   router.get("/billing/export.csv",(_req,res)=>{
@@ -73,12 +76,16 @@ export function createCommercialRouter({env=process.env,store}={}){
     }
     if(saved.events.length>=20000)
       throw Object.assign(new Error("Local metering capacity reached; configure durable billing storage"),{statusCode:507});
+    if(req.body?.reservationId)settleReservationOnUsage(store,req.body.reservationId,entry);
     store.change("billing.usage.recorded",{
       eventId:entry.eventId,unit:entry.unit,units:entry.units,receiptSha256:entry.receiptSha256
     },s=>{
       s.commercial=commercial(s);
       s.commercial.events.push(entry);
     });
+    const metrics=usageSummary(env,commercial(store.get()));
+    if(metrics.budgetReached)notify({type:"warning",title:"Ciro budget reached",body:"Monthly spend threshold reached; new agent tasks are paused."});
+    else if(metrics.budgetWarning)notify({type:"warning",title:"Ciro budget alert",body:"Monthly budget warning threshold has been reached."});
     res.status(201).json({accepted:true,duplicate:false,eventId:entry.eventId});
   }));
 

@@ -49,3 +49,7 @@
 .studio-quick-link:hover{background:rgba(52,143,81,.09)}
 .sidebar--collapsed .studio-quick-links .studio-quick-link{justify-content:center;padding:10px 0}
 .sidebar--collapsed .studio-quick-links .studio-quick-link span{display:none}
+
+.acc-workspace{height:100%;overflow:auto;padding:28px 32px 40px;background:#fff}
+:root[data-theme="dark"] .acc-workspace{background:#0c1f15}
+@media(max-width:690px){.acc-workspace{padding:17px 14px 30px}}
