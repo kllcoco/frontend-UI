@@ -20,7 +20,7 @@ async function setRange(locator: Locator, value: number) {
 }
 
 async function openSettings(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: /^(设置|Settings)$/ }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
