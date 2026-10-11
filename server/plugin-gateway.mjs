@@ -176,6 +176,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  async function credentialFor(user,provider){
   let credential=store.connection(user,provider);
   if(!credential)throw fail("Connect this plugin before invoking it",403);
+  const installation=installs.installed(user,provider);
+  if(!installation?.enabled||!installation.installationId||
+    credential.installationId!==installation.installationId)
+    throw fail("Plugin installation changed; reconnect account after reinstall",403);
   const needsRefresh=x=>Number.isFinite(x?.secret?.expiresAt) &&
     x.secret.expiresAt < Date.now()+60000;
   if(!needsRefresh(credential))return credential;
@@ -280,7 +284,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  });
  function listModelTools(user) {
   const result=[];
-  if(installs.installed(user,"github")?.enabled && store.connection(user,"github")){
+  const installedGitHub=installs.installed(user,"github");
+  const connectedGitHub=store.connection(user,"github");
+  if(installedGitHub?.enabled&&installedGitHub.installationId&&
+     connectedGitHub?.installationId===installedGitHub.installationId){
    const permission=policy(),repo=permission.repo;
    if(repo && (env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim()).includes(repo)){
     for(const [functionName,item] of Object.entries(MODEL_TOOLS)){
@@ -295,7 +302,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     }
    }
   }
-  if(installs.installed(user,"supabase")?.enabled&&store.connection(user,"supabase")&&
+  if(installs.installed(user,"supabase")?.enabled&&
+     installs.installed(user,"supabase")?.installationId&&
+     store.connection(user,"supabase")?.installationId===
+      installs.installed(user,"supabase")?.installationId&&
      supabaseOAuthConfig(env).ready &&
      !(policy().mode==="custom"&&!policy().custom.externalNetwork)){
    const names=(env.CIRO_SUPABASE_MCP_TOOLS||"").split(",")
@@ -365,14 +375,16 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   res.json(installs.setEnabled(owner(req),req.params.id,req.body?.enabled));
  }));
  router.post("/github/connect",wrap((req,res)=>{
-  assertInstalled(owner(req),"github");
+  const installation=assertInstalled(owner(req),"github");
+  if(!installation.installationId)throw fail("Legacy installation must be reinstalled",409);
   if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")
     throw fail("GitHub OAuth requires an authenticated browser session",403);
   const client=bounded(env.CIRO_GITHUB_OAUTH_CLIENT_ID,150,"GitHub OAuth client ID");
   bounded(env.CIRO_GITHUB_OAUTH_CLIENT_SECRET,500,"GitHub OAuth client secret");
   const origin=endpoint(env.CIRO_PUBLIC_ORIGIN);
   const state=randomBytes(32).toString("base64url");
-  store.addOAuth({ownerId:owner(req),sessionId:req.principal.sessionId,stateHash:sha(state),verifier:state});
+  store.addOAuth({ownerId:owner(req),sessionId:req.principal.sessionId,stateHash:sha(state),
+    verifier:state,installationId:installation.installationId});
   const url=new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id",client);
   url.searchParams.set("redirect_uri",origin+"/api/plugins/github/callback");
@@ -386,7 +398,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const code=bounded(req.query.code,300,"authorization code");
   const state=bounded(req.query.state,150,"authorization state");
   const pending=store.takeOAuth({ownerId:owner(req),sessionId:req.principal.sessionId,stateHash:sha(state)});
-  if(!pending||!safeEqual(pending.verifier,state))throw fail("OAuth state invalid or expired",403);
+  if(!pending||!safeEqual(pending.verifier,state)||
+   !pending.installationId||
+   installs.installed(owner(req),"github")?.installationId!==pending.installationId)
+    throw fail("OAuth state invalid or plugin installation changed",403);
   const origin=endpoint(env.CIRO_PUBLIC_ORIGIN);
   const body=new URLSearchParams({client_id:env.CIRO_GITHUB_OAUTH_CLIENT_ID,
    client_secret:env.CIRO_GITHUB_OAUTH_CLIENT_SECRET,code,redirect_uri:origin+"/api/plugins/github/callback"}).toString();
@@ -399,7 +414,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    accept:"application/vnd.github+json"});
   if(!Number.isInteger(identity.id)||typeof identity.login!=="string")throw fail("GitHub account could not be verified",502);
   assertInstalled(owner(req),"github");
-  store.putConnection({ownerId:owner(req),provider:"github",
+  store.putConnection({ownerId:owner(req),provider:"github",installationId:pending.installationId,
    account:{id:identity.id,login:identity.login},secret:{accessToken:data.access_token,
     refreshToken:typeof data.refresh_token==="string"?data.refresh_token:null,
     expiresAt:Number.isFinite(data.expires_in)?Date.now()+data.expires_in*1000:null},
@@ -407,13 +422,15 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   res.redirect(303,"/?view=plugins&connection=github");
  }));
  router.post("/supabase/connect",wrap((req,res)=>{
-  assertInstalled(owner(req),"supabase");
+  const installation=assertInstalled(owner(req),"supabase");
+  if(!installation.installationId)throw fail("Legacy installation must be reinstalled",409);
   if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")
     throw fail("Supabase OAuth requires an authenticated browser session",403);
   const origin=endpoint(env.CIRO_PUBLIC_ORIGIN);
   const started=supabaseStartAuthorization(env,origin+"/api/plugins/supabase/callback");
   store.addOAuth({provider:"supabase",ownerId:owner(req),sessionId:req.principal.sessionId,
-    stateHash:sha(started.state),verifier:started.state,codeVerifier:started.codeVerifier});
+    stateHash:sha(started.state),verifier:started.state,
+    codeVerifier:started.codeVerifier,installationId:installation.installationId});
   res.json({authorizeUrl:started.authorizeUrl,expiresInSeconds:600});
  }));
  router.get("/supabase/callback",wrap(async(req,res)=>{
@@ -424,7 +441,9 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const state=bounded(req.query.state,150,"authorization state");
   const pending=store.takeOAuth({provider:"supabase",ownerId:owner(req),
     sessionId:req.principal.sessionId,stateHash:sha(state)});
-  if(!pending||!safeEqual(pending.verifier,state)||typeof pending.codeVerifier!=="string")
+  if(!pending||!safeEqual(pending.verifier,state)||typeof pending.codeVerifier!=="string"||
+     !pending.installationId||
+     installs.installed(owner(req),"supabase")?.installationId!==pending.installationId)
     throw fail("OAuth state invalid or expired",403);
   const origin=endpoint(env.CIRO_PUBLIC_ORIGIN);
   const token=await supabaseToken(env,{type:"authorization_code",code,
@@ -432,7 +451,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const identity=await supabaseIdentity(env,token.accessToken,fetchFn);
   assertInstalled(owner(req),"supabase");
   // No administrator credential or service-role token is permitted.
-  store.putConnection({ownerId:owner(req),provider:"supabase",
+  store.putConnection({ownerId:owner(req),provider:"supabase",installationId:pending.installationId,
     account:identity,secret:token,scopes:token.scopes});
   res.redirect(303,"/?view=plugins&connection=supabase");
  }));
