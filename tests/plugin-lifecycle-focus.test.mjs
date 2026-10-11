@@ -151,6 +151,23 @@ test("installed GitHub plugin completes scoped OAuth, model read, human-approved
   });
   assert.equal(modelResult.content,"已读取 README");
   assert.equal(modelResult.toolCalls,1);
+  // Switching the selected repository must revoke old-scope read permission
+  // before any GitHub network request is sent.
+  const policyBefore=(await send("/plugins/catalog")).body.githubScope;
+  assert.equal((await send("/workbench/permissions",{
+   mode:"request",repo:"demo/other-repository",custom:policyBefore.custom
+  })).status,200);
+  const outgoingBefore=providerRequests.length;
+  const oldScopeRead=await send("/plugins/invoke",{
+   provider:"github",tool:"github.read_file",
+   args:{repo:"demo/repository",path:"README.md"}
+  });
+  assert.equal(oldScopeRead.status,403);
+  assert.equal(providerRequests.length,outgoingBefore);
+  const policyChanged=(await send("/plugins/catalog")).body.githubScope;
+  assert.equal((await send("/workbench/permissions",{
+   mode:"request",repo:"demo/repository",custom:policyChanged.custom
+  })).status,200);
   const beforeWrite=providerRequests.filter(x=>x.method==="PUT").length;
   const proposed=await send("/plugins/invoke",{
    provider:"github",tool:"github.write_file",
