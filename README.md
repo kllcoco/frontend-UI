@@ -19,39 +19,39 @@ CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 深绿
 
 要求 Node.js 20.19+ 或 22.12+。
 
-\`\`\`bash
+```bash
 npm install
 cp .env.example .env
 npm run dev:all
-\`\`\`
+```
 
-Windows PowerShell 可以用 \`Copy-Item .env.example .env\`，然后打开 http://127.0.0.1:5173 。
+Windows PowerShell 可以用 `Copy-Item .env.example .env`，然后打开 http://127.0.0.1:5173 。
 
 **未配置真实推理服务时**，客户端会明确提示「界面预览模式」。首次使用默认开启深色月夜和青绿色夜景；在「设置 → 外观与背景」修改后会自动保存。
 
 ## 接入 CIRO 模型
 
-服务端根目录 \`.env\`：
+服务端根目录 `.env`：
 
-\`\`\`dotenv
+```dotenv
 CIRO_API_BASE_URL=http://127.0.0.1:8000/v1
 CIRO_API_PATH=/chat/completions
 CIRO_MODEL=ciro
 CIRO_MODELS=ciro
 CIRO_API_KEY=
-\`\`\`
+```
 
-重启开发服务。Node 代理目前兼容 **OpenAI Chat Completions SSE / JSON** 响应。这里没有证明 CIRO 原生推理 ABI 符合该接口，如果不兼容，请在 \`server/index.mjs\` 添加已验证适配层；不得假装连通或编造模型。
+重启开发服务。Node 代理目前兼容 **OpenAI Chat Completions SSE / JSON** 响应。这里没有证明 CIRO 原生推理 ABI 符合该接口，如果不兼容，请在 `server/index.mjs` 添加已验证适配层；不得假装连通或编造模型。
 
-浏览器通过 \`/api/status\` 获取可选模型和配置状态；\`/api/chat\` 经 Node 代理到后端。不应把 CIRO_API_KEY 设置成 \`VITE_\` 变量。
+浏览器通过 `/api/status` 获取可选模型和配置状态；`/api/chat` 经 Node 代理到后端。不应把 CIRO_API_KEY 设置成 `VITE_` 变量。
 
 ## 验证与生产构建
 
-\`\`\`bash
+```bash
 npm test
 npm run build
 npm start
-\`\`\`
+```
 
 访问 http://127.0.0.1:8787 ，默认只监听本机。请实际用浏览器验证：主界面、侧栏、八个设置分类、换背景后刷新恢复、图片超限拒绝、夜间/日间模式、移动端、聊天的预览模式；配置真实后端后再验流式输出及中断。
 
@@ -65,7 +65,7 @@ npm start
 
 ## 目录
 
-\`\`\`
+```
 src/
   App.tsx                   # 欢迎页 / 聊天页 / 会话与推理流
   SettingsCenter.tsx        # 八页设置中心
@@ -81,4 +81,4 @@ server/
   index.mjs                 # Node 代理
   validate.mjs              # 请求约束
 public/backgrounds/         # 5 个本地 SVG 壁纸
-\`\`\`
+```
