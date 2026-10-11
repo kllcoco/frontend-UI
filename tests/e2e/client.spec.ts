@@ -167,6 +167,10 @@ test("English interface is complete, persists across reloads, and returns to Chi
   await page.getByRole("button", { name: "完成" }).click();
   await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await page.getByRole("button", { name: "切换语言" }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await page.getByRole("button", { name: "Switch language" }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
 });
 
 test("mobile navigation and settings stay inside the viewport", async ({ page }) => {

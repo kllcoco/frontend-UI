@@ -556,6 +556,7 @@ export default function App() {
             <span className="topbar-beta">PREVIEW</span>
           </div>
           <div className="topbar-right">
+            <button type="button" className="language-quick-switch" title={t("切换语言")} aria-label={t("切换语言")} onClick={() => setLanguage(language === "zh-CN" ? "en" : "zh-CN")}>{language === "zh-CN" ? "EN" : "中"}</button>
             <span className={["connection-label", status.configured ? "connection-label--ready" : ""].join(" ")}>
               <span className="status-dot" />{readyLabel}
             </span>

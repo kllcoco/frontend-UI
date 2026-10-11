@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 默认纯白界面，深绿月夜等背景可由用户选择**；布局参照经用户审核的左侧聊天历史、顶部模型选择、居中聊天区、底部输入框和双栏设置中心。
 
-> **当前状态：UI V0.2，Draft PR。** 界面、背景 DIY 和本地对话可用；CIRO 正式推理服务尚未接入。不配置后端时是明确的预览模式，不生成虚假的模型回答。
+> **当前状态：UI V0.3，Draft PR。** 界面、背景 DIY 和本地对话可用；CIRO 正式推理服务尚未接入。不配置后端时是明确的预览模式，不生成虚假的模型回答。
 
 ## 功能清单
 
@@ -76,12 +76,13 @@ src/
   lib/api.ts                # SSE 客户端
   lib/storage.ts            # 本地对话
   styles.css                # 旧版布局基础
-  cinematic.css             # 深绿月夜主题
+  cinematic.css             # 可选深绿月夜主题
+  white.css                 # 默认白色主题与语言切换控件
   settings.css              # 设置中心布局与样式
 server/
   index.mjs                 # Node 代理
   validate.mjs              # 请求约束
-public/backgrounds/         # 5 个本地 SVG 壁纸
+public/backgrounds/         # 6 个本地 SVG 壁纸（含纯白）
 ```
 
 ## 纯白主题与中英文验收（2026-10-11）
@@ -91,3 +92,7 @@ public/backgrounds/         # 5 个本地 SVG 壁纸
 - 纯白默认不取消深色主题、自定义上传背景或背景效果调节；已保存的旧偏好仍受尊重
 - 通过 `npm test` **7/7**、`npm run build` 和 Playwright `npm run test:e2e` **8/8**
 - [浏览器测试与截图结果](https://github.com/kllcoco/frontend-UI/actions/runs/38118999697)（包含中英文页面与移动端截图）
+
+## 中 / English 语言切换
+
+默认简体中文，默认白色主题；右上角 **EN / 中** 可快速切换语言，或进入「通用设置 → 界面语言」。界面文字即时改变，语言选择保存在当前浏览器，刷新后保持。用户聊天内容与真实模型回答不会被自动翻译。背景 DIY 与深色模式仍可选择。

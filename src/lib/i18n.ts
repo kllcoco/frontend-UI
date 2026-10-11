@@ -67,6 +67,7 @@ const translations: Readonly<Record<string,string>> = {
   "深色模式": "Dark mode",
   "浅色模式": "Light mode",
   "设置": "Settings",
+  "切换语言": "Switch language",
   "设置与连接": "Settings & connection",
   "打开侧栏": "Open sidebar",
   "切换模型": "Switch model",

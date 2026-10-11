@@ -181,3 +181,10 @@
   .sc-setting-row{flex-wrap:wrap}
   .sc-setting-control{max-width:100%}
 }
+
+/* Always-visible bilingual shortcut in the header. */
+.language-quick-switch{height:30px;min-width:38px;border-radius:8px;font:700 12px "DM Sans","Noto Sans SC",sans-serif;padding:0 8px;white-space:nowrap}
+:root[data-theme="light"] .language-quick-switch{background:#eaf6ed;border:1px solid #d6eadb;color:#247a4c}
+:root[data-theme="dark"] .language-quick-switch{background:rgba(55,126,80,.22);border:1px solid rgba(137,229,164,.27);color:#bcf2d0}
+.language-quick-switch:hover{filter:brightness(.95)}
+@media(max-width:760px){.language-quick-switch{min-width:33px;height:28px;padding:0 5px}}
