@@ -1,5 +1,5 @@
 import express from "express";
-import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
+import {createHash,randomBytes,randomUUID,timingSafeEqual} from "node:crypto";
 import {join} from "node:path";
 import {createPluginConnectionStore} from "./plugin-connection-store.mjs";
 import {createPluginInstallStore} from "./plugin-install-store.mjs";
