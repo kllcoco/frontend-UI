@@ -76,7 +76,7 @@ async function createTestServer({envVars=env(),mock=mockAdapter()}={}) {
       ...(body===undefined?{}:{headers:{"Content-Type":"application/json",...extraHeaders},body:JSON.stringify(body)})
     });
     const data=await response.json();
-    return {status:response.status,...data};
+    return {httpStatus:response.status,...data};
   };
   return {api,store,tick,close:async()=>{
     stop();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true});
@@ -125,7 +125,7 @@ test("no runner -> goal persisted as waiting, never falsely completed",async()=>
   const ctx=await createTestServer({envVars:env({CIRO_AGENT_RUNNER_URL:"",CIRO_AGENT_RUNNER_TOKEN:""})});
   try{
     const r=await ctx.api("/goals",{mode:"goal",title:"Build feature",goal:"Create a real testable app"});
-    assert.equal(r.status,201);
+    assert.equal(r.httpStatus,201);
     assert.equal(r.goal.status,"waiting_runtime");
     const state=await ctx.api("/state");
     assert.equal(state.goals.length,1);
@@ -153,7 +153,7 @@ test("plan mode creates a plan but never starts repository changes",async()=>{
   const calls=[],ctx=await createTestServer({mock:mockAdapter(calls)});
   try{
     const r=await ctx.api("/goals",{mode:"plan",title:"Plan app",goal:"Design a reliable website"});
-    assert.equal(r.status,201);
+    assert.equal(r.httpStatus,201);
     const goal=await waitFor(async()=>{
       const s=await ctx.api("/state");return s.goals[0]?.status==="planned"?s.goals[0]:null;
     });
@@ -168,7 +168,7 @@ test("automatic mode delegates distinct agent roles, independent tests, redteam 
     const policy=await ctx.api("/permissions",{mode:"auto",custom:{},repo:""});
     assert.equal(policy.policy.mode,"auto");
     const create=await ctx.api("/goals",{mode:"goal",title:"Website",goal:"Deliver working site with tests and red-team"});
-    assert.equal(create.status,201);
+    assert.equal(create.httpStatus,201);
     const complete=await waitFor(async()=>{
       const s=await ctx.api("/state");return s.goals[0]?.status==="completed"?s.goals[0]:null;
     });
@@ -206,18 +206,18 @@ test("scoped GitHub read/write uses immutable approval payload and rejects CSRF 
     assert.equal(read.content,"Hello World");
     const write=await ctx.api("/github/write",{path:"README.md",branch:"ciro/task",
       content:"Updated",message:"feat: change",expectedSha:"b".repeat(40)});
-    assert.equal(write.status,202);
+    assert.equal(write.httpStatus,202);
     assert.equal(write.approvalRequired,true);
     assert.equal(calls.filter(x=>x.options.method==="PUT").length,0);
     const approved=await ctx.api("/approvals/"+write.id+"/decision",{decision:"approve"});
-    assert.equal(approved.status,200);
+    assert.equal(approved.httpStatus,200);
     assert.equal(approved.result.commit,"d".repeat(40));
     assert.equal(calls.filter(x=>x.options.method==="PUT").length,1);
     const rejectedOrigin=await ctx.api("/github/connect",{repo:"acme/repo"},{origin:"https://outside.example"});
-    assert.equal(rejectedOrigin.status,403);
+    assert.equal(rejectedOrigin.httpStatus,403);
     const unsafe=await ctx.api("/github/write",{path:".github/workflows/ci.yml",branch:"ciro/task",
       content:"malicious",message:"feat: change"});
-    assert.equal(unsafe.status,400);
+    assert.equal(unsafe.httpStatus,400);
     const state=await ctx.api("/state");
     assert.ok(!JSON.stringify(state).includes("test-server-token"));
   }finally{await ctx.close();}
@@ -236,7 +236,7 @@ test("server scheduler creates one approval per due slot and persists deduplicat
   const ctx=await createTestServer({envVars:env({CIRO_AGENT_RUNNER_URL:""})});
   try{
     const r=await ctx.api("/schedules",{title:"Daily test",goal:"Check project tests",recurrence:"daily",hour:9,timezone:"UTC"});
-    assert.equal(r.status,201);
+    assert.equal(r.httpStatus,201);
     ctx.tick(new Date("2026-01-04T09:00:01Z"));
     ctx.tick(new Date("2026-01-04T09:59:57Z"));
     const state=await ctx.api("/state");
