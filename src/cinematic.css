@@ -149,7 +149,6 @@ body{background:var(--bg)}
   animation-duration:0s!important;scroll-behavior:auto!important;transition-duration:0s!important;
 }
 :root[data-theme="light"] .topbar{background:rgba(247,252,249,.83);border-bottom-color:rgba(27,91,62,.12)}
-:root[data-theme="light"] .wallpaper-veil{background-color:rgba(255,255,255,.35)!important}
 :root[data-theme="light"] .welcome h1{color:#f2fff2}
 :root[data-theme="light"] .suggestion-card{background:rgba(241,250,244,.83);border-color:rgba(54,139,91,.2)}
 :root[data-theme="light"] .suggestion-copy strong{color:#19432d}
