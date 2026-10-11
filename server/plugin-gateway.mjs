@@ -32,6 +32,9 @@ function endpoint(value){
 }
 async function jsonRequest(url,{method="GET",body,token,fetchFn=fetch,timeoutMs=12000,accept="application/json"}={}){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+ const relay=()=>controller.abort();
+ if(externalSignal?.aborted)relay();
+ externalSignal?.addEventListener("abort",relay,{once:true});
  try {
   const response=await fetchFn(url,{method,redirect:"error",signal:controller.signal,
    headers:{"Accept":accept,...(token?{"Authorization":"Bearer "+token}:{}),
@@ -41,7 +44,7 @@ async function jsonRequest(url,{method="GET",body,token,fetchFn=fetch,timeoutMs=
   if(bytes.length>600000)throw fail("Connector response is too large",502);
   if(!response.ok)throw fail("Connector returned HTTP "+response.status,502);
   try{return bytes?JSON.parse(bytes):{};}catch{throw fail("Connector response is not JSON",502);}
- }finally{clearTimeout(timer);}
+ }finally{clearTimeout(timer);externalSignal?.removeEventListener("abort",relay);}
 }
 function repoAllowed(env,repo){
  validateRepo(repo);
@@ -49,26 +52,26 @@ function repoAllowed(env,repo){
  if(!repos.includes(repo))throw fail("Repository outside server allowlist",403);
  return repo;
 }
-async function githubCall(env,secret,method,path,body,fetchFn){
- return jsonRequest("https://api.github.com"+path,{method,body,token:secret.accessToken,fetchFn,accept:"application/vnd.github+json"});
+async function githubCall(env,secret,method,path,body,fetchFn,externalSignal){
+ return jsonRequest("https://api.github.com"+path,{method,body,token:secret.accessToken,fetchFn,externalSignal,accept:"application/vnd.github+json"});
 }
 const encodePath=p=>p.split("/").map(encodeURIComponent).join("/");
-async function runGithub(env,credential,tool,args,fetchFn){
+async function runGithub(env,credential,tool,args,fetchFn,signal){
  const repo=repoAllowed(env,bounded(args.repo,210,"repository"));
  const prefix="/repos/"+repo;
  if(tool==="github.read_file"){
    const path=safeFilePath(args.path);
    const branch=args.branch?safeBranch(args.branch):"";
-   const result=await githubCall(env,credential,"GET",prefix+"/contents/"+encodePath(path)+(branch?"?ref="+encodeURIComponent(branch):""),undefined,fetchFn);
+   const result=await githubCall(env,credential,"GET",prefix+"/contents/"+encodePath(path)+(branch?"?ref="+encodeURIComponent(branch):""),undefined,fetchFn,signal);
    if(result.type!=="file"||result.encoding!=="base64"||result.size>180000)throw fail("Unsupported file",400);
    return {repo,path,sha:result.sha,content:Buffer.from(result.content.replace(/\s/g,""),"base64").toString("utf8")};
  }
  if(env.CIRO_GITHUB_WRITES!=="true")throw fail("Server-side GitHub writes are disabled",403);
  if(tool==="github.create_branch"){
    const branch=safeBranch(args.branch);
-   const meta=await githubCall(env,credential,"GET",prefix,undefined,fetchFn);
-   const base=await githubCall(env,credential,"GET",prefix+"/git/ref/heads/"+encodeURIComponent(meta.default_branch),undefined,fetchFn);
-   return githubCall(env,credential,"POST",prefix+"/git/refs",{ref:"refs/heads/"+branch,sha:base.object.sha},fetchFn);
+   const meta=await githubCall(env,credential,"GET",prefix,undefined,fetchFn,signal);
+   const base=await githubCall(env,credential,"GET",prefix+"/git/ref/heads/"+encodeURIComponent(meta.default_branch),undefined,fetchFn,signal);
+   return githubCall(env,credential,"POST",prefix+"/git/refs",{ref:"refs/heads/"+branch,sha:base.object.sha},fetchFn,signal);
  }
  if(tool==="github.write_file"){
    const branch=safeBranch(args.branch),path=safeFilePath(args.path),message=bounded(args.message,150,"commit message");
@@ -76,7 +79,7 @@ async function runGithub(env,credential,tool,args,fetchFn){
    if(args.expectedSha&&!/^[a-f0-9]{40}$/.test(args.expectedSha))throw fail("Invalid content SHA");
    const payload={branch,message,content:Buffer.from(args.content).toString("base64"),
      ...(args.expectedSha?{sha:args.expectedSha}:{})};
-   return githubCall(env,credential,"PUT",prefix+"/contents/"+encodePath(path),payload,fetchFn);
+   return githubCall(env,credential,"PUT",prefix+"/contents/"+encodePath(path),payload,fetchFn,signal);
  }
  throw fail("Tool unavailable",404);
 }
@@ -111,6 +114,21 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  function assertInstalled(user,provider){const record=installs.installed(user,provider);
   if(!record||!record.enabled)throw fail("Install and enable the plugin in the marketplace first",403);
   return record;
+ }
+ const activeToolRequests=new Map();
+ const operationKey=(user,provider)=>user+"::"+provider;
+ function abortOperations(user,provider){
+  const key=operationKey(user,provider),active=activeToolRequests.get(key);
+  if(active)for(const controller of active)controller.abort();
+ }
+ function trackOperation(user,provider){
+  const key=operationKey(user,provider),controller=new AbortController();
+  if(!activeToolRequests.has(key))activeToolRequests.set(key,new Set());
+  activeToolRequests.get(key).add(controller);
+  return {signal:controller.signal,finish(){
+    const set=activeToolRequests.get(key);set?.delete(controller);
+    if(set?.size===0)activeToolRequests.delete(key);
+  }};
  }
  const tokenRefreshLocks=new Map();
  async function credentialFor(user,provider){
@@ -168,9 +186,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     summary:provider+" / "+tool});
    return {approvalRequired:true,...pending};
   }
+  const operation=trackOperation(user,provider);
   let output;
   try{
-   if(provider==="github")output=await runGithub(env,connection.secret,tool,args,fetchFn);
+   if(provider==="github")output=await runGithub(env,connection.secret,tool,args,fetchFn,operation.signal);
    else if(provider==="supabase"){
     const conf=supabaseOAuthConfig(env);
     if(!conf.ready||connection.secret.projectRef!==conf.projectRef)
@@ -179,7 +198,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
       .map(x=>x.trim()).filter(x=>/^[A-Za-z0-9_.:-]{1,100}$/.test(x)));
     if(!allowed.size)throw fail("No Supabase MCP tools allowlisted",403);
     const mcp=await createSupabaseMcpSession({projectRef:conf.projectRef,
-      accessToken:connection.secret.accessToken,fetchFn});
+      accessToken:connection.secret.accessToken,fetchFn,signal:operation.signal});
     try{
       const visible=(await mcp.listTools()).filter(x=>allowed.has(x.name));
       if(tool==="supabase.list_tools")output={tools:visible};
@@ -204,7 +223,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   }catch(e){
    store.change("tool.failed",()=>{}, {ownerId:user,provider,tool,source,outcome:"failed"});
    throw e;
-  }
+  }finally{operation.finish();}
  }
 
  const MODEL_TOOLS=Object.freeze({
@@ -275,12 +294,14 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }));
  router.post("/installed/:id/uninstall",wrap((req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required for plugin removal",403);
+  abortOperations(owner(req),req.params.id);
   const result=installs.uninstall(owner(req),req.params.id);
   store.removeConnection(owner(req),req.params.id);
   res.json(result);
  }));
  router.post("/installed/:id/enabled",wrap((req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required",403);
+  if(req.body?.enabled===false)abortOperations(owner(req),req.params.id);
   res.json(installs.setEnabled(owner(req),req.params.id,req.body?.enabled));
  }));
  router.post("/github/connect",wrap((req,res)=>{
@@ -355,6 +376,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }));
  router.post("/:provider/disconnect",wrap((req,res)=>{
   if(!CATALOG.some(x=>x.id===req.params.provider))throw fail("Unknown provider",404);
+  abortOperations(owner(req),req.params.provider);
   store.removeConnection(owner(req),req.params.provider);
   res.json({revokedLocally:true,provider:req.params.provider,
    note:"Local token removed. Revoke app access at the provider to invalidate upstream authorization."});
