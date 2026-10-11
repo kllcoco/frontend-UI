@@ -117,6 +117,25 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }
  const activeToolRequests=new Map();
  const operationKey=(user,provider)=>user+"::"+provider;
+ async function revokeProviderGrant(user,provider){
+  const record=store.connection(user,provider);
+  if(!record)return {upstreamRevoked:false,reason:"no_active_connection"};
+  if(provider!=="github")return {upstreamRevoked:false,reason:"provider_revoke_manual"};
+  const client=env.CIRO_GITHUB_OAUTH_CLIENT_ID,secret=env.CIRO_GITHUB_OAUTH_CLIENT_SECRET;
+  if(!client||!secret||!record.secret?.accessToken)
+    return {upstreamRevoked:false,reason:"oauth_configuration_missing"};
+  try {
+   const response=await fetchFn("https://api.github.com/applications/"+encodeURIComponent(client)+"/grant",{
+    method:"DELETE",redirect:"error",signal:AbortSignal.timeout(12000),
+    headers:{"Accept":"application/vnd.github+json",
+     "Authorization":"Basic "+Buffer.from(client+":"+secret).toString("base64"),
+     "Content-Type":"application/json"},
+    body:JSON.stringify({access_token:record.secret.accessToken})
+   });
+   return {upstreamRevoked:response.status===204,
+    reason:response.status===204?"provider_grant_revoked":"provider_revoke_failed"};
+  }catch{return {upstreamRevoked:false,reason:"provider_unreachable"};}
+ }
  function abortOperations(user,provider){
   const key=operationKey(user,provider),active=activeToolRequests.get(key);
   if(active)for(const controller of active)controller.abort();
@@ -292,12 +311,13 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    nonce:req.body?.nonce,fingerprint:req.body?.fingerprint,confirm:req.body?.confirm});
   res.status(201).json({installed:true,plugin:record});
  }));
- router.post("/installed/:id/uninstall",wrap((req,res)=>{
+ router.post("/installed/:id/uninstall",wrap(async(req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required for plugin removal",403);
   abortOperations(owner(req),req.params.id);
+  const provider=await revokeProviderGrant(owner(req),req.params.id);
   const result=installs.uninstall(owner(req),req.params.id);
   store.removeConnection(owner(req),req.params.id);
-  res.json(result);
+  res.json({...result,...provider});
  }));
  router.post("/installed/:id/enabled",wrap((req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required",403);
@@ -374,12 +394,14 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     account:identity,secret:token,scopes:token.scopes});
   res.redirect(303,"/?view=plugins&connection=supabase");
  }));
- router.post("/:provider/disconnect",wrap((req,res)=>{
+ router.post("/:provider/disconnect",wrap(async(req,res)=>{
   if(!CATALOG.some(x=>x.id===req.params.provider))throw fail("Unknown provider",404);
   abortOperations(owner(req),req.params.provider);
+  const remote=await revokeProviderGrant(owner(req),req.params.provider);
   store.removeConnection(owner(req),req.params.provider);
-  res.json({revokedLocally:true,provider:req.params.provider,
-   note:"Local token removed. Revoke app access at the provider to invalidate upstream authorization."});
+  res.json({revokedLocally:true,provider:req.params.provider,...remote,
+   note:remote.upstreamRevoked?"Upstream app authorization revoked.":
+    "Local token removed; revoke app access at provider if still authorized."});
  }));
  router.post("/agent/invoke",wrap(async(req,res)=>{
   // The account guard exempts exactly this machine-to-machine route.
