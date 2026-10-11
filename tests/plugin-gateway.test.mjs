@@ -73,12 +73,12 @@ test("Connected tool calls respect repository policy and reject revoked access",
   f.runtime.store.putConnection({ownerId:"alice",provider:"github",account:{id:42,login:"example"},
    secret:{accessToken:"private-test-token"},scopes:["repo"]});
   const forbidden=await s.call("/plugins/invoke",{provider:"github",tool:"github.read_file",
-   source:"agent",args:{repo:"other/repo",path:"README.md"}});
+   source:"manual",args:{repo:"other/repo",path:"README.md"}});
   assert.equal(forbidden.status,403);
   assert.equal(f.calls.length,0);
   f.runtime.store.removeConnection("alice","github");
   const removed=await s.call("/plugins/invoke",{provider:"github",tool:"github.read_file",
-   source:"agent",args:{repo:"example/project",path:"README.md"}});
+   source:"manual",args:{repo:"example/project",path:"README.md"}});
   assert.equal(removed.status,403);
   assert.equal(f.calls.length,0);
  }finally{await s.close();}
@@ -95,7 +95,7 @@ test("Write approval is one-shot and binds credential generation and policy",asy
   workbench.change("test.policy",{},state=>{state.policy={mode:"request",repo:"example/project",
    custom:{githubRead:true,githubWrite:false,taskExecution:false,recurringTasks:false,externalNetwork:false}};});
   const request=await s.call("/plugins/invoke",{provider:"github",tool:"github.write_file",
-   source:"agent",args:{repo:"example/project",branch:"ciro/test",path:"README.md",
+   source:"manual",args:{repo:"example/project",branch:"ciro/test",path:"README.md",
     content:"updated",message:"update README"}});
   assert.equal(request.status,202);
   assert.equal(request.json.approvalRequired,true);
