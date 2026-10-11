@@ -3,14 +3,14 @@
   "project": "kllcoco/frontend-UI",
   "candidate_branch": "feat/ciro-v08-plugin-marketplace",
   "base_branch": "feat/ciro-chat-client-v1",
-  "qualified_code_commit": "d0b5a86a600d078bf6c2228e1132c8cdc3188cec",
+  "qualified_code_commit": "3949093c96745467952414771726fd2590d9dd69",
   "validated_at": "2026-10-11",
   "ci": {
-    "workflow_run_id": 38138778445,
-    "url": "https://github.com/kllcoco/frontend-UI/actions/runs/38138778445",
+    "workflow_run_id": 38139115205,
+    "url": "https://github.com/kllcoco/frontend-UI/actions/runs/38139115205",
     "conclusion": "success",
     "unit_and_security_tests": {
-      "passed": 99,
+      "passed": 100,
       "failed": 0
     },
     "production_build": "PASS",
@@ -70,7 +70,7 @@
     },
     {
       "id": "CIRO-V08-DEDICATED-PILOT",
-      "description": "One-owner-per-dedicated-Linux-host edition with fail-closed configuration preflight, isolated service templates and supervised plugin read worker",
+      "description": "One-owner-per-dedicated-Linux-host edition with fail-closed configuration preflight, isolated service templates and supervised plugin read worker; trusted owner must be bootstrapped privately and one-time token removed before public routing",
       "status": "CODE_AND_AUTOMATED_TESTS_PASSED_DEPLOYMENT_PENDING",
       "limit": "Real host/TLS/OAuth/Supabase/independent acceptance NOT RUN"
     }
@@ -90,6 +90,7 @@
       ]
     },
     "next_acceptance": [
+      "On the dedicated Linux deployment, complete trusted owner bootstrap privately, remove one-time token, run security preflight and confirm no public traffic was routed before initialization",
       "Obtain explicit owner selection and cost confirmation before creating a test Supabase project in the existing free Ciro organization",
       "Deploy real user-RLS MCP and obtain independent two-consenting-user cross-account denial evidence",
       "Complete browser-based real GitHub OAuth app authorization, disposable repository write approval, upstream revocation and replay rejection",
@@ -98,6 +99,6 @@
       "Independently redteam the exact release SHA; only then permit a limited dedicated single-tenant paid pilot",
       "Public shared multi-tenant SaaS still requires fully isolated Account/Workbench/Studio and distributed operations before a separate graduation"
     ],
-    "pilot_decision": "CODE_READY_FOR_CONTROLLED_DEPLOYMENT_REVIEW; NOT LIVE_ACCEPTED"
+    "pilot_decision": "ENGINEERING_QUALIFIED_FOR_CONTROLLED_LIVE_DEPLOYMENT_REVIEW; NOT_LIVE_OR_COMMERCIALLY_ACCEPTED"
   }
 }
