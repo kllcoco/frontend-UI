@@ -89,6 +89,7 @@ function exportMarkdown(chat: Conversation, language: Language) {
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
+  const conversationsRef = useRef(conversations);
   const [activeId, setActiveId] = useState<string | null>(loadActiveId);
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -150,9 +151,19 @@ export default function App() {
 
   useEffect(() => { void refreshStatus(); }, []);
   useEffect(() => {
+    conversationsRef.current = conversations;
+    if (!busy) {
+      saveConversations(conversations);
+      return;
+    }
     const timer = window.setTimeout(() => saveConversations(conversations), 300);
     return () => window.clearTimeout(timer);
-  }, [conversations]);
+  }, [conversations, busy]);
+  useEffect(() => {
+    const flush = () => saveConversations(conversationsRef.current);
+    window.addEventListener("pagehide", flush);
+    return () => { window.removeEventListener("pagehide", flush); flush(); };
+  }, []);
   useEffect(() => { saveActiveId(activeId); }, [activeId]);
   useEffect(() => {
     saveLanguage(language);

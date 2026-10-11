@@ -47,7 +47,7 @@ export function loadAppearance(): AppearanceSettings {
     const saved = JSON.parse(localStorage.getItem(APPEARANCE_KEY) || "{}") as Partial<AppearanceSettings>;
     const validPresets: PresetId[] = ["white", "night", "aurora", "summit", "city", "minimal", "custom"];
     return {
-      preset: validPresets.includes(saved.preset as PresetId) ? saved.preset as PresetId : "night",
+      preset: validPresets.includes(saved.preset as PresetId) ? saved.preset as PresetId : "white",
       scope: saved.scope === "welcome" ? "welcome" : "all",
       brightness: clampValue(Number(saved.brightness ?? 100), 20, 120),
       blur: clampValue(Number(saved.blur ?? 0), 0, 24),
