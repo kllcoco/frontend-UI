@@ -10,6 +10,7 @@ import {createStudioRouter,studioCapabilities} from "./studio.mjs";
 import {createPluginGateway} from "./plugin-gateway.mjs";
 import {runPluginChat} from "./plugin-chat-runtime.mjs";
 import {assertPluginDeploymentSafe} from "./plugin-release-gate.mjs";
+import {createDesktopGuard} from "./desktop-guard.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -21,6 +22,7 @@ if(process.env.CIRO_ACCOUNTS_ENABLED==="true" &&
 }
 const app = express();
 app.disable("x-powered-by");
+app.use(createDesktopGuard(process.env));
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
 const accounts=createAccountService();
 app.use("/api/account",accounts.router);
@@ -152,7 +154,8 @@ if (existsSync(dist)) {
 
 const port = Number(process.env.PORT || "8787");
 const host = process.env.HOST || "127.0.0.1";
-app.listen(port, host, () => {
-  console.log("Ciro client listening at http://" + host + ":" + port);
+export const server=app.listen(port, host, () => {
+  const bound=server.address();
+  console.log("Ciro client listening at http://" + host + ":" + (typeof bound==="object"?bound.port:port));
   console.log(configured ? "CIRO proxy configured (upstream not yet verified)" : "Preview mode: no inference backend configured");
 });
