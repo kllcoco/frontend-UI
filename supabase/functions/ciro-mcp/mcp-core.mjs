@@ -40,11 +40,7 @@ export function createCiroMcpHandler({authenticate,notes=null}){
   if(!request||request.jsonrpc!=="2.0"||typeof request.method!=="string"||
      request.method.length>90)
    return problem(request?.id??null,-32600,"Invalid JSON-RPC request",400);
-  if(request.method==="notifications/initialized")
-   return new Response(null,{status:202,headers:{"Cache-Control":"no-store"}});
-  if((typeof request.id!=="string"||request.id.length>100)&&
-     (!Number.isSafeInteger(request.id)||request.id<0))
-   return problem(null,-32600,"JSON-RPC request id required",400);
+
   // Authenticate on EVERY request, including discovery and initialize; never
   // trust client-supplied user_id/role or JWT claims without provider validation.
   let scope;
@@ -52,6 +48,11 @@ export function createCiroMcpHandler({authenticate,notes=null}){
   catch{return json({error:"Authentication failed"},401);}
   if(!scope||typeof scope.userId!=="string"||!UUID.test(scope.userId))
    return json({error:"User authentication required"},401);
+  if(request.method==="notifications/initialized")
+   return new Response(null,{status:202,headers:{"Cache-Control":"no-store"}});
+  if((typeof request.id!=="string"||request.id.length>100)&&
+     (!Number.isSafeInteger(request.id)||request.id<0))
+   return problem(null,-32600,"JSON-RPC request id required",400);
   const scopedNotes=scope.notes||notes;
   if(!scopedNotes||typeof scopedNotes.list!=="function"||typeof scopedNotes.create!=="function")
    return json({error:"User-scoped RLS backend not configured"},503);
