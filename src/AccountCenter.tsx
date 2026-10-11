@@ -304,7 +304,7 @@ export default function AccountCenter({language,section}:Props){
       <div className="acc-actions"><button className="acc-primary" disabled={busy||!sync} onClick={()=>void uploadCloud()}><CloudUpload size={16}/>{t("保存到服务器")}</button>
         <button className="acc-secondary" disabled={busy||!sync?.snapshot} onClick={()=>void restoreCloud()}><CloudDownload size={16}/>{t("从服务器恢复")}</button>
         <button className="acc-secondary" onClick={()=>void action(()=>refresh(section))}><RefreshCcw size={15}/>{t("刷新")}</button></div>
-      <p className="acc-warning"><CircleAlert size={15}/>{t("检测到版本冲突，请先获取服务器的最新数据，再决定保留哪一份。")}</p>
+      {syncSignal.status==="conflict"&&<p className="acc-warning"><CircleAlert size={15}/>{t("检测到版本冲突，请先获取服务器的最新数据，再决定保留哪一份。")}</p>}
       <p className="acc-muted">{t("相同账户可以从不同设备登录。")} {t("背景图片本体仍只保存在当前设备。")}</p>
     </section></>}
   </section>;

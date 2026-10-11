@@ -630,7 +630,7 @@ export default function App() {
           <button className="sidebar-setting" onClick={() => setSettingsOpen(true)} title={t("设置")}>
             <Settings2 size={18} /><span>{t("设置与连接")}</span>
           </button>
-          <div className="sidebar-version">CIRO CLIENT <span>V0.4 WORKBENCH</span></div>
+          <div className="sidebar-version">CIRO CLIENT <span>V0.6 CLIENT</span></div>
         </div>
       </aside>
 
