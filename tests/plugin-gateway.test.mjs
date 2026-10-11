@@ -45,7 +45,7 @@ async function serve(f){
 test("GitHub OAuth initiation is session-bound and returns only a provider URL",async()=>{
  const f=fixture(),s=await serve(f);
  try{
-  const started=await s.call("/plugins/github/connect");
+  const started=await s.call("/plugins/github/connect",{});
   assert.equal(started.status,200);
   const url=new URL(started.json.authorizeUrl);
   assert.equal(url.origin,"https://github.com");
