@@ -461,12 +461,9 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   if(env.CIRO_ACCOUNTS_ENABLED==="true"&&req.principal?.mode!=="session")
     throw fail("Authenticated browser approval required",403);
   if(!["approve","reject"].includes(req.body?.decision))throw fail("Bad decision");
-  const user=owner(req),item=store.getApproval(user,req.params.id);
-  if(!item)throw fail("Approval expired or already used",404);
-  store.finishApproval(user,item.id,"processing");
-  if(req.body.decision==="reject"){
-   store.finishApproval(user,item.id,"rejected");return res.json({status:"rejected"});
-  }
+  const user=owner(req);
+  const item=store.takeApproval(user,req.params.id,req.body.decision);
+  if(req.body.decision==="reject")return res.json({status:"rejected"});
   try{
    const current=await credentialFor(user,item.provider);
    if(current.generation!==item.generation||sha(JSON.stringify(policy()))!==item.policySignature)
