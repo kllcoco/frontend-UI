@@ -91,7 +91,7 @@ export function usageSummary(env,commerce,at=new Date()){
     isActualInvoice:false,invoiceProviderConnected:false,invoices:[],
     rateMicroUsdPerMillion:{CWU:rateCWU,GWU:rateGWU},
     meteringConfigured:signatureConfigured,
-    billingReady:signatureConfigured&&(rateCWU!==null||rateGWU!==null),
+    billingReady:signatureConfigured&&rateCWU!==null&&rateGWU!==null,
     monthlyBudgetMicros,alertThresholdPct,
     budgetReached:monthlyBudgetMicros!==null&&knownMicros>=monthlyBudgetMicros,
     budgetWarning:monthlyBudgetMicros!==null&&knownMicros*100>=monthlyBudgetMicros*alertThresholdPct,
