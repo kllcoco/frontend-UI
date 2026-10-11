@@ -9,6 +9,7 @@ import {createSupabaseMcpSession} from "./mcp-client.mjs";
 import {supabaseOAuthConfig,supabaseStartAuthorization,supabaseToken,supabaseIdentity} from "./supabase-oauth.mjs";
 import {verifyAgentPluginCapability} from "./plugin-agent-capability.mjs";
 import {fetchSignedPluginPackage} from "./plugin-package-verifier.mjs";
+import {createPluginJobQueue} from "./plugin-job-queue.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
@@ -128,6 +129,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  const store=createPluginConnectionStore({dir:folder,env});
  const installs=createPluginInstallStore({dir:folder,readyProviders:{supabase:supabaseOAuthConfig(env).ready &&
   Boolean((env.CIRO_SUPABASE_MCP_TOOLS||"").trim())}});
+ const jobs=createPluginJobQueue({dir:folder,env});
  // Workbench stores are independently persisted; load fresh policy on EVERY request.
  // Cached policy can silently retain access after a user revokes permission.
  const workbenchPolicy=()=>createWorkbenchStore(folder).get().policy;
@@ -329,11 +331,74 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   return execute(user,"github",mapping.name,args,source);
  }
 
+
+ // Only side-effect-free reads are accepted into the automatic durable worker.
+ // Approved writes receive a durable ledger entry but execute in the foreground
+ // under the existing one-shot human approval; they are NEVER auto-replayed.
+ async function enqueueSafeRead(user,provider,tool,args,idempotencyKey){
+  if(!((provider==="github"&&tool==="github.read_file")||
+       (provider==="supabase"&&tool==="supabase.list_tools")))
+   throw fail("Automatic queue accepts read-only tools; external writes require human approval",403);
+  if(!args||typeof args!=="object"||Array.isArray(args)||
+     JSON.stringify(args).length>200000)throw fail("Invalid queued tool arguments",400);
+  const installation=assertInstalled(user,provider);
+  const verdict=checkToolPolicy(policy(),provider,tool,args,"manual");
+  if(verdict.result!=="allow")throw fail("Queued operation is not currently allowed",403);
+  const connection=await credentialFor(user,provider);
+  return jobs.enqueue({ownerId:user,provider,tool,args,source:"manual",
+   idempotencyKey,effect:false,installationId:installation.installationId,
+   generation:connection.generation,policySignature:sha(JSON.stringify(policy()))});
+ }
+ async function runNextJob({workerId}={}){
+  const item=jobs.claim({workerId,readsOnly:true});
+  if(!item)return null;
+  const {ownerId,provider,tool,request}=item;
+  try{
+   const install=assertInstalled(ownerId,provider);
+   if(!install.installationId||install.installationId!==request.installationId)
+    throw fail("Queued tool installation changed",403);
+   const credential=await credentialFor(ownerId,provider);
+   if(credential.generation!==request.generation||
+      sha(JSON.stringify(policy()))!==request.policySignature)
+    throw fail("Queued tool authorization or policy changed",403);
+   if(checkToolPolicy(policy(),provider,tool,request.args,"manual").result!=="allow")
+    throw fail("Queued permission was revoked before execution",403);
+   const result=await execute(ownerId,provider,tool,request.args,"manual");
+   if(result.approvalRequired)throw fail("Read queue cannot elevate into an approved effect",403);
+   return jobs.finalize({id:item.id,workerId,result:result.result??result});
+  }catch(error){
+   return jobs.finalize({id:item.id,workerId,errorCode:
+     error?.statusCode===403?"permission_revoked":"tool_read_failed",
+     retryable:error?.statusCode===502||error?.statusCode===503});
+  }
+ }
+
  router.use((_req,res,next)=>{res.set("Cache-Control","no-store");next();});
  router.get("/catalog",wrap((req,res)=>res.json({catalog:installs.catalog,
    installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
+   jobs:jobs.list(owner(req)),
    connections:store.publicConnections(owner(req)),approvals:store.publicApprovals(owner(req)),
    audit:store.audit(owner(req))})));
+ router.get("/jobs",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Authenticated browser session required",403);
+  res.json({jobs:jobs.list(owner(req))});
+ }));
+ router.get("/jobs/:id",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Authenticated browser session required",403);
+  res.json(jobs.get(owner(req),req.params.id));
+ }));
+ router.post("/jobs",wrap(async(req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Authenticated browser session required",403);
+  const provider=bounded(req.body?.provider,40,"provider");
+  const tool=bounded(req.body?.tool,100,"tool");
+  const created=await enqueueSafeRead(owner(req),provider,tool,
+    req.body?.args,req.body?.idempotencyKey);
+  res.status(created.duplicate?200:202).json(created);
+ }));
+ router.post("/jobs/:id/cancel",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Authenticated browser session required",403);
+  res.json(jobs.cancel(owner(req),req.params.id));
+ }));
  router.post("/marketplace/:id/prepare",wrap(async(req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required for plugin installation",403);
   let verifiedPackage=null;
@@ -500,13 +565,35 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const user=owner(req);
   const item=store.takeApproval(user,req.params.id,req.body.decision);
   if(req.body.decision==="reject")return res.json({status:"rejected"});
+  let claimed=null,writerId=null;
   try{
+   const install=assertInstalled(user,item.provider);
    const current=await credentialFor(user,item.provider);
    if(current.generation!==item.generation||sha(JSON.stringify(policy()))!==item.policySignature)
      throw fail("Connection or permissions changed; create a new request",403);
+   const receipt=jobs.enqueue({ownerId:user,provider:item.provider,
+    tool:item.request.tool,args:item.request.args,source:item.request.source,
+    idempotencyKey:"approval:"+item.id,effect:true,approvalId:item.id,
+    installationId:install.installationId,generation:item.generation,
+    policySignature:item.policySignature});
+   writerId=randomUUID();
+   claimed=jobs.claim({workerId:writerId,id:receipt.id,readsOnly:false});
+   if(!claimed)throw fail("Approved write could not acquire durable execution lease",409);
    const result=await execute(user,item.provider,item.request.tool,item.request.args,item.request.source,true);
-   store.finishApproval(user,item.id,"approved");res.json({status:"approved",result});
-  }catch(error){store.finishApproval(user,item.id,"failed");throw error;}
+   jobs.finalize({id:claimed.id,workerId:writerId,
+    result:{completed:true,provider:item.provider,tool:item.request.tool,
+     resultDigest:sha(JSON.stringify(result.result??result))}});
+   store.finishApproval(user,item.id,"approved");
+   res.json({status:"approved",jobId:claimed.id,result});
+  }catch(error){
+   if(claimed&&writerId){
+    // A network mutation may already have reached the provider. Never retry it.
+    try{jobs.finalize({id:claimed.id,workerId:writerId,
+      errorCode:"external_effect_unknown",mayHaveSideEffect:true});}catch{}
+   }
+   try{store.finishApproval(user,item.id,"failed");}catch{}
+   throw error;
+  }
  }));
- return {router,store,installs,listModelTools,executeModelTool};
+ return {router,store,installs,jobs,listModelTools,executeModelTool,runNextJob};
 }

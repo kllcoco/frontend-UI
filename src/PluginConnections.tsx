@@ -7,7 +7,8 @@ type Installed={id:string;version:string;installedAt:string;enabled:boolean};
 type Connection={provider:string;account?:{login?:string;email?:string;id?:string|number};connectedAt:string};
 type Approval={id:string;provider:string;summary:string;createdAt:string};
 type Prepared={nonce:string;fingerprint:string;plugin:Entry;expiresInSeconds:number};
-type Snapshot={catalog:Entry[];installed:Installed[];connections:Connection[];approvals:Approval[];audit:{id:string;at:string;event:string}[]};
+type PluginJob={id:string;provider:string;tool:string;status:string;effect:boolean;attempts:number;createdAt:number;code?:string|null};
+type Snapshot={catalog:Entry[];installed:Installed[];connections:Connection[];approvals:Approval[];jobs?:PluginJob[];audit:{id:string;at:string;event:string}[]};
 async function api<T>(path:string,body?:unknown):Promise<T>{
  const response=await accountFetch("/api/plugins"+path,{
   method:body===undefined?"GET":"POST",
@@ -123,9 +124,33 @@ export default function PluginConnections(){
           const out=await api<{result?:{content?:string}}>("/invoke",{provider:"github",tool:"github.read_file",source:"manual",args:{repo,path}});
           setResult(out.result?.content||"无返回内容");
          })}>读取文件</button>
+         <button className="wb-secondary" disabled={busy||!repo||!path} onClick={()=>void action(async()=>{
+          const job=await api<{id:string}>("/jobs",{provider:"github",tool:"github.read_file",
+            args:{repo,path},idempotencyKey:crypto.randomUUID()});
+          setNotice("读取任务已保存，编号："+job.id.slice(0,8)+"；刷新可查看执行状态。");
+         })}>加入可靠后台队列</button>
          {result&&<pre>{result.slice(0,5000)}</pre>}
         </div>}
       </div>}
+     </div>}
+     {!!state?.jobs?.length&&<div className="ciro-market-detail" aria-label="插件任务记录">
+      <h3>可靠插件任务</h3>
+      <p className="ciro-market-muted">只读任务可安全重试；外部写入如果结果未知，不会自动重复提交。</p>
+      {state.jobs.slice(0,10).map(job=><div key={job.id} className="ciro-market-job">
+       <strong>{job.provider} · {job.tool}</strong>
+       <p>{job.status==="uncertain"?"结果待人工核对":job.status} · 尝试 {job.attempts} 次</p>
+       {["queued","leased"].includes(job.status)&&
+        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
+         const updated=await api<PluginJob>("/jobs/"+job.id+"/cancel",{});
+         setNotice(updated.status==="cancel_requested"?"已请求取消，执行中的外部操作可能无法撤回":"任务已取消");
+        })}>取消</button>}
+       {job.status==="succeeded"&&!job.effect&&
+        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
+         const full=await api<{result?:unknown}>("/jobs/"+job.id);
+         setResult(JSON.stringify(full.result??{},null,2).slice(0,5000));
+         setNotice("任务结果已加载到 GitHub 文件读取区");
+        })}>查看结果</button>}
+      </div>)}
      </div>}
      {!!state?.approvals.length&&<div className="ciro-market-detail"><h3>待审批工具调用</h3>
       {state.approvals.map(x=><div key={x.id}><p>{x.summary}</p>
