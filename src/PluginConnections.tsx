@@ -55,7 +55,7 @@ export default function PluginConnections(){
           setNotice("本地连接已撤销；建议同时在服务提供方撤销应用授权。");
         })}>断开连接</button>:plugin.id==="github"?
         <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{
-          const response=await api<{authorizeUrl:string}>("/github/connect");
+          const response=await api<{authorizeUrl:string}>("/github/connect",{});
           const url=new URL(response.authorizeUrl);
           if(url.origin!=="https://github.com")throw new Error("OAuth 地址不可信");
           window.location.assign(url.href);
