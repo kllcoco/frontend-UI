@@ -117,8 +117,8 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }
  const activeToolRequests=new Map();
  const operationKey=(user,provider)=>user+"::"+provider;
- async function revokeProviderGrant(user,provider){
-  const record=store.connection(user,provider);
+ async function revokeProviderGrant(user,provider,recordOverride=null){
+  const record=recordOverride||store.connection(user,provider);
   if(!record)return {upstreamRevoked:false,reason:"no_active_connection"};
   if(provider!=="github")return {upstreamRevoked:false,reason:"provider_revoke_manual"};
   const client=env.CIRO_GITHUB_OAUTH_CLIENT_ID,secret=env.CIRO_GITHUB_OAUTH_CLIENT_SECRET;
@@ -314,9 +314,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  router.post("/installed/:id/uninstall",wrap(async(req,res)=>{
   if(req.principal?.mode!=="session")throw fail("Browser session required for plugin removal",403);
   abortOperations(owner(req),req.params.id);
-  const provider=await revokeProviderGrant(owner(req),req.params.id);
+  const previous=store.connection(owner(req),req.params.id);
   const result=installs.uninstall(owner(req),req.params.id);
   store.removeConnection(owner(req),req.params.id);
+  const provider=await revokeProviderGrant(owner(req),req.params.id,previous);
   res.json({...result,...provider});
  }));
  router.post("/installed/:id/enabled",wrap((req,res)=>{
@@ -397,8 +398,9 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  router.post("/:provider/disconnect",wrap(async(req,res)=>{
   if(!CATALOG.some(x=>x.id===req.params.provider))throw fail("Unknown provider",404);
   abortOperations(owner(req),req.params.provider);
-  const remote=await revokeProviderGrant(owner(req),req.params.provider);
+  const previous=store.connection(owner(req),req.params.provider);
   store.removeConnection(owner(req),req.params.provider);
+  const remote=await revokeProviderGrant(owner(req),req.params.provider,previous);
   res.json({revokedLocally:true,provider:req.params.provider,...remote,
    note:remote.upstreamRevoked?"Upstream app authorization revoked.":
     "Local token removed; revoke app access at provider if still authorized."});
