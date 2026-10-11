@@ -21,7 +21,7 @@ a general-purpose public multi-tenant SaaS platform or a Supabase product.
    audit are required for plugin qualification.
 6. GitHub is the first end-to-end sample; Supabase is a separately gated adapter.
    The presence of Gmail/Drive/Calendar placeholders is not a shipping claim.
-7. No automatic paid resource creation, billing upgrade or paid CI workflow runs.
+7. No automatic paid infrastructure creation or billing-plan upgrades. The product owner authorized GitHub CI runs on 2026-10-11; keep CI targeted and evidence-driven.
 
 ## Scope of this focused slice
 
@@ -48,13 +48,21 @@ The new lifecycle test uses **mocked GitHub/CIRO endpoints only** and cannot sub
 for a real external GitHub OAuth app. Do not call provider OAuth live without the
 user's explicit action and a configured provider application.
 
-The existing validated V0.8 base commit is \`9796faf86286914d7875acb56ce33ac7755d3959\`
-(GitHub Actions \`38152493435\`: 100 Node tests, build PASS, 28 browser tests).
-That result **does not validate this new focus branch** until the new source is tested.
+**Plugin-center V0.8 code qualification is PASS** at exact tested commit
+`a56a453c6c94d5b61a58bf38d35d74315cb4947d`.
+GitHub Actions: https://github.com/kllcoco/frontend-UI/actions/runs/38158772169
+**101/101 Node tests PASS, TypeScript + production build PASS, 29/29 Playwright PASS.**
 
-This branch intentionally has **no PR and does not run private-repository GitHub Actions**
-until usage is independently confirmed to be free or the owner explicitly authorizes
-a potentially billable run. No source is merged into the V0.7 or main branches by this slice.
+The focus branch was fast-forwarded into existing draft PR #2
+(https://github.com/kllcoco/frontend-UI/pull/2), based on
+`feat/ciro-chat-client-v1`. The candidate code is not merged.
+Real provider OAuth and public SaaS multi-tenant hosting are separate gates
+and are not claimed by mocked automated test success.
+
+The CI found and fixed two product defects: the installation-confirmation button
+wrongly required the repository and OAuth configuration *before* install;
+and the Workbench tab state diverged from the outer App route, preventing
+navigation back to the plugin center. Both fixes passed the full browser suite.
 
 ## Graduation vocabulary
 
