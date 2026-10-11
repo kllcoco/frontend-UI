@@ -136,7 +136,7 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
   await page.screenshot({ path: imageDir + "/13-settings-privacy.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "关于 Ciro", exact: true }).click();
-  await expect(page.getByText("CIRO CLIENT · PREVIEW v0.2")).toBeVisible();
+  await expect(page.getByText("CIRO CLIENT · PREVIEW v0.4")).toBeVisible();
   await page.screenshot({ path: imageDir + "/14-settings-about.png", fullPage: true, animations: "disabled" });
 });
 
@@ -249,7 +249,7 @@ test("GitHub settings require server authorization rather than browser tokens", 
   await expect(page.getByText("CIRO_GITHUB_TOKEN / CIRO_GITHUB_REPOS")).toBeVisible();
   await expect(page.getByRole("button",{name:"验证并连接"})).toBeDisabled();
   await page.screenshot({path:imageDir+"/21-workbench-github.png",fullPage:true,animations:"disabled"});
-  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await page.getByRole("button",{name:"设置与连接"}).click();
   await page.getByRole("button",{name:"GitHub 连接",exact:true}).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText("GitHub 集成")).toBeVisible();
@@ -276,4 +276,21 @@ test("English multi-agent workbench remains translated and mobile width-safe", a
   await page.screenshot({path:imageDir+"/22-workbench-english-mobile.png",fullPage:true,animations:"disabled"});
   const width=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,win:window.innerWidth}));
   expect(width.doc).toBeLessThanOrEqual(width.win+1);
+});
+
+test("custom instructions save in browser and can be enabled independently of agent permissions",async ({page})=>{
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await page.getByRole("button",{name:"自定义指令",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"自定义指令"})).toBeVisible();
+  await page.getByRole("textbox",{name:"关于你"}).fill("CIRO developer");
+  await page.getByRole("textbox",{name:"希望 Ciro 如何回答"}).fill("Lead with evidence");
+  await page.getByRole("switch",{name:"启用自定义指令"}).click();
+  await page.screenshot({path:imageDir+"/23-custom-instructions.png",fullPage:true,animations:"disabled"});
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await page.getByRole("button",{name:"自定义指令",exact:true}).click();
+  await expect(page.getByRole("textbox",{name:"关于你"})).toHaveValue("CIRO developer");
+  await expect(page.getByRole("textbox",{name:"希望 Ciro 如何回答"})).toHaveValue("Lead with evidence");
+  await expect(page.getByRole("switch",{name:"启用自定义指令"})).toHaveAttribute("aria-checked","true");
 });

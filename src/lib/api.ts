@@ -1,4 +1,5 @@
 import type { ApiStatus, ChatMessage } from "../types";
+import type { CustomInstructions } from "./instructions";
 
 export async function getApiStatus(): Promise<ApiStatus> {
   const response = await fetch("/api/status", { cache: "no-store" });
@@ -20,6 +21,7 @@ export async function getApiStatus(): Promise<ApiStatus> {
 type StreamOptions = {
   messages: ChatMessage[];
   model: string;
+  instructions?: CustomInstructions;
   signal: AbortSignal;
   onDelta: (text: string) => void;
 };
@@ -51,14 +53,15 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void): boolean
   return false;
 }
 
-export async function streamChat({ messages, model, signal, onDelta }: StreamOptions): Promise<void> {
+export async function streamChat({ messages, model, instructions, signal, onDelta }: StreamOptions): Promise<void> {
   const response = await fetch("/api/chat", {
     method: "POST",
     signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      messages: messages.map(({ role, content }) => ({ role, content }))
+      messages: messages.map(({ role, content }) => ({ role, content })),
+      ...(instructions?.enabled ? { instructions } : {})
     })
   });
 

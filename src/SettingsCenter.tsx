@@ -9,9 +9,10 @@ import type { ApiStatus, Conversation } from "./types";
 import { translate } from "./lib/i18n";
 import type { Language } from "./lib/i18n";
 import WorkbenchCenter from "./WorkbenchCenter";
+import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "general" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | WorkbenchTab;
+type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   language: Language;
@@ -25,6 +26,8 @@ type SettingsProps = {
   onRemoveImage: () => Promise<void>;
   preferences: ChatPreferences;
   onPreferencesChange: (value: ChatPreferences) => void;
+  instructions: CustomInstructions;
+  onInstructionsChange: (value: CustomInstructions) => void;
   status: ApiStatus;
   model: string;
   onModelChange: (value: string) => void;
@@ -35,6 +38,7 @@ type SettingsProps = {
 };
 const sections: { id: Section; label: string; icon: typeof Palette }[] = [
   { id: "general", label: "通用设置", icon: Settings2 },
+  { id: "instructions", label: "自定义指令", icon: FileText },
   { id: "appearance", label: "外观与背景", icon: Palette },
   { id: "models", label: "模型设置", icon: Sparkles },
   { id: "chat", label: "对话设置", icon: MessageSquare },
@@ -66,7 +70,7 @@ function Slider({ title, value, min, max, suffix, onChange }: {
 
 export default function SettingsCenter({
   onClose, language, onLanguageChange, theme, onThemeChange, appearance, onAppearanceChange, customImageUrl,
-  onUploadImage, onRemoveImage, preferences, onPreferencesChange, status, model,
+  onUploadImage, onRemoveImage, preferences, onPreferencesChange, instructions, onInstructionsChange, status, model,
   onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory
 }: SettingsProps) {
   const t = (value: string) => translate(language, value);
@@ -194,6 +198,33 @@ export default function SettingsCenter({
                 <Toggle checked={preferences.reduceMotion} title={t("减少界面动画")} onChange={(v) => updatePreference("reduceMotion", v)}/></SettingRow>
             </SettingBlock>
             <div className="sc-info-card"><Sparkles size={18}/><div><strong>{t("你的设置会自动保存")}</strong><p>{t("目前仅保存到当前浏览器，不会自动同步到其他设备。")}</p></div></div>
+          </>}
+
+          {section === "instructions" && <>
+            <SettingBlock title={t("自定义指令")} subtitle={t("决定 Ciro 如何理解你的背景，以及如何回答。")}>
+              <SettingRow title={t("启用自定义指令")} description={t("启用后随普通聊天请求发送到你配置的模型服务。")}>
+                <Toggle checked={instructions.enabled} title={t("启用自定义指令")}
+                  onChange={value=>onInstructionsChange({...instructions,enabled:value})}/>
+              </SettingRow>
+              <label className="sc-instructions-field"><strong>{t("关于你")}</strong>
+                <span>{t("可填写角色、偏好和长期目标，最多 2000 字。")}</span>
+                <textarea aria-label={t("关于你")} maxLength={2000} rows={4} value={instructions.about}
+                  onChange={event=>onInstructionsChange({...instructions,about:event.target.value})}
+                  placeholder={t("例如：我正在开发 CIRO，回答时先给结论。")}/>
+                <small>{instructions.about.length}/2000</small>
+              </label>
+              <label className="sc-instructions-field"><strong>{t("希望 Ciro 如何回答")}</strong>
+                <span>{t("对语言、格式、严谨程度和交付物的偏好。")}</span>
+                <textarea aria-label={t("希望 Ciro 如何回答")} maxLength={2000} rows={4} value={instructions.style}
+                  onChange={event=>onInstructionsChange({...instructions,style:event.target.value})}
+                  placeholder={t("例如：中文优先，重要工程结论必须附验证证据。")}/>
+                <small>{instructions.style.length}/2000</small>
+              </label>
+            </SettingBlock>
+            <div className="sc-info-card"><ShieldCheck size={18}/><div>
+              <strong>{t("本地保存，模型调用时发送")}</strong>
+              <p>{t("指令保存在当前浏览器；启用后会发送到配置的推理服务，但不能替代沙盒或 GitHub 权限设置。")}</p>
+            </div></div>
           </>}
 
           {section === "models" && <>

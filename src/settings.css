@@ -202,3 +202,13 @@
 .sc-main{min-height:0}
 .sc-scroll{flex:1;min-height:0;overscroll-behavior:contain}
 .sc-footer{position:relative;z-index:2}
+
+/* Local custom instructions in the bilingual settings center. */
+.sc-instructions-field{display:flex;flex-direction:column;gap:7px;margin:18px 0 0;color:#65816e;font-size:11px}
+.sc-instructions-field strong{color:#356247;font-size:12px}
+.sc-instructions-field textarea{resize:vertical;border:1px solid #dceadd;border-radius:10px;padding:12px 13px;min-height:92px;
+  font:12px/1.7 inherit;color:#254634;background:#fff;outline:none}
+.sc-instructions-field textarea:focus{border-color:#82c49a;box-shadow:0 0 0 3px rgba(66,153,89,.12)}
+.sc-instructions-field small{text-align:right;color:#91a595}
+:root[data-theme="dark"] .sc-instructions-field strong{color:#c5e9d2}
+:root[data-theme="dark"] .sc-instructions-field textarea{background:#0d2118;color:#dcefe1;border-color:#315340}

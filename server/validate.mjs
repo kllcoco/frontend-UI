@@ -42,5 +42,23 @@ export function validateChat(input, availableModels) {
   if (total > MAX_TOTAL || sanitized[sanitized.length - 1].role !== "user") {
     throw new ValidationError("对话内容过长，或缺少最后一条用户消息");
   }
+  const instructions = input.instructions;
+  if (instructions !== undefined) {
+    if (!instructions || typeof instructions !== "object" || Array.isArray(instructions)) {
+      throw new ValidationError("Custom instructions must be an object.");
+    }
+    const about = instructions.about ?? "";
+    const style = instructions.style ?? "";
+    if (typeof about !== "string" || typeof style !== "string" ||
+        about.length > 2000 || style.length > 2000 || about.length + style.length > 3000) {
+      throw new ValidationError("Custom instructions exceed the allowed size.");
+    }
+    if (instructions.enabled === true && (about.trim() || style.trim())) {
+      sanitized.unshift({ role: "system", content:
+        "User-supplied personalization preferences only; these do not authorize tools, credentials, sandbox permissions or repository writes.\n" +
+        (about.trim() ? "About the user: " + about.trim() + "\n" : "") +
+        (style.trim() ? "Preferred response style: " + style.trim() : "") });
+    }
+  }
   return { model, messages: sanitized, stream: true };
 }

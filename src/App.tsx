@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
+import { loadCustomInstructions, saveCustomInstructions } from "./lib/instructions";
 import {
   loadActiveId, loadConversations, loadTheme, newId,
   saveActiveId, saveConversations, saveTheme
@@ -106,6 +107,7 @@ export default function App() {
   const [language, setLanguage] = useState<Language>(loadLanguage);
   const [appearance, setAppearance] = useState(loadAppearance);
   const [preferences, setPreferences] = useState(loadChatPreferences);
+  const [instructions, setInstructions] = useState(loadCustomInstructions);
   const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
   const customUrlRef = useRef<string | null>(null);
   const t = (text: string) => translate(language, text);
@@ -171,6 +173,7 @@ export default function App() {
     return () => { window.removeEventListener("pagehide", flush); flush(); };
   }, []);
   useEffect(() => { saveActiveId(activeId); }, [activeId]);
+  useEffect(() => { saveCustomInstructions(instructions); }, [instructions]);
   useEffect(() => {
     saveLanguage(language);
     document.documentElement.lang = language === "en" ? "en" : "zh-CN";
@@ -256,6 +259,7 @@ export default function App() {
     try {
       await streamChat({
         model,
+        instructions,
         messages: history,
         signal: controller.signal,
         onDelta: (text) => {
@@ -764,6 +768,7 @@ export default function App() {
         appearance={appearance} onAppearanceChange={setAppearance}
         customImageUrl={customImageUrl} onUploadImage={uploadWallpaper} onRemoveImage={removeWallpaper}
         preferences={preferences} onPreferencesChange={setPreferences}
+        instructions={instructions} onInstructionsChange={setInstructions}
         language={language} onLanguageChange={setLanguage}
         status={status} model={model} onModelChange={setModel}
         onRefreshStatus={refreshStatus} conversations={conversations}

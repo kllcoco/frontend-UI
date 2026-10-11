@@ -228,6 +228,18 @@ const translations: Readonly<Record<string,string>> = {
   "GitHub 连接": "Connect GitHub",
   "插件管理": "Plugins",
   "定时任务": "Scheduled tasks",
+  "自定义指令": "Custom instructions",
+  "决定 Ciro 如何理解你的背景，以及如何回答。": "Help Ciro understand your context and how you want responses.",
+  "启用自定义指令": "Enable custom instructions",
+  "启用后随普通聊天请求发送到你配置的模型服务。": "When enabled, instructions are sent to your configured inference service with chat requests.",
+  "关于你": "About you",
+  "可填写角色、偏好和长期目标，最多 2000 字。": "Your role, preferences and goals (up to 2,000 characters).",
+  "例如：我正在开发 CIRO，回答时先给结论。": "For example: I'm building CIRO. Lead with the conclusion.",
+  "希望 Ciro 如何回答": "How Ciro should respond",
+  "对语言、格式、严谨程度和交付物的偏好。": "Preferences for language, structure, rigor and deliverables.",
+  "例如：中文优先，重要工程结论必须附验证证据。": "For example: Prefer Chinese and attach evidence to engineering claims.",
+  "本地保存，模型调用时发送": "Stored locally, sent when chatting",
+  "指令保存在当前浏览器；启用后会发送到配置的推理服务，但不能替代沙盒或 GitHub 权限设置。": "Instructions stay in this browser until enabled and sent to your model. They cannot override sandbox or GitHub permissions.",
   "Ciro — 让每一个想法，走得更远": "Ciro — Let every idea go further"
 };
 /** Only UI text is translated; user messages and model replies are never rewritten. */
