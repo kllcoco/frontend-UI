@@ -6,7 +6,7 @@ import {createCiroMcpHandler} from "./mcp-core.mjs";
 
 const url=Deno.env.get("SUPABASE_URL")||"";
 const published=JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS")||"{}");
-const publishableKey=Deno.env.get(published.default||"")||
+const publishableKey=published.default||
   Deno.env.get("CIRO_SUPABASE_PUBLISHABLE_KEY")||"";
 if(!url||!publishableKey||!publishableKey.startsWith("sb_publishable_"))
  throw new Error("CIRO MCP requires a Supabase publishable key; never use a secret or service role key");
