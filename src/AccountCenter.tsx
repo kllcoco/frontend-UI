@@ -112,7 +112,7 @@ export default function AccountCenter({language,section}:Props){
   async function action(task:()=>Promise<unknown>,message="操作成功"){
     setBusy(true);setError("");setNotice("");
     try{await task();setNotice(t(message));await refresh(section);}
-    catch(e){setError(e instanceof Error?e.message:String(e));}
+    catch(e){setError(e instanceof Error?e.message:String(e));try{await refresh(section);}catch{/* keep reported error */}}
     finally{setBusy(false);}
   }
   async function signIn(e:FormEvent<HTMLFormElement>,initial:boolean){
@@ -273,7 +273,7 @@ export default function AccountCenter({language,section}:Props){
     {!loading&&auth&&section==="memory"&&<><section className="acc-card">
       <div className="acc-section-title"><BookOpen size={19}/><h3>{t("记忆管理")}</h3></div>
       <label className="acc-toggle">{t("记忆开关")}
-        <input type="checkbox" checked={memoryEnabled} onChange={e=>void action(()=>accountApi("/memories/preferences","POST",{enabled:e.target.checked}))}/></label>
+        <input type="checkbox" checked={memoryEnabled} onChange={e=>{const enabled=e.target.checked;setMemoryEnabled(enabled);void action(()=>accountApi("/memories/preferences","POST",{enabled}));}}/></label>
       <form className="acc-fields" onSubmit={e=>{e.preventDefault();void action(async()=>{
         await accountApi("/memories","POST",{content:memoryText,category:memoryCategory});setMemoryText("");
       });}}>
