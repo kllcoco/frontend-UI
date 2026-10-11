@@ -72,15 +72,23 @@ test("real account authentication, encrypted memories, spending limits and devic
     const v=await r.json();
     return v.authenticated;
   }).toBe(true);
-  // Bootstrap intentionally reloads the browser. Wait for navigation, then
-  // reopen the account page rather than clicking while the reload is pending.
+  // Explicit reload checks that the authenticated HttpOnly session persists.
   await page.reload({waitUntil:"domcontentloaded"});
   await page.getByRole("button",{name:"账户与安全",exact:true}).click();
   await expect(page.getByText("person@example.com")).toBeVisible();
   await page.screenshot({path:photoDir+"/32-account-profile.png",fullPage:true,animations:"disabled"});
 
-  // Real persisted memory: plaintext must never be written to account-state.json.
+  // A scoped API key is actually minted by the server (only shown once).
   await page.getByRole("button",{name:"设置与连接"}).click();
+  await page.locator(".sc-nav").getByRole("button",{name:"API 密钥"}).click();
+  await page.getByRole("textbox",{name:"密钥名称"}).fill("CIRO browser integration key");
+  await page.getByRole("button",{name:"创建密钥"}).click();
+  await expect(page.getByText("密钥只显示一次，请妥善保存。")).toBeVisible();
+  await page.screenshot({path:photoDir+"/38-account-api-keys.png",fullPage:true,animations:"disabled"});
+  await page.locator(".sc-nav").getByRole("button",{name:"通知中心"}).click();
+  await expect(page.getByText("暂无通知")).toBeVisible();
+  await page.screenshot({path:photoDir+"/39-account-notifications.png",fullPage:true,animations:"disabled"});
+  // Real persisted memory: plaintext must never be written to account-state.json.
   await page.locator(".sc-nav").getByRole("button",{name:"记忆管理"}).click();
   await page.getByRole("checkbox",{name:"记忆开关"}).check();
   await page.getByRole("textbox",{name:"记忆内容"}).fill("CIRO evidence first, no false green results.");
