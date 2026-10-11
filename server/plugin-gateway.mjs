@@ -159,9 +159,9 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }
  async function execute(user,provider,tool,args,source,approval=false){
   assertInstalled(user,provider);
-  const connection=await credentialFor(user,provider);
   const verdict=checkToolPolicy(policy(),provider,tool,args,source);
   if(verdict.result==="deny")throw fail(verdict.reason||"Permission denied",403);
+  const connection=await credentialFor(user,provider);
   if(verdict.result==="approval"&&!approval){
    const pending=store.queueApproval({ownerId:user,provider,tool,args,source,
     policySignature:sha(JSON.stringify(policy())),generation:connection.generation,
@@ -383,11 +383,13 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const args=req.body?.args;
   if(!args||typeof args!=="object"||Array.isArray(args))throw fail("Tool arguments must be an object");
   if(JSON.stringify(args).length>200000)throw fail("Arguments too large");
-  const result=await execute(owner(req),provider,tool,args,req.body.source||"manual");
+  if(req.body.source&&req.body.source!=="manual")throw fail("API callers cannot impersonate agents or model calls",403);
+  const result=await execute(owner(req),provider,tool,args,"manual");
   res.status(result.approvalRequired?202:200).json(result);
  }));
  router.post("/approvals/:id",wrap(async(req,res)=>{
-  if(req.principal?.mode==="api-key")throw fail("Browser approval required",403);
+  if(env.CIRO_ACCOUNTS_ENABLED==="true"&&req.principal?.mode!=="session")
+    throw fail("Authenticated browser approval required",403);
   if(!["approve","reject"].includes(req.body?.decision))throw fail("Bad decision");
   const user=owner(req),item=store.getApproval(user,req.params.id);
   if(!item)throw fail("Approval expired or already used",404);
