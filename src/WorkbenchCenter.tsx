@@ -291,8 +291,6 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
 
       {state&&currentTab==="plugins"&&<div className="wb-admin">
         <PluginConnections/>
-        <div className="wb-block-title"><div><h2>{t("插件管理")}</h2>
-          <p>{t("仅列出内置可核验的适配器，不运行不可信远程插件代码。")}</p></div><PlugZap size={23}/></div>
 
       </div>}
 
