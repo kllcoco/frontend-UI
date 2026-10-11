@@ -21,8 +21,8 @@ function validateArgs(args,allowed){
  if(!args||typeof args!=="object"||Array.isArray(args))return false;
  return Object.keys(args).every(x=>allowed.includes(x));
 }
-export function createCiroMcpHandler({authenticate,notes}){
- if(typeof authenticate!=="function"||!notes)throw new Error("Identity and RLS handlers required");
+export function createCiroMcpHandler({authenticate,notes=null}){
+ if(typeof authenticate!=="function")throw new Error("Verified identity handler required");
  return async function handle(req){
   if(req.method!=="POST")
    return new Response(null,{status:405,headers:{Allow:"POST","Cache-Control":"no-store"}});
@@ -52,6 +52,9 @@ export function createCiroMcpHandler({authenticate,notes}){
   catch{return json({error:"Authentication failed"},401);}
   if(!scope||typeof scope.userId!=="string"||!UUID.test(scope.userId))
    return json({error:"User authentication required"},401);
+  const scopedNotes=scope.notes||notes;
+  if(!scopedNotes||typeof scopedNotes.list!=="function"||typeof scopedNotes.create!=="function")
+   return json({error:"User-scoped RLS backend not configured"},503);
   const {id,method}=request;
   if(method==="initialize"){
    const version=request.params?.protocolVersion;
@@ -69,7 +72,7 @@ export function createCiroMcpHandler({authenticate,notes}){
      (!Number.isInteger(args.limit)||args.limit<1||args.limit>25)))
     return problem(id,-32602,"Invalid list_notes parameters");
    try {
-    const result=await notes.list(scope.userId,args.limit??10);
+    const result=await scopedNotes.list(scope.userId,args.limit??10);
     return response(id,{content:[{type:"text",text:JSON.stringify(result).slice(0,12000)}]});
    }catch{return response(id,{isError:true,content:[{type:"text",text:"Read failed; no data returned."}]});}
   }
@@ -78,7 +81,7 @@ export function createCiroMcpHandler({authenticate,notes}){
       !args.body.trim()||args.body.length>2000||!UUID.test(args.client_op_id))
     return problem(id,-32602,"Invalid create_note parameters");
    try {
-    const result=await notes.create(scope.userId,args.client_op_id,args.body.trim());
+    const result=await scopedNotes.create(scope.userId,args.client_op_id,args.body.trim());
     return response(id,{content:[{type:"text",text:JSON.stringify(result).slice(0,4000)}]});
    }catch{return response(id,{isError:true,content:[{type:"text",text:"Write failed or idempotency conflict."}]});}
   }
