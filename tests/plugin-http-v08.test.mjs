@@ -60,3 +60,58 @@ test("marketplace HTTP lifecycle requires deliberate installation, and removal i
     rmSync(dir,{recursive:true,force:true});
   }
 });
+
+
+test("Full Access still forces human approval and shows exact GitHub operation",async()=>{
+ const dir=mkdtempSync(join(tmpdir(),"ciro-review-"));
+ const env={CIRO_ACCOUNT_DATA_KEY:randomBytes(32).toString("base64"),
+   CIRO_GITHUB_REPOS:"demo/project",CIRO_GITHUB_WRITES:"true"};
+ const outbound=[];
+ const gateway=createPluginGateway({dir,env,fetchFn:async(...args)=>{
+   outbound.push(args);throw Error("No external GitHub call expected before approval");
+ }});
+ const {createWorkbenchStore}=await import("../server/workbench-store.mjs");
+ const workbench=createWorkbenchStore(dir);
+ workbench.change("test.full",{repo:"demo/project"},s=>{
+  s.policy={mode:"full",repo:"demo/project",
+   custom:{githubRead:true,githubWrite:true,taskExecution:true,recurringTasks:false,externalNetwork:true}};
+ });
+ const app=express();
+ app.use(express.json());
+ app.use((_req,_res,next)=>{_req.principal={id:"alice",mode:"session",sessionId:"sess-1"};next();});
+ app.use("/plugins",gateway.router);
+ const server=await new Promise(resolve=>{
+  const value=app.listen(0,"127.0.0.1",()=>resolve(value));
+ });
+ try{
+  const root="http://127.0.0.1:"+server.address().port;
+  const post=async(path,body)=>{
+   const response=await fetch(root+path,{
+    method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)
+   });
+   return {status:response.status,body:await response.json()};
+  };
+  const request=await post("/plugins/marketplace/github/prepare",{});
+  assert.equal(request.status,200);
+  assert.equal((await post("/plugins/marketplace/github/install",{
+   nonce:request.body.nonce,fingerprint:request.body.fingerprint,confirm:true
+  })).status,201);
+  gateway.store.putConnection({ownerId:"alice",provider:"github",
+   account:{id:100,login:"test"},secret:{accessToken:"fake-test-token"},scopes:["repo"]});
+  const write=await post("/plugins/invoke",{provider:"github",tool:"github.write_file",
+   args:{repo:"demo/project",branch:"feature/review-only",path:"README.md",
+    content:"secret contents",message:"review this change"}});
+  assert.equal(write.status,202);
+  assert.equal(write.body.approvalRequired,true);
+  assert.equal(outbound.length,0);
+  const list=await fetch(root+"/plugins/catalog").then(r=>r.json());
+  const summary=list.approvals.find(x=>x.id===write.body.id).summary;
+  assert.match(summary,/demo\/project/);
+  assert.match(summary,/feature\/review-only/);
+  assert.match(summary,/README\.md/);
+  assert.doesNotMatch(summary,/secret contents/);
+ }finally{
+  await new Promise(resolve=>server.close(resolve));
+  rmSync(dir,{recursive:true,force:true});
+ }
+});
