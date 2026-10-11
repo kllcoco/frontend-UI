@@ -10,7 +10,7 @@ test("five offline wallpaper assets are present", () => {
     const content = file("public/backgrounds/" + item + ".svg");
     assert.match(content, /<svg\b/);
     assert.match(content, /viewBox="0 0 1600 900"/);
-    assert.doesNotMatch(content, /<script\b|<foreignObject\b|https?:\/\//i);
+    assert.doesNotMatch(content, /<script\b|<foreignObject\b|<image\b|<use\b|(?:href|xlink:href)\s*=\s*["\x27]https?:\/\//i);
   }
 });
 test("Ciro logo uses crescent and sparkle and sets favicon", () => {

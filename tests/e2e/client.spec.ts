@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
 const imageDir = "artifacts/ui-screenshots";
@@ -8,6 +8,17 @@ async function waitForPreview(page: import("@playwright/test").Page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("当前为客户端预览，尚未连接真实 CIRO 推理服务")).toBeVisible();
 }
+async function setRange(locator: Locator, value: number) {
+  await locator.evaluate((node, v) => {
+    const input = node as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) throw new Error("Native range setter unavailable");
+    setter.call(input, String(v));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
+}
+
 async function openSettings(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -31,9 +42,9 @@ test("appearance panel changes wallpaper and persists settings on reload", async
 
   await page.getByRole("button", { name: "北境极光" }).click();
   const sliders = page.locator(".sc-slider-row input[type=range]");
-  await sliders.nth(0).fill("65");
-  await sliders.nth(1).fill("7");
-  await sliders.nth(2).fill("50");
+  await setRange(sliders.nth(0), 65);
+  await setRange(sliders.nth(1), 7);
+  await setRange(sliders.nth(2), 50);
   await page.getByRole("button", { name: "仅欢迎页面" }).click();
   await page.getByRole("button", { name: "完成" }).click();
 
