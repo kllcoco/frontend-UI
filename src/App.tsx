@@ -535,9 +535,9 @@ export default function App() {
             <Workflow size={18}/><span>{t("协作空间")}</span><span className="studio-launch-dot" />
           </button>
           <div className="studio-quick-links">
-            <button className="studio-launch studio-launch--sub" onClick={()=>openStudio("apps")} aria-label={t("官方应用")}><LayoutGrid size={17}/><span>{t("官方应用")}</span></button>
-            <button className="studio-launch studio-launch--sub" onClick={()=>openStudio("skills")} aria-label={t("技能中心")}><Blocks size={17}/><span>{t("技能中心")}</span></button>
-            <button className="studio-launch studio-launch--sub" onClick={()=>openStudio("billing")} aria-label={t("账单与用量")}><Wallet size={17}/><span>{t("账单与用量")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("apps")} aria-label={t("官方应用")}><LayoutGrid size={17}/><span>{t("官方应用")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("skills")} aria-label={t("技能中心")}><Blocks size={17}/><span>{t("技能中心")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("billing")} aria-label={t("账单与用量")}><Wallet size={17}/><span>{t("账单与用量")}</span></button>
           </div>
           <button className="search-trigger" onClick={() => {
             setSearchOpen(true);
