@@ -33,9 +33,9 @@ function fixture(){
 async function serve(f){
  const server=await new Promise(resolve=>{const s=f.app.listen(0,"127.0.0.1",()=>resolve(s));});
  const base="http://127.0.0.1:"+server.address().port;
- const call=async (path,body)=>{
+ const call=async (path,body,extraHeaders={})=>{
   const response=await fetch(base+path,{method:body===undefined?"GET":"POST",
-   ...(body===undefined?{}:{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})});
+   ...(body===undefined?{}:{headers:{"Content-Type":"application/json",...extraHeaders},body:JSON.stringify(body)})});
   const raw=await response.text();let json;try{json=JSON.parse(raw);}catch{json=raw;}
   return {status:response.status,json};
  };
@@ -103,5 +103,35 @@ test("Write approval is one-shot and binds credential generation and policy",asy
   const after=await s.call("/plugins/approvals/"+request.json.id,{decision:"approve"});
   assert.equal(after.status,404);
   assert.equal(f.calls.length,0);
+ }finally{await s.close();}
+});
+
+test("active scoped agent may read via capability, but a paused or uninstalled goal cannot",async()=>{
+ const f=fixture(),s=await serve(f);
+ try{
+  f.env.CIRO_AGENT_TOOL_CAPABILITY_SECRET="s".repeat(48);
+  const intent=f.runtime.installs.prepare({ownerId:"alice",sessionId:"session-a",id:"github"});
+  f.runtime.installs.install({ownerId:"alice",sessionId:"session-a",id:"github",
+   nonce:intent.nonce,fingerprint:intent.fingerprint,confirm:true});
+  f.runtime.store.putConnection({ownerId:"alice",provider:"github",
+   account:{id:42,login:"example"},secret:{accessToken:"token"},scopes:["repo"]});
+  const {createWorkbenchStore}=await import("../server/workbench-store.mjs");
+  const {issueAgentPluginCapability}=await import("../server/plugin-agent-capability.mjs");
+  const state=createWorkbenchStore(f.dir);
+  const policy={mode:"request",repo:"example/project",
+    custom:{githubRead:true,githubWrite:false,taskExecution:false,recurringTasks:false,externalNetwork:false}};
+  const goal={id:"job-123",ownerId:"alice",repo:"example/project",status:"running",
+    policySnapshot:JSON.stringify(policy)};
+  state.change("test.agent",{},draft=>{draft.policy=policy;draft.goals.push(goal);});
+  const capability=issueAgentPluginCapability({secret:f.env.CIRO_AGENT_TOOL_CAPABILITY_SECRET,goal});
+  const payload={jobId:goal.id,tool:"ciro_github_read_file",args:{repo:"example/project",path:"README.md"}};
+  const headers={"X-Ciro-Agent-Capability":capability};
+  const allowed=await s.call("/plugins/agent/invoke",payload,headers);
+  assert.equal(allowed.status,200);
+  assert.equal(allowed.json.result.content,"hello");
+  state.change("test.pause",{},draft=>{draft.goals[0].status="paused";});
+  const denied=await s.call("/plugins/agent/invoke",payload,headers);
+  assert.equal(denied.status,403);
+  assert.equal(f.calls.length,1);
  }finally{await s.close();}
 });
