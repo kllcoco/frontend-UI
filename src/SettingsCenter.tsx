@@ -96,7 +96,9 @@ export default function SettingsCenter({
     try { await onRemoveImage(); setError(null); }
     catch (cause) { setError(cause instanceof Error ? cause.message : t("删除背景图片失败")); }
   }
-  const heading = sections.find((item) => {t("item.id === section)?.label || \"设置\";\n\n  return")} <div className="sc-backdrop" role="presentation"
+  const heading = sections.find((item) => item.id === section)?.label || "设置";
+
+  return <div className="sc-backdrop" role="presentation"
     onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="sc-shell" role="dialog" aria-modal="true" aria-labelledby="sc-title">
       <aside className="sc-nav">
