@@ -343,7 +343,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     refreshToken:typeof data.refresh_token==="string"?data.refresh_token:null,
     expiresAt:Number.isFinite(data.expires_in)?Date.now()+data.expires_in*1000:null},
    scopes:typeof data.scope==="string"?data.scope.split(","):[]});
-  res.redirect(303,"/settings?section=plugins&connection=github");
+  res.redirect(303,"/?view=plugins&connection=github");
  }));
  router.post("/supabase/connect",wrap((req,res)=>{
   assertInstalled(owner(req),"supabase");
@@ -372,7 +372,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   // No administrator credential or service-role token is permitted.
   store.putConnection({ownerId:owner(req),provider:"supabase",
     account:identity,secret:token,scopes:token.scopes});
-  res.redirect(303,"/settings?section=plugins&connection=supabase");
+  res.redirect(303,"/?view=plugins&connection=supabase");
  }));
  router.post("/:provider/disconnect",wrap((req,res)=>{
   if(!CATALOG.some(x=>x.id===req.params.provider))throw fail("Unknown provider",404);
