@@ -2,6 +2,8 @@
 // Execute ONLY from a trusted terminal with two independently authenticated
 // non-admin Supabase test users. Never print or commit OAuth access tokens.
 import {randomUUID} from "node:crypto";
+import {fileURLToPath} from "node:url";
+import {resolve} from "node:path";
 import {createSupabaseMcpSession,trustedSupabaseMcpUrl} from "../server/mcp-client.mjs";
 
 const check=(condition,message)=>{if(!condition)throw new Error(message);};
@@ -51,7 +53,7 @@ export async function qualifySupabaseMcp({projectRef,tokenA,tokenB,fetchFn=fetch
   await first?.close();await second?.close();
  }
 }
-if(import.meta.url===new URL("file://"+process.argv[1]).href){
+if(process.argv[1]&&fileURLToPath(import.meta.url)===resolve(process.argv[1])){
  try{
   const result=await qualifySupabaseMcp({
    projectRef:process.env.CIRO_SUPABASE_PROJECT_REF,
