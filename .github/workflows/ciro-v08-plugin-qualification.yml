@@ -1,0 +1,41 @@
+name: CIRO V0.8 plugin qualification
+on:
+  pull_request:
+    branches: [feat/ciro-chat-client-v1]
+    paths:
+      - "server/**"
+      - "src/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/ciro-v08-plugin-qualification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ciro-v08-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin-qualification:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Unit and security tests
+        run: npm test
+      - name: Typecheck and production build
+        run: npm run build
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E
+        run: npm run test:e2e
+        env:
+          CI: "true"
