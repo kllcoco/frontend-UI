@@ -46,8 +46,8 @@ export function saveActiveId(id: string | null): void {
 }
 
 export function loadTheme(): "light" | "dark" {
-  try { return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"; }
-  catch { return "dark"; }
+  try { return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light"; }
+  catch { return "light"; }
 }
 
 export function saveTheme(theme: "light" | "dark"): void {

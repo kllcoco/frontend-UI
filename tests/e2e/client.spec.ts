@@ -24,12 +24,14 @@ async function openSettings(page: import("@playwright/test").Page) {
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
-test("desktop welcome UI uses the approved moon logo and dark theme", async ({ page }) => {
+test("default first visit is Chinese with white background and the approved moon logo", async ({ page }) => {
   await waitForPreview(page);
   await expect(page).toHaveTitle(/Ciro/);
   await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(page.locator(".wallpaper-image")).toHaveCSS("background-image", /night-lake\.svg/);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator(".workspace")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator(".wallpaper-image")).toHaveCount(0);
   await expect(page.locator(".suggestion-card")).toHaveCount(4);
   await page.screenshot({ path: imageDir + "/01-welcome-desktop.png", fullPage: true, animations: "disabled" });
 });
@@ -136,6 +138,35 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
   await page.getByRole("button", { name: "关于 Ciro", exact: true }).click();
   await expect(page.getByText("CIRO CLIENT · PREVIEW v0.2")).toBeVisible();
   await page.screenshot({ path: imageDir + "/14-settings-about.png", fullPage: true, animations: "disabled" });
+});
+
+test("English interface is complete, persists across reloads, and returns to Chinese", async ({ page }) => {
+  await waitForPreview(page);
+  await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
+  await openSettings(page);
+  await page.getByRole("button", { name: "通用设置", exact: true }).click();
+  await expect(page.getByRole("button", { name: "简体中文" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Appearance & background" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: imageDir + "/15-settings-english.png", fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("heading", { name: /Let every idea/ })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Message Ciro" })).toBeVisible();
+  await expect(page.getByText("Client preview: CIRO inference is not connected")).toBeVisible();
+  await page.screenshot({ path: imageDir + "/16-welcome-english.png", fullPage: true, animations: "disabled" });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { name: /Let every idea/ })).toBeVisible();
+  await openSettings(page);
+  await page.getByRole("button", { name: "General", exact: true }).click();
+  await page.getByRole("button", { name: "简体中文" }).click();
+  await expect(page.getByRole("heading", { name: "通用设置" })).toBeVisible();
+  await page.getByRole("button", { name: "完成" }).click();
+  await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
 });
 
 test("mobile navigation and settings stay inside the viewport", async ({ page }) => {

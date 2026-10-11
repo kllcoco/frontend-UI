@@ -1,4 +1,4 @@
-export type PresetId = "night" | "aurora" | "summit" | "city" | "minimal" | "custom";
+export type PresetId = "white" | "night" | "aurora" | "summit" | "city" | "minimal" | "custom";
 export type BackgroundScope = "all" | "welcome";
 
 export type AppearanceSettings = {
@@ -10,11 +10,11 @@ export type AppearanceSettings = {
 };
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  preset: "night",
+  preset: "white",
   scope: "all",
-  brightness: 75,
+  brightness: 100,
   blur: 0,
-  overlay: 38
+  overlay: 0
 };
 
 const APPEARANCE_KEY = "ciro.appearance.v1";
@@ -25,6 +25,7 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const VALID_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
 
 export const WALLPAPER_PRESETS: Array<{ id: Exclude<PresetId, "custom">; name: string; url: string }> = [
+  { id: "white", name: "纯白背景", url: "/backgrounds/white.svg" },
   { id: "night", name: "青绿月夜", url: "/backgrounds/night-lake.svg" },
   { id: "aurora", name: "北境极光", url: "/backgrounds/aurora.svg" },
   { id: "summit", name: "远山晨雾", url: "/backgrounds/summit.svg" },
@@ -44,13 +45,13 @@ export function clampValue(value: number, low: number, high: number): number {
 export function loadAppearance(): AppearanceSettings {
   try {
     const saved = JSON.parse(localStorage.getItem(APPEARANCE_KEY) || "{}") as Partial<AppearanceSettings>;
-    const validPresets: PresetId[] = ["night", "aurora", "summit", "city", "minimal", "custom"];
+    const validPresets: PresetId[] = ["white", "night", "aurora", "summit", "city", "minimal", "custom"];
     return {
       preset: validPresets.includes(saved.preset as PresetId) ? saved.preset as PresetId : "night",
       scope: saved.scope === "welcome" ? "welcome" : "all",
-      brightness: clampValue(Number(saved.brightness ?? 75), 20, 120),
+      brightness: clampValue(Number(saved.brightness ?? 100), 20, 120),
       blur: clampValue(Number(saved.blur ?? 0), 0, 24),
-      overlay: clampValue(Number(saved.overlay ?? 38), 0, 85)
+      overlay: clampValue(Number(saved.overlay ?? 0), 0, 85)
     };
   } catch {
     return { ...DEFAULT_APPEARANCE };
