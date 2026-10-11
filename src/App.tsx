@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -15,6 +15,10 @@ import {
   saveActiveId, saveConversations, saveTheme
 } from "./lib/storage";
 import type { ApiStatus, ChatMessage, Conversation } from "./types";
+import CiroMark from "./components/CiroMark";
+import SettingsCenter from "./SettingsCenter";
+import { backgroundUrl, loadAppearance, loadCustomWallpaper, removeCustomWallpaper, saveAppearance, saveCustomWallpaper } from "./lib/appearance";
+import { loadChatPreferences, saveChatPreferences } from "./lib/preferences";
 
 type Attachment = { id: string; name: string; content: string };
 const PREVIEW: ApiStatus = { configured: false, model: "ciro", models: ["ciro"], mode: "preview" };
@@ -52,15 +56,6 @@ const prompts: { title: string; detail: string; prompt: string; icon: LucideIcon
 ];
 
 const acceptedExtensions = /\.(txt|md|markdown|json|csv|ts|tsx|js|jsx|py|html|css|xml|yaml|yml|toml|sql|log|sh|go|rs|java|c|cpp|h)$/i;
-
-function CiroMark({ small = false }: { small?: boolean }) {
-  return <span className={small ? "ciro-mark ciro-mark--small" : "ciro-mark"} aria-hidden="true">
-    <svg viewBox="0 0 44 44" fill="none">
-      <path d="M29.8 12.2a13.5 13.5 0 1 0 0 19.6" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-      <circle cx="31.1" cy="22" r="3.6" fill="currentColor" />
-    </svg>
-  </span>;
-}
 
 function dateGroup(time: number) {
   const now = new Date();
@@ -105,6 +100,10 @@ export default function App() {
   const [statusLoading, setStatusLoading] = useState(true);
   const [model, setModel] = useState("ciro");
   const [theme, setTheme] = useState<"light" | "dark">(loadTheme);
+  const [appearance, setAppearance] = useState(loadAppearance);
+  const [preferences, setPreferences] = useState(loadChatPreferences);
+  const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
+  const customUrlRef = useRef<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -157,6 +156,24 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [conversations]);
   useEffect(() => { saveActiveId(activeId); }, [activeId]);
+  useEffect(() => { saveAppearance(appearance); }, [appearance]);
+  useEffect(() => {
+    saveChatPreferences(preferences);
+    document.documentElement.dataset.reduceMotion = preferences.reduceMotion ? "true" : "false";
+  }, [preferences]);
+  useEffect(() => {
+    let active = true;
+    loadCustomWallpaper().then((blob) => {
+      if (!active || !blob) return;
+      const url = URL.createObjectURL(blob);
+      customUrlRef.current = url;
+      setCustomImageUrl(url);
+    }).catch(() => { /* Browser storage unavailable: built-in backgrounds still work. */ });
+    return () => {
+      active = false;
+      if (customUrlRef.current) URL.revokeObjectURL(customUrlRef.current);
+    };
+  }, []);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     saveTheme(theme);
@@ -362,7 +379,9 @@ export default function App() {
   }
 
   function onComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    const modified = event.ctrlKey || event.metaKey;
+    if ((preferences.sendWithEnter && !modified) || (!preferences.sendWithEnter && modified)) {
       event.preventDefault();
       sendMessage();
     }
@@ -375,6 +394,40 @@ export default function App() {
   }
 
   const readyLabel = statusLoading ? "正在检查" : status.configured ? "推理接口已配置" : "界面预览模式";
+  const showWallpaper = appearance.scope === "all" || !current;
+  const wallpaperStyle: CSSProperties = {
+    backgroundImage: "url('" + backgroundUrl(appearance.preset, customImageUrl) + "')",
+    filter: "blur(" + appearance.blur + "px) brightness(" + appearance.brightness + "%)"
+  };
+  async function uploadWallpaper(file: File) {
+    await saveCustomWallpaper(file);
+    const url = URL.createObjectURL(file);
+    if (customUrlRef.current) URL.revokeObjectURL(customUrlRef.current);
+    customUrlRef.current = url;
+    setCustomImageUrl(url);
+    setAppearance((old) => ({ ...old, preset: "custom" }));
+    setToast("自定义背景已保存到此设备");
+  }
+  async function removeWallpaper() {
+    await removeCustomWallpaper();
+    if (customUrlRef.current) URL.revokeObjectURL(customUrlRef.current);
+    customUrlRef.current = null;
+    setCustomImageUrl(null);
+    setAppearance((old) => ({ ...old, preset: old.preset === "custom" ? "night" : old.preset }));
+    setToast("已删除自定义背景");
+  }
+  function exportAllConversations() {
+    const blob = new Blob([JSON.stringify({
+      schema: "CIRO_CLIENT_CONVERSATIONS_V1", exportedAt: new Date().toISOString(), conversations
+    }, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ciro-conversations-" + new Date().toISOString().slice(0, 10) + ".json";
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setToast("全部对话已导出");
+  }
 
   return (
     <div className="app-shell">
@@ -451,11 +504,16 @@ export default function App() {
           <button className="sidebar-setting" onClick={() => setSettingsOpen(true)} title="设置">
             <Settings2 size={18} /><span>设置与连接</span>
           </button>
-          <div className="sidebar-version">CIRO CLIENT <span>V0.1 PREVIEW</span></div>
+          <div className="sidebar-version">CIRO CLIENT <span>V0.2 PREVIEW</span></div>
         </div>
       </aside>
 
-      <main className="workspace">
+      <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
+        data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}>
+        {showWallpaper && <>
+          <div className="wallpaper-image" style={wallpaperStyle} aria-hidden="true"/>
+          <div className="wallpaper-veil" style={{ backgroundColor: "rgba(2,12,11," + appearance.overlay / 100 + ")" }} aria-hidden="true"/>
+        </>}
         <header className="topbar">
           <div className="topbar-left">
             <button className="icon-button mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="打开侧栏">
@@ -540,6 +598,9 @@ export default function App() {
                     ) : (
                       <div className="user-bubble">{message.content}</div>
                     )}
+                    {preferences.showTime && <time className="message-time" dateTime={new Date(message.createdAt).toISOString()}>
+                      {new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+                    </time>}
                     {assistant && message.content && !isStreaming && <div className="message-actions">
                       <button aria-label="复制回答" title="复制回答" onClick={() => void copyContent(message.content)}>
                         <Copy size={15} />
@@ -609,48 +670,16 @@ export default function App() {
         </div>
       </main>
 
-      {settingsOpen && <div className="modal-backdrop" role="presentation"
-        onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
-        <section className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-          <div className="settings-head">
-            <div><span className="settings-eyebrow">YOUR WORKSPACE</span><h2 id="settings-title">设置与连接</h2></div>
-            <button className="icon-button" onClick={() => setSettingsOpen(false)} title="关闭设置" aria-label="关闭设置"><X size={20} /></button>
-          </div>
-          <div className="settings-section">
-            <h3>推理服务</h3>
-            <div className="setting-status">
-              <span className={["setting-status-icon", status.configured ? "setting-status-icon--ok" : ""].join(" ")}>
-                {status.configured ? <Check size={20} /> : <Sparkles size={20} />}
-              </span>
-              <div><strong>{status.configured ? "已配置后端地址" : "尚未配置推理服务"}</strong>
-                <p>{status.configured ? "API 地址已载入，首次发送时验证实际可用性。" :
-                  "现在可体验客户端界面；生成回答需要连接 CIRO 推理服务。"}</p></div>
-            </div>
-            <div className="settings-code">
-              <span>服务端 .env 示例</span>
-              <code>CIRO_API_BASE_URL=http://127.0.0.1:8000/v1<br />CIRO_MODEL=ciro</code>
-            </div>
-            <p className="settings-small">密钥只放在服务器的 .env 中，勿填写到浏览器。正式接入协议见仓库 README。</p>
-            <button className="secondary-action" onClick={() => void refreshStatus()}>
-              <RotateCcw size={15} /> 重新检查配置
-            </button>
-          </div>
-          <div className="settings-section">
-            <h3>显示偏好</h3>
-            <button className="setting-line" onClick={() => setTheme((old) => old === "light" ? "dark" : "light")}>
-              <span>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />} 界面主题</span>
-              <strong>{theme === "light" ? "浅色" : "深色"} <ChevronDown size={16} /></strong>
-            </button>
-          </div>
-          <div className="settings-section settings-last">
-            <h3>隐私与数据</h3>
-            <p className="settings-small">对话历史目前仅存储在此浏览器的本地空间。删除浏览器数据可能导致历史无法恢复。</p>
-            <button className="danger-action" disabled={conversations.length === 0} onClick={clearHistory}>
-              <Trash2 size={15} /> 清空本地对话
-            </button>
-          </div>
-        </section>
-      </div>}
+      {settingsOpen && <SettingsCenter
+        onClose={() => setSettingsOpen(false)}
+        theme={theme} onThemeChange={setTheme}
+        appearance={appearance} onAppearanceChange={setAppearance}
+        customImageUrl={customImageUrl} onUploadImage={uploadWallpaper} onRemoveImage={removeWallpaper}
+        preferences={preferences} onPreferencesChange={setPreferences}
+        status={status} model={model} onModelChange={setModel}
+        onRefreshStatus={refreshStatus} conversations={conversations}
+        onExportAll={exportAllConversations} onClearHistory={clearHistory}
+      />}
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}</div>}
     </div>
   );
