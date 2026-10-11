@@ -42,7 +42,25 @@ export function createPluginConnectionStore({dir,env=process.env}={}){
  }
  function connection(ownerId,provider="github"){
   const found=database.read().connections.find(x=>x.ownerId===ownerId&&x.provider===provider);
-  return found?{...found,secret:unsealJSON(found.sealed,env,keyFor(provider,ownerId))}:null;
+  if(!found)return null;
+  const aad=keyFor(provider,ownerId);
+  let secret;
+  try{secret=unsealJSON(found.sealed,env,aad);}
+  catch(currentKeyError){
+   const previous=env.CIRO_ACCOUNT_DATA_KEY_PREVIOUS;
+   if(typeof previous!=="string"||!previous)throw currentKeyError;
+   secret=unsealJSON(found.sealed,{...env,CIRO_ACCOUNT_DATA_KEY:previous},aad);
+   // Re-encrypt in one transaction, without changing the connection generation.
+   // Pending OAuth/approval secrets intentionally fail closed during rotation.
+   const rotated=sealJSON(secret,env,aad);
+   change("connection.key_rotated",state=>{
+    const item=state.connections.find(x=>x.ownerId===ownerId&&x.provider===provider&&
+      x.generation===found.generation);
+    if(!item)throw fail("Connection changed during encryption rotation",409);
+    item.sealed=rotated;
+   },{ownerId,provider});
+  }
+  return {...found,secret};
  }
  function putConnection({ownerId,provider="github",account,secret,scopes=[]}){
   const generation=randomUUID(),sealed=sealJSON(secret,env,keyFor(provider,ownerId));
