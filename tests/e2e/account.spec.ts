@@ -63,7 +63,18 @@ test("real account authentication, encrypted memories, spending limits and devic
   await page.getByLabel("登录密码").fill(PASSWORD);
   await page.getByLabel("初始化口令").fill(SECRET);
   await page.screenshot({path:photoDir+"/31-account-onboarding.png",fullPage:true,animations:"disabled"});
+  const signup=page.waitForResponse(x=>x.url().includes("/api/account/bootstrap")&&x.request().method()==="POST");
   await page.getByRole("button",{name:"创建账户"}).click();
+  const response=await signup;
+  expect(response.status(),await response.text()).toBe(201);
+  await expect.poll(async()=>{
+    const r=await page.request.get(root+"/api/account/session");
+    const v=await r.json();
+    return v.authenticated;
+  }).toBe(true);
+  // Bootstrap intentionally reloads the browser. Wait for navigation, then
+  // reopen the account page rather than clicking while the reload is pending.
+  await page.reload({waitUntil:"domcontentloaded"});
   await page.getByRole("button",{name:"账户与安全",exact:true}).click();
   await expect(page.getByText("person@example.com")).toBeVisible();
   await page.screenshot({path:photoDir+"/32-account-profile.png",fullPage:true,animations:"disabled"});
