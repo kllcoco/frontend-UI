@@ -228,7 +228,7 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
     })).filter(x=>x.url&&x.title);
     res.json({jobId:req.params.id,status:typeof data.status==="string"?data.status:"unknown",
       summary:typeof data.summary==="string"?data.summary.slice(0,10000):null,
-      sources,verified:sources.length>0&&data.status==="completed"});
+      sources,sourcesPresent:sources.length>0,verified:false});
   }));
   router.post("/think/jobs",wrap(async(req,res)=>{
     const objective=bounded(req.body?.objective,5000,"objective");
@@ -343,7 +343,7 @@ export function createStudioRouter({env=process.env,dir,fetchFn=fetch}={}){
   }));
   router.get("/compute",(_req,res)=>{
     const events=store.get().telemetry.slice(-100);
-    res.json({source:"signed_native_runtime_receipts",verifiedMeasurements:events.length>0,
+    res.json({source:"signed_native_runtime_receipts",verifiedMeasurements:false,signedEventsAvailable:events.length>0,
       latest:events.at(-1)||null,events,status:events.length?"receipts_available":"awaiting_native_telemetry"});
   });
   router.post("/compute/ingest",wrap((req,res)=>{

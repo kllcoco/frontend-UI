@@ -151,7 +151,8 @@ test("signed native compute measurements are immutable and unsigned/fake metrics
     const other=receipt({...body,metrics:{gpuPct:99}},secret);
     assert.equal((await f.request("/compute/ingest","POST",other.raw,other.headers)).status,409);
     const state=await f.request("/compute");
-    assert.equal(state.json.verifiedMeasurements,true);
+    assert.equal(state.json.signedEventsAvailable,true);
+    assert.equal(state.json.verifiedMeasurements,false);
     assert.equal(state.json.latest.metrics.gpuPct,73.2);
     assert.equal((await f.request("/compute/ingest","POST",{
       ...body,eventId:"measure-epoch-002",metrics:{gpuPct:130}
@@ -174,7 +175,8 @@ test("external research connector makes a true scoped call and retains grounded 
   try{
     assert.equal((await f.request("/research","POST",{query:"H64"})).status,202);
     const result=await f.request("/research/research-good-123");
-    assert.equal(result.json.verified,true);
+    assert.equal(result.json.verified,false);
+    assert.equal(result.json.sourcesPresent,true);
     assert.equal(result.json.sources.length,1);
     assert.equal(calls[0].url,"https://research.example.org/v1/research/jobs");
     assert.equal(calls[0].headers.Authorization,"Bearer secret");

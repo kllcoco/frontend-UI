@@ -112,3 +112,9 @@ GET /api/studio/model-control/runs/:id → Native GET /v1/model-control/runs/:id
 {status,evidenceSha256,metrics:[{step:int>=0,loss:number>=0,validationLoss?:number}]}。
 仅真实数据绘制训练 loss 折线，未配置时显示空，绝不虚构 checkpoint 或训练成功。
 本接口**只读**，训练启动/停止/改数据与算力调度不暴露在公网客户端；今后需严格权限、预算和独立训练权威。
+
+
+**标记等级**：HMAC 通过只证明收到的 JSON 来自当前受信密钥持有人，
+不独立证明 GPU 仪表值准确；遥测字段 signedEventsAvailable=true 与 verifiedMeasurements=false 分开。
+研究引用的 URL/标题存在只证明“提供了来源”，返回 sourcesPresent=true；
+verified=false，直到可信采集器提供不可变来源快照、时间戳、独立复验，才可能标记权威。
