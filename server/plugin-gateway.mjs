@@ -2,6 +2,7 @@ import express from "express";
 import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
 import {join} from "node:path";
 import {createPluginConnectionStore} from "./plugin-connection-store.mjs";
+import {createPluginInstallStore} from "./plugin-install-store.mjs";
 import {createWorkbenchStore} from "./workbench-store.mjs";
 import {decision,validateRepo,safeFilePath,safeBranch} from "./agent-policy.mjs";
 
@@ -96,18 +97,24 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  const router=express.Router();
  const folder=dir||env.CIRO_WORKSPACE_DATA_DIR||join(process.cwd(),".ciro-runtime");
  const store=createPluginConnectionStore({dir:folder,env});
+ const installs=createPluginInstallStore({dir:folder});
  // Workbench stores are independently persisted; load fresh policy on EVERY request.
  // Cached policy can silently retain access after a user revokes permission.
  const workbenchPolicy=()=>createWorkbenchStore(folder).get().policy;
  const wrap=fn=>(req,res)=>Promise.resolve().then(()=>fn(req,res)).catch(e=>res.status(e.statusCode||400).json({error:e.message||"Plugin gateway rejected request"}));
  const owner=req=>req.principal?.id||"local";
  const policy=()=>workbenchPolicy();
+ function assertInstalled(user,provider){const record=installs.installed(user,provider);
+  if(!record||!record.enabled)throw fail("Install and enable the plugin in the marketplace first",403);
+  return record;
+ }
  function credentialFor(user,provider){
   const credential=store.connection(user,provider);
   if(!credential)throw fail("Connect this plugin before invoking it",403);
   return credential;
  }
  async function execute(user,provider,tool,args,source,approval=false){
+  assertInstalled(user,provider);
   const connection=credentialFor(user,provider);
   const verdict=checkToolPolicy(policy(),provider,tool,args,source);
   if(verdict.result==="deny")throw fail(verdict.reason||"Permission denied",403);
@@ -137,10 +144,32 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   }
  }
  router.use((_req,res,next)=>{res.set("Cache-Control","no-store");next();});
- router.get("/catalog",wrap((req,res)=>res.json({catalog:CATALOG,
+ router.get("/catalog",wrap((req,res)=>res.json({catalog:installs.catalog,
+   installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
    connections:store.publicConnections(owner(req)),approvals:store.publicApprovals(owner(req)),
    audit:store.audit(owner(req))})));
+ router.post("/marketplace/:id/prepare",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Browser session required for plugin installation",403);
+  res.json(installs.prepare({ownerId:owner(req),sessionId:req.principal.sessionId,id:req.params.id}));
+ }));
+ router.post("/marketplace/:id/install",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Browser session required for plugin installation",403);
+  const record=installs.install({ownerId:owner(req),sessionId:req.principal.sessionId,id:req.params.id,
+   nonce:req.body?.nonce,fingerprint:req.body?.fingerprint,confirm:req.body?.confirm});
+  res.status(201).json({installed:true,plugin:record});
+ }));
+ router.post("/installed/:id/uninstall",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Browser session required for plugin removal",403);
+  const result=installs.uninstall(owner(req),req.params.id);
+  store.removeConnection(owner(req),req.params.id);
+  res.json(result);
+ }));
+ router.post("/installed/:id/enabled",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Browser session required",403);
+  res.json(installs.setEnabled(owner(req),req.params.id,req.body?.enabled));
+ }));
  router.post("/github/connect",wrap((req,res)=>{
+  assertInstalled(owner(req),"github");
   if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")
     throw fail("GitHub OAuth requires an authenticated browser session",403);
   const client=bounded(env.CIRO_GITHUB_OAUTH_CLIENT_ID,150,"GitHub OAuth client ID");
@@ -157,6 +186,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }));
  router.get("/github/callback",wrap(async(req,res)=>{
   if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")throw fail("Session required",403);
+  assertInstalled(owner(req),"github");
   const code=bounded(req.query.code,300,"authorization code");
   const state=bounded(req.query.state,150,"authorization state");
   const pending=store.takeOAuth({ownerId:owner(req),sessionId:req.principal.sessionId,stateHash:sha(state)});
@@ -209,5 +239,5 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    store.finishApproval(user,item.id,"approved");res.json({status:"approved",result});
   }catch(error){store.finishApproval(user,item.id,"failed");throw error;}
  }));
- return {router,store};
+ return {router,store,installs};
 }
