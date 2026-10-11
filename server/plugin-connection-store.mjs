@@ -81,7 +81,7 @@ export function createPluginConnectionStore({dir, env=process.env}={}) {
     change("connection.revoked",s=>{
       s.connections=s.connections.filter(x=>x.ownerId!==ownerId || x.provider!==provider);
       s.approvals=s.approvals.filter(x=>x.ownerId!==ownerId || x.provider!==provider);
-      s.oauth=s.oauth.filter(x=>x.ownerId!==ownerId);
+      s.oauth=s.oauth.filter(x=>x.ownerId!==ownerId||x.provider!==provider);
     },{provider,ownerId});
     return found;
   }
