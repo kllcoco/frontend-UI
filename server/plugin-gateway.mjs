@@ -359,6 +359,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const identity=await jsonRequest("https://api.github.com/user",{token:data.access_token,fetchFn,
    accept:"application/vnd.github+json"});
   if(!Number.isInteger(identity.id)||typeof identity.login!=="string")throw fail("GitHub account could not be verified",502);
+  assertInstalled(owner(req),"github");
   store.putConnection({ownerId:owner(req),provider:"github",
    account:{id:identity.id,login:identity.login},secret:{accessToken:data.access_token,
     refreshToken:typeof data.refresh_token==="string"?data.refresh_token:null,
@@ -390,6 +391,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const token=await supabaseToken(env,{type:"authorization_code",code,
     codeVerifier:pending.codeVerifier,redirectUri:origin+"/api/plugins/supabase/callback"},fetchFn);
   const identity=await supabaseIdentity(env,token.accessToken,fetchFn);
+  assertInstalled(owner(req),"supabase");
   // No administrator credential or service-role token is permitted.
   store.putConnection({ownerId:owner(req),provider:"supabase",
     account:identity,secret:token,scopes:token.scopes});
