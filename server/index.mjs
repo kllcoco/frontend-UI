@@ -8,6 +8,7 @@ import { createWorkbenchRouter } from "./workbench.mjs";
 import {createAccountService} from "./account.mjs";
 import {createStudioRouter,studioCapabilities} from "./studio.mjs";
 import {createPluginGateway} from "./plugin-gateway.mjs";
+import {runPluginChat} from "./plugin-chat-runtime.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -65,6 +66,20 @@ app.post("/api/chat", async (req, res) => {
   const controller = new AbortController();
   res.on("close", () => controller.abort());
   try {
+    const user=req.principal?.id||"local";
+    // Only installed + authenticated + policy-allowed tools are exposed. No model-install API.
+    if(plugins.listModelTools(user).length){
+      const result=await runPluginChat({
+        payload,principal:user,gateway:plugins,
+        upstream:{url:apiBase + "/" + apiPath.replace(/^\\/+/, ""),apiKey},
+        signal:controller.signal
+      });
+      res.status(200).set({"Content-Type":"text/event-stream; charset=utf-8",
+        "Cache-Control":"no-cache, no-transform","X-Accel-Buffering":"no"});
+      res.write("data: "+JSON.stringify({choices:[{delta:{content:result.content}}]})+"\\n\\n");
+      res.write("data: [DONE]\\n\\n");
+      return res.end();
+    }
     const upstream = await fetch(apiBase + "/" + apiPath.replace(/^\/+/, ""), {
       method: "POST",
       signal: controller.signal,
