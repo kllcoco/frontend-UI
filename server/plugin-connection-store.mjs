@@ -2,6 +2,7 @@ import {join} from "node:path";
 import {randomUUID} from "node:crypto";
 import {sealJSON,unsealJSON} from "./account.mjs";
 import {createTransactionalPluginDocument} from "./plugin-transactional-store.mjs";
+import {createPluginInstallStore} from "./plugin-install-store.mjs";
 
 const empty=()=>({version:1,connections:[],oauth:[],approvals:[],audit:[]});
 const valid=x=>x?.version===1&&Array.isArray(x.connections)&&
@@ -25,8 +26,8 @@ export function createPluginConnectionStore({dir,env=process.env}={}){
    return result;
   });
  }
- function addOAuth({ownerId,sessionId,stateHash,verifier,codeVerifier=null,provider="github"}){
-  const sealed=sealJSON({verifier,codeVerifier},env,"plugin:oauth:"+ownerId+":"+stateHash);
+ function addOAuth({ownerId,sessionId,stateHash,verifier,codeVerifier=null,provider="github",installationId=null}){
+  const sealed=sealJSON({verifier,codeVerifier,installationId},env,"plugin:oauth:"+ownerId+":"+stateHash);
   return change("oauth.started",state=>{
    state.oauth=state.oauth.filter(x=>x.ownerId!==ownerId||x.sessionId!==sessionId||x.provider!==provider);
    state.oauth.push({ownerId,sessionId,provider,stateHash,sealed,expiresAt:Date.now()+600000});
@@ -62,11 +63,20 @@ export function createPluginConnectionStore({dir,env=process.env}={}){
   }
   return {...found,secret};
  }
- function putConnection({ownerId,provider="github",account,secret,scopes=[]}){
+ function putConnection({ownerId,provider="github",account,secret,scopes=[],installationId=null}){
+  // Bind credentials to one exact install. A crash during uninstall can leave an
+  // encrypted token behind, but reinstalling must never resurrect that token.
+  const installStore=createPluginInstallStore({dir:folder});
+  let receipt;
+  try{receipt=installStore.installed(ownerId,provider);}
+  finally{installStore.close();}
+  if(installationId&&receipt?.installationId&&installationId!==receipt.installationId)
+    throw fail("Plugin was uninstalled or reinstalled during authorization",403);
+  const boundInstallation=receipt?.installationId||installationId||null;
   const generation=randomUUID(),sealed=sealJSON(secret,env,keyFor(provider,ownerId));
   change("connection.saved",state=>{
    state.connections=state.connections.filter(x=>x.ownerId!==ownerId||x.provider!==provider);
-   state.connections.push({ownerId,provider,account,scopes,generation,sealed,
+   state.connections.push({ownerId,provider,account,scopes,generation,sealed,installationId:boundInstallation,
     connectedAt:new Date().toISOString()});
    state.approvals=state.approvals.filter(x=>x.ownerId!==ownerId||x.provider!==provider);
   },{ownerId,provider});
