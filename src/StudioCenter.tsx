@@ -15,6 +15,8 @@ import {studioTranslate} from "./lib/studio-i18n";
 import {studioApi,humanBytes} from "./lib/studio-api";
 import type {StudioTab,StudioCapabilities,DraftProject,KnowledgeDoc,KnowledgeHit,
   NativeJob,Telemetry,MarketEntry,NativeService} from "./lib/studio-api";
+import {probeNativeShell,sendNativeNotification} from "./lib/native-shell";
+import type {NativeShellStatus} from "./lib/native-shell";
 import {commercialApi} from "./lib/commercial-api";
 import type {CommerceState} from "./lib/commercial-api";
 
@@ -94,6 +96,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   const [libraryQuery,setLibraryQuery]=useState(""),[folderDraft,setFolderDraft]=useState(""),
     [branchAt,setBranchAt]=useState(0),[libraryActive,setLibraryActive]=useState<string|null>(null);
   const [installPrompt,setInstallPrompt]=useState<{prompt:()=>Promise<void>}|null>(null);
+  const [nativeShell,setNativeShell]=useState<NativeShellStatus|null>(null);
   const [noticePermission,setNoticePermission]=useState(typeof Notification==="undefined"?"unsupported":Notification.permission);
 
   const chosen=useMemo(()=>selectedProject?.files.find(f=>f.path===selectedPath)||null,[selectedProject,selectedPath]);
@@ -108,6 +111,13 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       .catch(e=>{if(active)setError(String(e));});
     return ()=>{active=false;};
   },[]);
+  useEffect(()=>{
+    if(section!=="devices")return;
+    let active=true;
+    void probeNativeShell().then(x=>{if(active)setNativeShell(x);})
+      .catch(e=>{if(active)setError(e instanceof Error?e.message:String(e));});
+    return ()=>{active=false;};
+  },[section]);
   useEffect(()=>{
     const onInstall=(event:Event)=>{
       const typed=event as Event&{prompt?:()=>Promise<void>;preventDefault:()=>void};
@@ -624,6 +634,17 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           <button className="stu-light-button" disabled={typeof Notification==="undefined"} onClick={()=>void run(async()=>{
             const p=await Notification.requestPermission();setNoticePermission(p);
           })}><Check size={15}/>{t("请求通知权限")}</button>
+        </section>
+        <section className="stu-card"><h3><Server size={18}/>{t("原生桥接协议")}</h3>
+          <Status ready={nativeShell?.available===true} language={language}/>
+          <p>{nativeShell?.available
+            ?nativeShell.platform+" · "+nativeShell.version+" · "+t("检测到桥接，但尚未独立认证")
+            :t("尚未检测到签约的原生容器")}</p>
+          <button className="stu-light-button" disabled={!nativeShell?.available||!nativeShell.grants.includes("notifications")}
+            onClick={()=>void run(async()=>{
+              if(!nativeShell)throw new Error(t("待连接"));
+              await sendNativeNotification(nativeShell,"Ciro","Native shell notification test");
+            },"已提交")}>{t("测试原生通知")}</button>
         </section>
         <section className="stu-card"><h3><Monitor size={18}/>{t("桌面客户端")}</h3>
           <Status ready={false} language={language}/>

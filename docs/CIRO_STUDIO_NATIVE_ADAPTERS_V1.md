@@ -93,3 +93,8 @@ S1 即使完全通过，也不能写 S2-S7 PASSED。
 - POST /api/studio/knowledge/semantic {query} 向 /v1/knowledge/search 发送仅包含已索引文档 indexId、SHA256 和 query 的 corpus；上游返回 matches:[{documentId,line,score}]，客户端服务器只接受存在的本地文档及合法行数，并**重新从本地全文生成摘录和引用行号**。上游伪造的 excerpt 字段被丢弃。
 - 持久推理可 POST /api/studio/think/jobs/:id/actions {action:"pause"|"resume"|"cancel"}；接线为 Native POST /v1/reasoning/jobs/:id/actions，只有返回有效 status 才更新页面。取消中算力硬停止、预算释放与回滚仍需原生 Runtime 实证。
 - IDE/推理/研究/媒体创建原生作业之前复用工作台配置的月度预算准入门；未接原生计算实时熔断前这仍不是硬性零超支保证。
+
+
+### Native shell 进阶接线（不冒充已打包）
+
+页面通过 window.ciroNativeBridge.handshake({contract:"ciro-native-shell.v1",origin,nonce}) 侦测未来 Tauri/Capacitor 原生容器，要求回显同一 origin/nonce 并声明平台、版本与允许通知/深链的最小能力。不会暴露任意 host shell、文件系统或密钥。真实通知仅在用户点击后调用受控 notify({title,body})。当前握手仅能表明桥接存在，不能证明原生端已做可信签名/attestation；真正 Windows/macOS/Android/iOS 仍须平台构建和来源隔离审计。前端将状态明确标为未独立验证。

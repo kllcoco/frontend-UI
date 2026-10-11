@@ -1,5 +1,9 @@
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
+"原生桥接协议":"Native shell protocol",
+"检测到桥接，但尚未独立认证":"Bridge detected; not independently attested",
+"尚未检测到签约的原生容器":"No trusted native container detected",
+"测试原生通知":"Test native notification",
   "语义搜索": "Semantic search",
   "已建立索引": "Indexed",
   "建立语义索引": "Build semantic index",
