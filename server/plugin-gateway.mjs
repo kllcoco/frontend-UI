@@ -96,10 +96,12 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  const router=express.Router();
  const folder=dir||env.CIRO_WORKSPACE_DATA_DIR||join(process.cwd(),".ciro-runtime");
  const store=createPluginConnectionStore({dir:folder,env});
- const workbench=createWorkbenchStore(folder);
+ // Workbench stores are independently persisted; load fresh policy on EVERY request.
+ // Cached policy can silently retain access after a user revokes permission.
+ const workbenchPolicy=()=>createWorkbenchStore(folder).get().policy;
  const wrap=fn=>(req,res)=>Promise.resolve().then(()=>fn(req,res)).catch(e=>res.status(e.statusCode||400).json({error:e.message||"Plugin gateway rejected request"}));
  const owner=req=>req.principal?.id||"local";
- const policy=()=>workbench.get().policy;
+ const policy=()=>workbenchPolicy();
  function credentialFor(user,provider){
   const credential=store.connection(user,provider);
   if(!credential)throw fail("Connect this plugin before invoking it",403);
