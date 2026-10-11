@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+.vscode/
+coverage/
+artifacts/
+test-results/
+playwright-report/
+
+# Local CIRO Workbench private state (separate from source and evidence)
+.ciro-runtime/

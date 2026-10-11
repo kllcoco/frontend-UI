@@ -1,0 +1,73 @@
+/* Entry points for the CIRO Agent Workbench and command-mode composer. */
+.studio-launch{display:flex;align-items:center;gap:11px;text-align:left;width:100%;min-height:39px;
+  padding:9px 12px;margin:9px 0 5px;border-radius:11px;background:transparent;
+  color:#5d8f70;font-size:12px;font-weight:650;border:1px solid transparent}
+.studio-launch span:nth-child(2){flex:1}
+.studio-launch:hover{background:rgba(58,145,93,.11);color:#258453}
+.studio-launch-dot{height:7px;width:7px;flex:0 0 7px;background:#60ce90;border-radius:50%;box-shadow:0 0 0 3px rgba(85,204,129,.13)}
+:root[data-theme="light"] .studio-launch{background:#eaf6ed;border-color:#d3eadb;color:#227c4a}
+:root[data-theme="light"] .studio-launch:hover{background:#dff1e5}
+:root[data-theme="light"] .studio-launch-dot{background:#32a568}
+.sidebar--collapsed .studio-launch{justify-content:center;padding:11px 0}
+.sidebar--collapsed .studio-launch span{display:none}
+.workspace--studio{background:#fff;display:flex;flex-direction:column}
+:root[data-theme="dark"] .workspace--studio{background:#0b1b15}
+.wb-mobile-top{display:none}
+.composer-mode-strip{display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:0 6px 12px}
+.composer-mode-choice,.composer-workspace-link{display:flex;align-items:center;gap:5px;border:1px solid transparent;
+  border-radius:9px;background:transparent;color:#87a598;font-size:11px;padding:7px 11px}
+.composer-mode-choice:hover,.composer-workspace-link:hover{background:rgba(77,158,111,.12);color:#d3f3dc}
+.composer-mode-choice--active{background:rgba(61,148,93,.3);border-color:rgba(126,214,156,.29);color:#b4f2c9}
+.composer-workspace-link{margin-left:auto;color:#9fddaf}
+.composer-slash-help{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:0 0 7px;padding:10px 13px;
+  background:rgba(12,40,27,.78);border:1px solid rgba(125,209,155,.23);border-radius:11px;backdrop-filter:blur(13px)}
+.composer-slash-help code{font:10px/1.6 ui-monospace,Consolas,monospace;color:#b0e8c1;
+  background:rgba(53,139,79,.2);padding:4px 6px;border-radius:5px}
+:root[data-theme="light"] .composer-mode-choice,
+:root[data-theme="light"] .composer-workspace-link{color:#668975}
+:root[data-theme="light"] .composer-mode-choice:hover,
+:root[data-theme="light"] .composer-workspace-link:hover{background:#eaf6ee;color:#247b4b}
+:root[data-theme="light"] .composer-mode-choice--active{background:#e8f5eb;color:#247f4c;border:1px solid #cee9d7}
+:root[data-theme="light"] .composer-workspace-link{color:#308457}
+:root[data-theme="light"] .composer-slash-help{background:#fff;border-color:#deeee3;box-shadow:0 5px 18px rgba(36,111,51,.09)}
+:root[data-theme="light"] .composer-slash-help code{color:#267849;background:#ecf6ef}
+@media(max-width:760px){
+  .wb-mobile-top{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid #e0ebe3;color:#246d43;background:#fff}
+  .wb-mobile-top button{background:none;color:#5d9072;padding:7px}
+  .wb-mobile-top .ciro-mark{width:24px;height:24px}
+  .wb-mobile-top span{font-weight:700;font-size:12px}
+  .composer-mode-strip{padding:0 0 8px;gap:3px}
+  .composer-mode-choice{padding:6px 8px;font-size:10px}
+  .composer-workspace-link{padding:5px 6px;font-size:10px}
+  .studio-launch{min-height:42px}
+}
+
+/* Grouped first-party application shortcuts in the sidebar. */
+.studio-quick-links{display:flex;flex-direction:column;gap:2px;padding:2px 0 7px}
+.studio-quick-link{display:flex;align-items:center;gap:11px;width:100%;color:#648f72;min-height:33px;text-align:left;border-radius:10px;
+  margin:0;border:none;background:transparent;font-size:11px;font-weight:520;padding:7px 12px}
+.studio-quick-link:hover{background:rgba(52,143,81,.09)}
+.sidebar--collapsed .studio-quick-links .studio-quick-link{justify-content:center;padding:10px 0}
+.sidebar--collapsed .studio-quick-links .studio-quick-link span{display:none}
+
+.acc-workspace{height:100%;overflow:auto;padding:28px 32px 40px;background:#fff}
+:root[data-theme="dark"] .acc-workspace{background:#0c1f15}
+@media(max-width:690px){.acc-workspace{padding:17px 14px 30px}}
+
+/* V0.7 dual-surface: conversation mode + native-ready Studio surface. */
+.studio-hub-launch{display:flex;align-items:center;gap:11px;min-height:42px;width:100%;text-align:left;
+  color:#237e53;background:#e8f6ed;border:1px solid #d1e9d9;border-radius:11px;
+  padding:11px 12px;font-size:12px;font-weight:750;margin-top:7px;margin-bottom:7px}
+.studio-hub-launch:hover{background:#d9efdf}
+.studio-hub-launch .studio-launch-dot{margin-left:auto}
+.sidebar--collapsed .studio-hub-launch{justify-content:center;padding:12px 2px}
+.sidebar--collapsed .studio-hub-launch span{display:none}
+.stu-workspace{width:100%;height:100%;overflow-y:auto;background:#fff}
+.reasoning-controls{display:flex;gap:6px;align-items:center;color:#53866c;background:#eff7f1;
+  border:1px solid #ddecdf;padding:5px 8px;border-radius:9px;font-size:11px}
+.reasoning-controls select{border:0;min-width:0;color:#417553;outline:none;background:transparent;
+  max-width:112px;font-size:11px}
+:root[data-theme="dark"] .studio-hub-launch,:root[data-theme="dark"] .reasoning-controls{background:#244734;color:#bcddc6;border-color:#325d42}
+:root[data-theme="dark"] .stu-workspace{background:#0b1b13}
+:root[data-theme="dark"] .reasoning-controls select{background:#244734;color:#cce9d2}
+@media(max-width:720px){.composer-mode-strip{flex-wrap:wrap}.reasoning-controls select{max-width:100px}}

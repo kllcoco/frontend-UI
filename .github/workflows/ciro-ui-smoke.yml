@@ -1,0 +1,57 @@
+name: CIRO UI smoke and screenshots
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "server/**"
+      - "tests/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+      - "playwright.config.ts"
+      - ".github/workflows/ciro-ui-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ciro-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-smoke:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Validate API and static assets
+        run: npm test
+      - name: Type check and production build
+        run: npm run build
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile visual smoke test
+        run: npm run test:e2e
+        env:
+          CI: "true"
+      - name: Upload actual browser screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ciro-ui-review-${{ github.run_number }}
+          path: |
+            artifacts/ui-screenshots/
+            artifacts/playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: warn

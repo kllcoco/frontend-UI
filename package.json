@@ -1,0 +1,40 @@
+{
+  "name": "ciro-client",
+  "version": "0.8.0-dev",
+  "private": true,
+  "type": "module",
+  "description": "Ciro conversational client",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:server": "node server/index.mjs",
+    "dev:all": "concurrently -k \"npm:dev:server\" \"npm:dev\"",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "start": "node server/index.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:ci": "npm run test && npm run build && npm run test:e2e",
+    "worker:plugins": "node server/plugin-worker.mjs",
+    "verify:single-tenant": "node scripts/verify-ciro-single-tenant.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "typescript": "~5.7.3",
+    "vite": "^6.0.6",
+    "@playwright/test": "^1.56.0"
+  }
+}
