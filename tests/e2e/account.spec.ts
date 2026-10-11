@@ -80,7 +80,7 @@ test("real account authentication, encrypted memories, spending limits and devic
   await page.screenshot({path:photoDir+"/32-account-profile.png",fullPage:true,animations:"disabled"});
 
   // Real persisted memory: plaintext must never be written to account-state.json.
-  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await page.getByRole("button",{name:"设置与连接"}).click();
   await page.locator(".sc-nav").getByRole("button",{name:"记忆管理"}).click();
   await page.getByRole("checkbox",{name:"记忆开关"}).check();
   await page.getByRole("textbox",{name:"记忆内容"}).fill("CIRO evidence first, no false green results.");
@@ -120,7 +120,11 @@ test("real account authentication, encrypted memories, spending limits and devic
   await expect(second.getByRole("heading",{name:"登录 Ciro"})).toBeVisible();
   await second.getByRole("textbox",{name:"邮箱"}).fill("person@example.com");
   await second.getByLabel("登录密码").fill(PASSWORD);
+  const login=second.waitForResponse(x=>x.url().includes("/api/account/login")&&x.request().method()==="POST");
   await second.getByRole("button",{name:"登录",exact:true}).click();
+  const loginResponse=await login;
+  expect(loginResponse.status(),await loginResponse.text()).toBe(200);
+  await second.reload({waitUntil:"domcontentloaded"});
   await second.getByRole("button",{name:"跨设备同步",exact:true}).click();
   await second.getByRole("checkbox",{name:"自动同步"}).check();
   await expect(second.getByText(/A sync test conversation/).first()).toBeVisible({timeout:18000});
