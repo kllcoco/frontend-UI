@@ -80,7 +80,8 @@ export function createPluginInstallStore({dir,readyProviders={}}={}){
     if(intent.signedPackage&&Date.parse(intent.signedPackage.expiresAt)<=Date.now())
       throw fail("Signed plugin package expired before confirmation",403);
     state.intents=state.intents.filter(x=>x!==intent);
-    const record={id,version:plugin.version,manifestHash:fingerprint,installedAt:new Date().toISOString(),enabled:true,
+    const record={id,version:plugin.version,manifestHash:fingerprint,installationId:randomUUID(),
+      installedAt:new Date().toISOString(),enabled:true,
       ...(intent.signedPackage?{packageDigest:intent.signedPackage.digest,
         packageIssuer:intent.signedPackage.issuer}:{})};
     state.installed.push({ownerId,...record});
