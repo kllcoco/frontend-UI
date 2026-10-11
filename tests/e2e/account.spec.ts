@@ -66,7 +66,7 @@ test("real account authentication, encrypted memories, spending limits and devic
   const signup=page.waitForResponse(x=>x.url().includes("/api/account/bootstrap")&&x.request().method()==="POST");
   await page.getByRole("button",{name:"创建账户"}).click();
   const response=await signup;
-  expect(response.status(),await response.text()).toBe(201);
+  expect(response.status()).toBe(201);
   await expect.poll(async()=>{
     const r=await page.request.get(root+"/api/account/session");
     const v=await r.json();
@@ -123,7 +123,7 @@ test("real account authentication, encrypted memories, spending limits and devic
   const login=second.waitForResponse(x=>x.url().includes("/api/account/login")&&x.request().method()==="POST");
   await second.getByRole("button",{name:"登录",exact:true}).click();
   const loginResponse=await login;
-  expect(loginResponse.status(),await loginResponse.text()).toBe(200);
+  expect(loginResponse.status()).toBe(200);
   await second.reload({waitUntil:"domcontentloaded"});
   await second.getByRole("button",{name:"跨设备同步",exact:true}).click();
   await second.getByRole("checkbox",{name:"自动同步"}).check();

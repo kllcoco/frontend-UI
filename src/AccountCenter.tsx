@@ -122,7 +122,7 @@ export default function AccountCenter({language,section}:Props){
         email,password,...(initial?{bootstrapToken:bootstrap,displayName}:{})
       });
       await refreshAuthAfterLogin();
-      window.location.reload();
+      window.dispatchEvent(new Event("ciro-sync-preference-changed"));
     },"已登录");
   }
   async function updatePassword(e:FormEvent<HTMLFormElement>){
@@ -293,7 +293,7 @@ export default function AccountCenter({language,section}:Props){
       <div className="acc-section-title"><Cloud size={19}/><h3>{t("跨设备同步")}</h3></div>
       <label className="acc-toggle">{t("自动同步")}
         <input type="checkbox" checked={automatic} onChange={e=>{
-          const next=e.target.checked;configureAutoSync(next);setAutomatic(next);window.location.reload();
+          const next=e.target.checked;configureAutoSync(next);setAutomatic(next);
         }}/></label>
       <p className="acc-muted">{t("开启后对话与偏好将安全地同步至你登录的服务器。")}</p>
       <div className="acc-state"><span>{t("同步状态")}</span><strong>{syncSignal.status}</strong>

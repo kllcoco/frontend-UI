@@ -170,18 +170,23 @@ export default function App() {
 
   useEffect(() => { void refreshStatus(); }, []);
   useEffect(()=>{
-    void startAutoSync({
+    const handlers={
       capture:()=>cloudRef.current,
-      onRemote:remote=>{
+      onRemote:(remote:SyncPayload)=>{
         setConversations(remote.conversations);
         setActiveId(remote.activeId);
-        // Persisted values are validated again through the existing loaders.
         setTheme(loadTheme());setLanguage(loadLanguage());
         setInstructions(loadCustomInstructions());setAppearance(loadAppearance());
         setPreferences(loadChatPreferences());
       }
-    });
-    return ()=>stopAutoSync();
+    };
+    const restart=()=>{void startAutoSync(handlers);};
+    restart();
+    window.addEventListener("ciro-sync-preference-changed",restart);
+    return ()=>{
+      window.removeEventListener("ciro-sync-preference-changed",restart);
+      stopAutoSync();
+    };
   },[]);
   useEffect(()=>{
     cloudRef.current={conversations,activeId,preferences:{

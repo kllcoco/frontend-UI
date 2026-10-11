@@ -36,6 +36,7 @@ export function autoSyncEnabled():boolean{
 }
 export function configureAutoSync(enabled:boolean){
   localStorage.setItem(LOCAL_FLAG,enabled?"true":"false");
+  window.dispatchEvent(new Event("ciro-sync-preference-changed"));
 }
 export function currentSyncState():SyncSignal{return {...state};}
 export function readLocalSnapshot():SyncPayload{
