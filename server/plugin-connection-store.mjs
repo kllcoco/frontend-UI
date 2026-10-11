@@ -36,18 +36,18 @@ export function createPluginConnectionStore({dir, env=process.env}={}) {
     save();
     return result;
   }
-  function addOAuth({ownerId, sessionId, stateHash, verifier}) {
-    const sealed = sealJSON({verifier}, env, "plugin:oauth:" + ownerId + ":" + stateHash);
+  function addOAuth({ownerId, sessionId, stateHash, verifier, codeVerifier=null, provider="github"}) {
+    const sealed = sealJSON({verifier,codeVerifier}, env, "plugin:oauth:" + ownerId + ":" + stateHash);
     return change("oauth.started", s=>{
-      s.oauth = s.oauth.filter(x=>x.ownerId!==ownerId || x.sessionId!==sessionId);
-      s.oauth.push({ownerId,sessionId,stateHash,sealed,expiresAt:Date.now()+10*60_000});
-    }, {provider:"github",ownerId});
+      s.oauth = s.oauth.filter(x=>x.ownerId!==ownerId || x.sessionId!==sessionId || x.provider!==provider);
+      s.oauth.push({ownerId,sessionId,provider,stateHash,sealed,expiresAt:Date.now()+10*60_000});
+    }, {provider,ownerId});
   }
-  function takeOAuth({ownerId,sessionId,stateHash}) {
+  function takeOAuth({ownerId,sessionId,stateHash,provider="github"}) {
     const item = state.oauth.find(x=>x.ownerId===ownerId && x.sessionId===sessionId &&
-      x.stateHash===stateHash && x.expiresAt>Date.now());
+      x.stateHash===stateHash && x.provider===provider && x.expiresAt>Date.now());
     if (!item) return null;
-    change("oauth.consumed", s=>{s.oauth=s.oauth.filter(x=>x!==item);}, {provider:"github",ownerId});
+    change("oauth.consumed", s=>{s.oauth=s.oauth.filter(x=>x!==item);}, {provider,ownerId});
     return unsealJSON(item.sealed,env,"plugin:oauth:"+ownerId+":"+stateHash);
   }
   function connection(ownerId, provider="github") {
@@ -65,6 +65,16 @@ export function createPluginConnectionStore({dir, env=process.env}={}) {
       s.approvals=s.approvals.filter(x=>x.ownerId!==ownerId || x.provider!==provider);
     },{provider,ownerId});
     return generation;
+  }
+  function rotateConnectionSecret(ownerId,provider,expectedGeneration,nextSecret) {
+    const sealed=sealJSON(nextSecret,env,keyFor(provider,ownerId));
+    return change("connection.token_rotated",s=>{
+      const item=s.connections.find(x=>x.ownerId===ownerId&&x.provider===provider);
+      if(!item||item.generation!==expectedGeneration)
+        throw new Error("Connection was revoked or replaced during token refresh.");
+      item.sealed=sealed;
+      return {generation:item.generation};
+    },{provider,ownerId});
   }
   function removeConnection(ownerId,provider="github") {
     const found=state.connections.some(x=>x.ownerId===ownerId && x.provider===provider);
@@ -98,7 +108,7 @@ export function createPluginConnectionStore({dir, env=process.env}={}) {
   }
   return {
     get:()=>state,change,addOAuth,takeOAuth,connection,putConnection,removeConnection,
-    queueApproval,getApproval,finishApproval,
+    queueApproval,getApproval,finishApproval,rotateConnectionSecret,
     publicConnections:ownerId=>state.connections.filter(x=>x.ownerId===ownerId)
       .map(({provider,account,scopes,connectedAt,generation})=>({provider,account,scopes,connectedAt,generation})),
     publicApprovals:ownerId=>state.approvals.filter(x=>x.ownerId===ownerId&&x.status==="pending"&&x.expiresAt>Date.now())
