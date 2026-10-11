@@ -7,6 +7,7 @@ import {createWorkbenchStore} from "./workbench-store.mjs";
 import {decision,validateRepo,safeFilePath,safeBranch} from "./agent-policy.mjs";
 import {createSupabaseMcpSession} from "./mcp-client.mjs";
 import {supabaseOAuthConfig,supabaseStartAuthorization,supabaseToken,supabaseIdentity} from "./supabase-oauth.mjs";
+import {verifyAgentPluginCapability} from "./plugin-agent-capability.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
@@ -357,6 +358,24 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   store.removeConnection(owner(req),req.params.provider);
   res.json({revokedLocally:true,provider:req.params.provider,
    note:"Local token removed. Revoke app access at the provider to invalidate upstream authorization."});
+ }));
+ router.post("/agent/invoke",wrap(async(req,res)=>{
+  // The account guard exempts exactly this machine-to-machine route.
+  // A bearer is useful ONLY while the named, user-owned job is actively running.
+  const token=req.get("x-ciro-agent-capability")||"";
+  const id=bounded(req.body?.jobId,120,"agent job ID");
+  const name=bounded(req.body?.tool,100,"agent tool");
+  const args=req.body?.args;
+  if(!args||typeof args!=="object"||Array.isArray(args)||JSON.stringify(args).length>32000)
+    throw fail("Invalid agent tool arguments",400);
+  const snapshot=createWorkbenchStore(folder).get();
+  const goal=snapshot.goals.find(x=>x.id===id&&x.ownerId);
+  if(!goal)throw fail("Active owner-scoped agent job not found",403);
+  verifyAgentPluginCapability({secret:env.CIRO_AGENT_TOOL_CAPABILITY_SECRET,token,goal});
+  if(goal.policySnapshot!==JSON.stringify(snapshot.policy)||goal.repo!==snapshot.policy.repo)
+    throw fail("Agent task permissions changed",403);
+  const result=await executeModelTool(goal.ownerId,name,args,"agent");
+  res.status(result.approvalRequired?202:200).json(result);
  }));
  router.post("/invoke",wrap(async(req,res)=>{
   const provider=bounded(req.body?.provider,40,"provider");
