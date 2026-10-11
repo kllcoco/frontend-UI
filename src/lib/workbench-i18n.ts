@@ -1,5 +1,8 @@
 import type { Language } from "./i18n";
 const english: Readonly<Record<string,string>> = {
+  "账单与用量": "Billing & usage",
+  "官方应用": "Official apps",
+  "技能中心": "Skills",
   "协作空间": "Collaboration Space",
   "目标模式": "Goal Mode",
   "计划模式": "Plan Mode",

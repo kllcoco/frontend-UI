@@ -355,11 +355,11 @@ test("skills catalog enables reviewed manifests without pretending a runner exis
 test("billing, apps and skills also appear in settings and slash navigation",async ({page})=>{
   await waitForPreview(page);
   await openSettings(page);
-  await page.getByRole("button",{name:"账单与用量",exact:true}).click();
+  await page.locator(".sc-nav").getByRole("button",{name:"账单与用量",exact:true}).click();
   await expect(page.locator(".sc-scroll .com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
-  await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await page.locator(".sc-nav").getByRole("button",{name:"官方应用",exact:true}).click();
   await expect(page.locator(".sc-scroll .com-app-card")).toHaveCount(8);
-  await page.getByRole("button",{name:"技能中心",exact:true}).click();
+  await page.locator(".sc-nav").getByRole("button",{name:"技能中心",exact:true}).click();
   await expect(page.locator(".sc-scroll .com-skill")).toHaveCount(7);
   await page.getByRole("button",{name:"完成"}).click();
   await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("/billing");
@@ -377,7 +377,7 @@ test("billing and app catalog translate into English without mobile viewport ove
   await page.screenshot({path:imageDir+"/29-billing-mobile-en.png",fullPage:true,animations:"disabled"});
   const dimensions=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,win:window.innerWidth}));
   expect(dimensions.doc).toBeLessThanOrEqual(dimensions.win+1);
-  await page.getByRole("button",{name:"Official apps",exact:true}).last().click();
+  await page.locator(".wb-nav").getByRole("button",{name:"Official apps",exact:true}).click();
   await expect(page.locator(".com-app-card")).toHaveCount(8);
   await page.screenshot({path:imageDir+"/30-apps-mobile-en.png",fullPage:true,animations:"disabled"});
 });
