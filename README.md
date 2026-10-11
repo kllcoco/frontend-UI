@@ -190,3 +190,10 @@ Configure CIRO_STRIPE_SECRET_KEY, CIRO_STRIPE_PRICE_ID, CIRO_STRIPE_WEBHOOK_SECR
 CIRO_ACCOUNT_DATA_KEY must be backed up and remain stable; losing it makes encrypted memories/snapshots undecryptable. Never expose HTTP on a public interface: deploy only behind a well-configured HTTPS reverse proxy with account and rate-limit protections. The local first-party store has no multi-tenant data model, no horizontal consistency and no job queue; do not use it as a public SaaS billing ledger.
 
 The Stripe network integration is a real production API contract but cannot be end-to-end charged without the operator's own Stripe account and keys. Likewise CIRO model/agent verification requires the actual NCPA native Runtime and independent verifier. The PR remains DRAFT and does not modify NCPA GEN1.
+
+
+## Ciro V0.7 — Chat + Unified Studio + Workbench
+
+Studio now includes ten integrated domains: conversation with explicit fast/deep reasoning, native-ready persistent thinking jobs, IDE scratch projects (real file edits / CAS / SHA256 snapshots and restore), local full-text knowledge with reproducible citations, research adapter, presigned image/audio/video analysis, signed compute telemetry plus CWU/GWU, chat folders/branches/checkpoints, an Ed25519 signed app/skill registry (selection only), and a browser PWA shell ready for device installation. Workbench remains the single controlled autonomous multi-agent execution space.
+
+Local functions work without CIRO inference. Remote/native functions have real, fail-closed HTTP adapter contracts; configuring a URL does not prove the CIRO runtime or independent verifier has passed acceptance. No fake tokens, GPU utilization, Stripe charges, third-party skill execution or autonomous coding are shown. See the separate native adapter contract for activation, security, schemas, and staged acceptance.

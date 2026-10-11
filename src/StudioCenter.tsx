@@ -529,7 +529,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       <div className="stu-library-layout"><aside className="stu-library-list">
         {libraryList.map(c=><button key={c.id} className={libraryActive===c.id?"stu-library-selected":""}
           onClick={()=>{setLibraryActive(c.id);setFolderDraft(c.folder||"");setBranchAt(c.messages.length);}}>
-          <MessageCircleIcon/><span><strong>{c.title}</strong><small>{c.folder||"Inbox"} · {c.messages.length} {t("消息")}</small></span></button>)}
+          <BookOpen size={17}/><span><strong>{c.title}</strong><small>{c.folder||"Inbox"} · {c.messages.length} {t("消息")}</small></span></button>)}
         {libraryList.length===0&&<Empty icon={History} label={t("没有历史对话")}/>}
       </aside><div className="stu-library-detail">
         {selectedChat?<><h3>{selectedChat.title}</h3>
@@ -552,7 +552,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
               <button className="stu-light-button" onClick={()=>{if(window.confirm(t("恢复操作会替换该对话的当前消息。")))
                 onLibraryAction("restore",selectedChat.id,c.id);}}><RotateCcw size={14}/>{t("恢复检查点")}</button></div>)}
           </section>
-        </>:<Empty icon={MessageCircleIcon} label={t("选择一个模块开始")}/>}
+        </>:<Empty icon={BookOpen} label={t("选择一个模块开始")}/>}
       </div></div>
     </>}
 
@@ -593,7 +593,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             await installPrompt.prompt();setInstallPrompt(null);
           })}><Download size={16}/>{t("安装到设备")}</button>
         </section>
-        <section className="stu-card"><h3><BellDeviceIcon/>{t("通知权限")}</h3>
+        <section className="stu-card"><h3><Cloud size={18}/>{t("通知权限")}</h3>
           <p>{noticePermission}</p>
           <button className="stu-light-button" disabled={typeof Notification==="undefined"} onClick={()=>void run(async()=>{
             const p=await Notification.requestPermission();setNoticePermission(p);
@@ -611,5 +611,3 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     </>}
   </div>;
 }
-function MessageCircleIcon({size=17}: {size?:number}){return <BookOpen size={size}/>;}
-function BellDeviceIcon(){return <Cloud size={18}/>;}
