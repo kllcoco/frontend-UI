@@ -12,10 +12,11 @@ const PRESET=[
 export const pluginCatalog=Object.freeze(PRESET.map(x=>Object.freeze({...x,tools:Object.freeze(x.tools),permissions:Object.freeze(x.permissions)})));
 const digest=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
-export function createPluginInstallStore({dir}={}){
+export function createPluginInstallStore({dir,readyProviders={}}={}){
  const folder=dir||join(process.cwd(),".ciro-runtime");
  mkdirSync(folder,{recursive:true,mode:0o700});
  const file=join(folder,"plugin-installs.json");
+ const catalog=pluginCatalog.map(x=>({...x,ready:x.id==="supabase"?readyProviders.supabase===true:x.ready}));
  let state={version:1,installed:[],intents:[],audit:[]};
  if(existsSync(file)){
   const stat=statSync(file);
@@ -33,7 +34,7 @@ export function createPluginInstallStore({dir}={}){
   writeFileSync(temp,JSON.stringify(state),{mode:0o600,flag:"wx"});
   renameSync(temp,file);
  }
- const getPlugin=id=>pluginCatalog.find(x=>x.id===id);
+ const getPlugin=id=>catalog.find(x=>x.id===id);
  function installed(ownerId,id){
   return state.installed.find(x=>x.ownerId===ownerId&&x.id===id)||null;
  }
@@ -78,6 +79,6 @@ export function createPluginInstallStore({dir}={}){
   save(enabled?"plugin.enabled":"plugin.disabled",ownerId,id);
   return {id,enabled};
  }
- return {catalog:pluginCatalog,getPlugin,prepare,install,uninstall,setEnabled,installed,list,
+ return {catalog,getPlugin,prepare,install,uninstall,setEnabled,installed,list,
   audit:ownerId=>state.audit.filter(x=>x.ownerId===ownerId).slice(0,40)};
 }
