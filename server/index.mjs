@@ -4,10 +4,13 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { normalizeModels, validateChat, ValidationError } from "./validate.mjs";
+import { createWorkbenchRouter } from "./workbench.mjs";
 
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
+const workbench = createWorkbenchRouter();
+app.use("/api/workbench", workbench.router);
 
 const apiBase = (process.env.CIRO_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const apiPath = (process.env.CIRO_API_PATH || "/chat/completions").trim();

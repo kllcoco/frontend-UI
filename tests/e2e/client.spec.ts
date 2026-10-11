@@ -192,3 +192,88 @@ test("mobile navigation and settings stay inside the viewport", async ({ page })
   const width = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth }));
   expect(width.doc).toBeLessThanOrEqual(width.win + 1);
 });
+
+
+test("workbench is accessible and unmet runtime requirements stay explicit", async ({page}) => {
+  await waitForPreview(page);
+  await page.locator(".studio-launch").click();
+  await expect(page.getByRole("heading",{name:"自主协作工作台"})).toBeVisible();
+  await expect(page.getByText("执行引擎未连接").first()).toBeVisible();
+  await expect(page.getByText("独立验证器未连接").first()).toBeVisible();
+  await page.screenshot({path:imageDir+"/17-workbench-goals.png",fullPage:true,animations:"disabled"});
+  await page.getByRole("textbox",{name:"详细目标与验收标准"}).fill("搭建网站，并跑独立红队反证");
+  await page.getByRole("button",{name:"创建目标"}).click();
+  await expect(page.getByText("等待执行器").first()).toBeVisible();
+  await expect(page.getByText("搭建网站，并跑独立红队反证").first()).toBeVisible();
+});
+
+test("four sandbox permission modes require scoped consent", async ({page})=>{
+  await waitForPreview(page);
+  await page.locator(".studio-launch").click();
+  await page.getByRole("button",{name:"权限与沙盒"}).click();
+  await page.getByRole("button",{name:/完全访问/}).click();
+  const save=page.getByRole("button",{name:"保存权限"});
+  await expect(save).toBeDisabled();
+  await page.getByRole("checkbox",{name:/我理解完全访问仅限已授权范围/}).check();
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.getByText("权限已保存")).toBeVisible();
+  await page.getByRole("button",{name:/自定义权限/}).click();
+  await expect(page.getByRole("checkbox",{name:"写入 GitHub 分支"})).toBeVisible();
+  await page.screenshot({path:imageDir+"/18-workbench-permissions.png",fullPage:true,animations:"disabled"});
+});
+
+test("scheduled tasks and bundled plugin catalog show actual adapter status", async ({page})=>{
+  await waitForPreview(page);
+  await page.locator(".studio-launch").click();
+  await page.getByRole("button",{name:"定时任务"}).click();
+  await page.getByRole("textbox",{name:"计划名称"}).fill("Hourly report");
+  await page.getByRole("textbox",{name:"计划目标"}).fill("Summarize development progress");
+  await page.getByRole("combobox",{name:"运行频率"}).selectOption("hourly");
+  await page.getByRole("button",{name:"添加任务"}).click();
+  await expect(page.getByText("Hourly report")).toBeVisible();
+  await page.screenshot({path:imageDir+"/19-workbench-schedules.png",fullPage:true,animations:"disabled"});
+  await page.getByRole("button",{name:"暂停计划"}).click();
+  await expect(page.getByRole("button",{name:"启用计划"})).toBeVisible();
+  await page.getByRole("button",{name:"插件中心"}).click();
+  await expect(page.getByText("CIRO Agent runtime")).toBeVisible();
+  await expect(page.getByText(/CIRO_AGENT_RUNNER_URL not configured/)).toBeVisible();
+  await page.screenshot({path:imageDir+"/20-workbench-plugins.png",fullPage:true,animations:"disabled"});
+});
+
+test("GitHub settings require server authorization rather than browser tokens", async ({page})=>{
+  await waitForPreview(page);
+  await page.locator(".studio-launch").click();
+  await page.getByRole("button",{name:"GitHub 仓库"}).click();
+  await expect(page.getByText("服务端未配置 GitHub 凭据")).toBeVisible();
+  await expect(page.getByText("CIRO_GITHUB_TOKEN / CIRO_GITHUB_REPOS")).toBeVisible();
+  await expect(page.getByRole("button",{name:"验证并连接"})).toBeDisabled();
+  await page.screenshot({path:imageDir+"/21-workbench-github.png",fullPage:true,animations:"disabled"});
+  await page.getByRole("button",{name:"设置",exact:true}).click();
+  await page.getByRole("button",{name:"GitHub 连接",exact:true}).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByText("GitHub 集成")).toBeVisible();
+});
+
+test("plan composer sends a plan job to the workbench", async ({page})=>{
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"计划模式"}).click();
+  await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("设计一套模块化任务计划");
+  await page.getByRole("button",{name:"发送消息"}).click();
+  await expect(page.getByRole("heading",{name:"自主协作工作台"})).toBeVisible();
+  await expect(page.getByText("设计一套模块化任务计划").first()).toBeVisible();
+});
+
+test("English multi-agent workbench remains translated and mobile width-safe", async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"切换语言"}).click();
+  await page.getByRole("button",{name:"Open sidebar"}).click();
+  await page.locator(".studio-launch").click();
+  await expect(page.getByRole("heading",{name:"Autonomous Workbench"})).toBeVisible();
+  await page.getByRole("button",{name:"Permissions & sandbox"}).click();
+  await expect(page.getByRole("heading",{name:"Execution permissions"})).toBeVisible();
+  await page.screenshot({path:imageDir+"/22-workbench-english-mobile.png",fullPage:true,animations:"disabled"});
+  const width=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,win:window.innerWidth}));
+  expect(width.doc).toBeLessThanOrEqual(width.win+1);
+});

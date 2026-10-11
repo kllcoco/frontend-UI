@@ -6,7 +6,7 @@ import {
   ArrowDownToLine, ArrowUp, BrainCircuit, Check, ChevronDown, Code2,
   Copy, FileText, Lightbulb, Menu, MessageCircle, Moon, MoreHorizontal,
   Paperclip, Pencil, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw,
-  Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, X
+  Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Workflow, X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -15,6 +15,9 @@ import {
   saveActiveId, saveConversations, saveTheme
 } from "./lib/storage";
 import type { ApiStatus, ChatMessage, Conversation } from "./types";
+import WorkbenchCenter from "./WorkbenchCenter";
+import { workbenchApi } from "./lib/workbench-api";
+import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
 import CiroMark from "./components/CiroMark";
 import SettingsCenter from "./SettingsCenter";
 import { backgroundUrl, loadAppearance, loadCustomWallpaper, removeCustomWallpaper, saveAppearance, saveCustomWallpaper } from "./lib/appearance";
@@ -96,6 +99,9 @@ export default function App() {
   const [status, setStatus] = useState<ApiStatus>(PREVIEW);
   const [statusLoading, setStatusLoading] = useState(true);
   const [model, setModel] = useState("ciro");
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioTab, setStudioTab] = useState<WorkbenchTab>("goals");
+  const [composerMode, setComposerMode] = useState<"chat" | AgentMode>("chat");
   const [theme, setTheme] = useState<"light" | "dark">(loadTheme);
   const [language, setLanguage] = useState<Language>(loadLanguage);
   const [appearance, setAppearance] = useState(loadAppearance);
@@ -213,6 +219,7 @@ export default function App() {
         event.preventDefault();
         setActiveId(null);
         setDraft("");
+        setStudioOpen(false);
         setSidebarOpen(false);
         window.setTimeout(() => composerRef.current?.focus(), 0);
       }
@@ -274,6 +281,8 @@ export default function App() {
   }
 
   function createNew() {
+    setStudioOpen(false);
+    setComposerMode("chat");
     setActiveId(null);
     setDraft("");
     setAttachments([]);
@@ -284,16 +293,64 @@ export default function App() {
   }
 
   function selectChat(id: string) {
+    setStudioOpen(false);
+    setComposerMode("chat");
     setActiveId(id);
     setSidebarOpen(false);
     setRowMenuId(null);
     setModelOpen(false);
   }
 
+  function openStudio(tab: WorkbenchTab = "goals") {
+    setStudioTab(tab);
+    setStudioOpen(true);
+    setSidebarOpen(false);
+    setRowMenuId(null);
+  }
+  async function sendGoal(goal: string, mode: AgentMode) {
+    if (!goal.trim()) { setComposerMode(mode); return; }
+    setBusy(true);
+    try {
+      await workbenchApi("/goals", { title: goal.trim().slice(0, 85), goal, mode });
+      setDraft("");
+      setAttachments([]);
+      setComposerMode("chat");
+      openStudio("goals");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : t("无法加载工作台"));
+    } finally { setBusy(false); }
+  }
+  function handleSlash(text: string): boolean {
+    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|help)(?:\s+([\s\S]*))?$/i.exec(text);
+    if (!match) return false;
+    const command=match[1].toLowerCase();
+    const argument=(match[2]||"").trim();
+    if (command==="goal" || command==="plan") {
+      setComposerMode(command==="goal"?"goal":"plan");
+      setDraft(argument);
+      if (argument) void sendGoal(argument,command==="goal"?"goal":"plan");
+      return true;
+    }
+    if (command==="help") {
+      setToast("/goal · /plan · /work · /github · /schedule · /plugins · /permissions");
+    } else {
+      const tab: WorkbenchTab=command==="github"?"github":command==="schedule"?"schedules":
+        command==="plugins"?"plugins":command==="permissions"?"permissions":"goals";
+      openStudio(tab);
+    }
+    setDraft("");
+    return true;
+  }
   function sendMessage(textOverride?: string) {
     if (busy) return;
     const text = (textOverride ?? draft).trim();
     if (!text && attachments.length === 0) return;
+    if (handleSlash(text)) return;
+    if (composerMode!=="chat") {
+      const extras=attachments.map(item=>"\n\nAttachment: "+item.name+"\n"+item.content).join("");
+      void sendGoal(text+extras,composerMode);
+      return;
+    }
 
     const attachmentText = attachments.map((file) =>
       t("附件：") + file.name + "\n\n\`\`\`text\n" + file.content + "\n\`\`\`"
@@ -468,6 +525,9 @@ export default function App() {
           <button className="new-chat" onClick={createNew} title={t("新对话 (Ctrl/⌘ + Shift + O)")}>
             <Plus size={18} strokeWidth={2.2} /><span>{t("开启新对话")}</span>
           </button>
+          <button className="studio-launch" onClick={() => openStudio("goals")} title={t("协作空间")} aria-label={t("协作空间")}>
+            <Workflow size={18}/><span>{t("协作空间")}</span><span className="studio-launch-dot" />
+          </button>
           <button className="search-trigger" onClick={() => {
             setSearchOpen(true);
             setSidebarCollapsed(false);
@@ -518,11 +578,15 @@ export default function App() {
           <button className="sidebar-setting" onClick={() => setSettingsOpen(true)} title={t("设置")}>
             <Settings2 size={18} /><span>{t("设置与连接")}</span>
           </button>
-          <div className="sidebar-version">CIRO CLIENT <span>V0.2 PREVIEW</span></div>
+          <div className="sidebar-version">CIRO CLIENT <span>V0.4 WORKBENCH</span></div>
         </div>
       </aside>
 
-      <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
+      {studioOpen ? <main className="workspace workspace--studio">
+        <div className="wb-mobile-top"><button type="button" onClick={()=>setSidebarOpen(true)} aria-label={t("打开侧栏")}><Menu size={19}/></button>
+          <CiroMark small/><span>Ciro Workbench</span></div>
+        <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}/>
+      </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
         data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}>
         {showWallpaper && <>
           <div className="wallpaper-image" style={wallpaperStyle} aria-hidden="true"/>
@@ -635,10 +699,19 @@ export default function App() {
 
         <div className="composer-dock">
           <div className="composer-inner">
+            <div className="composer-mode-strip" role="group" aria-label={t("当前模式")}>
+              {([["chat","普通对话"],["goal","目标模式"],["plan","计划模式"]] as const).map(([value,label])=>
+                <button type="button" key={value} aria-pressed={composerMode===value} className={composerMode===value?"composer-mode-choice composer-mode-choice--active":"composer-mode-choice"}
+                  onClick={()=>setComposerMode(value)}>{t(label)}</button>)}
+              <button type="button" className="composer-workspace-link" onClick={()=>openStudio("goals")}><Workflow size={14}/>{t("协作空间")}</button>
+            </div>
             {!status.configured && !statusLoading && <div className="preview-hint">
               <span className="preview-hint-dot" />
               <span>{t("当前为客户端预览，尚未连接真实 CIRO 推理服务")}</span>
               <button onClick={() => setSettingsOpen(true)}>{t("如何连接 ")} <span aria-hidden="true">↗</span></button>
+            </div>}
+            {draft.startsWith("/") && <div className="composer-slash-help" role="note">
+              <code>/goal</code> <code>/plan</code> <code>/work</code> <code>/github</code> <code>/schedule</code> <code>/plugins</code> <code>/permissions</code>
             </div>}
             <div className="composer" onClick={() => composerRef.current?.focus()}>
               {attachments.length > 0 && <div className="attachments">
@@ -680,10 +753,10 @@ export default function App() {
                   </button>}
               </div>
             </div>
-            <p className="composer-disclaimer">{t("Ciro 可能出错，请核实重要信息。")} <span>{preferences.sendWithEnter ? t("Enter 发送 · Shift + Enter 换行") : t("Ctrl / ⌘ + Enter 发送 · Enter 换行")}</span></p>
+            <p className="composer-disclaimer">{t(composerMode==="chat"?"Ciro 可能出错，请核实重要信息。":"代理执行受权限和验证器约束。")} <span>{preferences.sendWithEnter ? t("Enter 发送 · Shift + Enter 换行") : t("Ctrl / ⌘ + Enter 发送 · Enter 换行")}</span></p>
           </div>
         </div>
-      </main>
+      </main>}
 
       {settingsOpen && <SettingsCenter
         onClose={() => setSettingsOpen(false)}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { ArrowDownToLine, Check, ChevronRight, Clock3, Code2, Database, FileText, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, X } from "lucide-react";
+import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, X } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -8,8 +8,10 @@ import type { ChatPreferences } from "./lib/preferences";
 import type { ApiStatus, Conversation } from "./types";
 import { translate } from "./lib/i18n";
 import type { Language } from "./lib/i18n";
+import WorkbenchCenter from "./WorkbenchCenter";
+import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "general" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about";
+type Section = "general" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   language: Language;
@@ -39,7 +41,11 @@ const sections: { id: Section; label: string; icon: typeof Palette }[] = [
   { id: "storage", label: "文件与存储", icon: Database },
   { id: "shortcuts", label: "快捷键", icon: Keyboard },
   { id: "security", label: "隐私与安全", icon: ShieldCheck },
-  { id: "about", label: "关于 Ciro", icon: Info }
+  { id: "about", label: "关于 Ciro", icon: Info },
+  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck },
+  { id: "github", label: "GitHub 连接", icon: GitBranch },
+  { id: "plugins", label: "插件管理", icon: PlugZap },
+  { id: "schedules", label: "定时任务", icon: CalendarClock }
 ];
 function SettingBlock({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return <section className="sc-section"><div className="sc-section-intro"><h3>{title}</h3>{subtitle && <p>{subtitle}</p>}</div>{children}</section>;
@@ -113,6 +119,8 @@ export default function SettingsCenter({
         <header className="sc-header"><div><span className="sc-kicker">PERSONALIZE YOUR CIRO</span><h2 id="sc-title">{t(heading)}</h2></div>
           <button className="sc-close" onClick={onClose} title={t("关闭设置")} aria-label={t("关闭设置")}><X size={20}/></button></header>
         <div className="sc-scroll">
+          {(["permissions","github","plugins","schedules"] as const).includes(section as WorkbenchTab) &&
+            <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "appearance" && <>
             <div className="sc-section-heading"><div><h3>{t("把 Ciro 变成你的空间")}</h3><p>{t("选一处风景，或上传只属于你的背景。每次调整都会立即生效。")}</p></div>
               <span className="sc-save-status"><Check size={14}/> {t("自动保存")}</span></div>
@@ -259,7 +267,7 @@ export default function SettingsCenter({
 
           {section === "about" && <>
             <div className="sc-about-hero"><CiroMark/><strong>Ciro</strong><span>Think further.</span>
-              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · PREVIEW v0.2</small></div>
+              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · PREVIEW v0.4</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
               <SettingRow title={t("推理能力")} description={t("实际能力以服务端正式验收为准")}><span className="sc-static-value">{t("待接入")}</span></SettingRow>

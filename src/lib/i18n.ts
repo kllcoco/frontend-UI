@@ -217,6 +217,17 @@ const translations: Readonly<Record<string,string>> = {
   "JPG / PNG / WebP / AVIF · 最大 8 MB": "JPG / PNG / WebP / AVIF · Max 8 MB",
   "在服务端项目根目录": "In the server project root, configure",
   "配置 CIRO 推理服务。浏览器不会保存你的 API Key。": " for CIRO inference. Your API key is never stored in the browser.",
+  "协作空间": "Collaboration Space",
+  "普通对话": "Chat",
+  "目标模式": "Goal Mode",
+  "计划模式": "Plan Mode",
+  "当前模式": "Current mode",
+  "代理执行受权限和验证器约束。": "Agent execution requires permissions and an independent verifier.",
+  "无法加载工作台": "Unable to load workbench",
+  "代理与沙盒": "Agents & sandbox",
+  "GitHub 连接": "Connect GitHub",
+  "插件管理": "Plugins",
+  "定时任务": "Scheduled tasks",
   "Ciro — 让每一个想法，走得更远": "Ciro — Let every idea go further"
 };
 /** Only UI text is translated; user messages and model replies are never rewritten. */

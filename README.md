@@ -96,3 +96,32 @@ public/backgrounds/         # 6 个本地 SVG 壁纸（含纯白）
 ## 中 / English 语言切换
 
 默认简体中文，默认白色主题；右上角 **EN / 中** 可快速切换语言，或进入「通用设置 → 界面语言」。界面文字即时改变，语言选择保存在当前浏览器，刷新后保持。用户聊天内容与真实模型回答不会被自动翻译。背景 DIY 与深色模式仍可选择。
+
+
+## CIRO Workbench V0.4：目标、计划、协作空间
+
+入口：侧栏「协作空间」，聊天输入框提供「普通对话 / 目标模式 / 计划模式」，还支持 /goal、/plan、/work、/agent、/github、/schedule、/plugins、/permissions、/help 斜杠指令。
+
+### 已有能力与边界
+
+- **持久任务**：真实服务端状态保存到 .ciro-runtime/state.json，不提交仓库。任务按 Planner、Builder/Integrator、独立 Tester、独立 Red Team、Auditor 阶段递进，提供任务列表、代理指派、事件日志与 SHA256 摘要。测试/红队失败最多三轮自动修复及重验；最后没有三类证据则状态为 needs_evidence，绝不报完成。
+- **计划模式**：只调用规划阶段，形成计划，不直接改动仓库。用户确认/授权后可从工作台恢复计划并执行。
+- **权限**：请求批准 / 自动审批 / 有边界的完全访问 / 自定义。选择新的 GitHub 仓库会把权限自动重置回请求批准；不允许 host.exec、读取服务器机密、生产部署、强推或删除仓库。这是工作区和 GitHub API 的授权门，**不等于操作系统级沙箱**。
+- **GitHub**：目前是服务端凭据+仓库白名单接入，不是完整 GitHub OAuth UI。配置 CIRO_GITHUB_TOKEN 和 CIRO_GITHUB_REPOS=owner/repo（逗号分隔）后，用户在设置界面选择仓库并验证；允许在后端真实读取文件。写入还需 CIRO_GITHUB_WRITES=true，并只能提交到 ciro/、feature/、repair/ 开头的工作分支；其他权限模式决定是否需要逐项审批。
+- **审批**：审批项及其不可变参数存在本地，用户批准才会实际使用服务器凭据写入 GitHub，拒绝则不执行。
+- **插件**：支持启用/禁用 GitHub、定时器和 CIRO Agent 原生执行器三个内置适配器。暂无第三方任意 MCP 插件安装/隔离，界面不能冒充安装成功。
+- **定时**：服务器运行时按时区执行每小时/每日/每周任务，每个时间槽只触发一次，受权限门和实际执行器配置限制。机器关闭时不会运行任务；重启不补跑错过的任务。
+- **额外安全约束**：默认只监听本机，跨站 Origin 检查，GitHub 令牌永不下发浏览器，文件路径和分支做严格约束；没有账号体系或生产多租户隔离，不能公网开放。
+
+### 连接原生 CIRO Agent Runtime
+
+前端仓库尚未包含 CIRO/NCPA 原生多代理 Runtime、受保护沙盒和权威红队接口，因此无法仅凭本仓库完成项目。通过服务端环境变量对接：
+
+    CIRO_AGENT_RUNNER_URL=https://agent-runtime.example
+    CIRO_AGENT_RUNNER_TOKEN=(server-side secret)
+    CIRO_VERIFIER_URL=https://independent-verifier.example
+    CIRO_VERIFIER_TOKEN=(server-side secret)
+
+两个受控适配器必须提供带 Bearer 身份验证的 POST /workbench/step。请求包含 jobId、goal、mode、phase、repo、plan、attempt、policy、context。阶段按 plan、implement、repair、test、redteam、audit 变化。plan 返回至多 20 个已分配 role、title、acceptance 的子任务；implement 为每个子任务指定 role 执行。验收响应必须包含布尔 ok、文字 summary，以及具有 type、SHA256 digest（64 位小写十六进制）和 location 的 evidence 数组。test、redteam、audit 由另一个独立配置的 verifier 实际产生可审计结果；没有证据就停在 needs_evidence。
+
+注意：**这一桥协议是前端约定，不是已经验证兼容的 CIRO 原生 ABI。** 原生 Runner 还必须在真实工具执行边界严格实施权限门、独立执行空间、凭证最小化、终止/取消，以及权威收据复验。将 Model 的 ok:true 当作已验收是禁止的。正式 0→1 商用前仍需账户登录、授权、单/多租户分离、稳定任务队列、计费预算和强制沙盒。

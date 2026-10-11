@@ -5,6 +5,8 @@ import "./styles.css";
 import "./cinematic.css";
 import "./settings.css";
 import "./white.css";
+import "./workbench.css";
+import "./workbench-entry.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
