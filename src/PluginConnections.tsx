@@ -53,6 +53,7 @@ export default function PluginConnections(){
  const available=(state?.catalog||[]).filter(x=>(category==="全部"||category===x.category)&&
   (x.title+" "+x.description).toLowerCase().includes(query.trim().toLowerCase()));
  const current=state?.catalog.find(x=>x.id===selected);
+ const githubScope=state?.githubScope;
  const active=state?.installed.find(x=>x.id===selected);
  const connected=state?.connections.find(x=>x.provider===selected);
  async function action(fn:()=>Promise<void>){
@@ -109,7 +110,7 @@ export default function PluginConnections(){
       {pending?.plugin.id===current.id&&!active&&<div className="ciro-market-confirm">
        <strong>确认安装 {current.title}？</strong><p>版本 {pending.plugin.version} · 请确认以上权限。</p>
        <button className="wb-secondary" onClick={()=>setPending(null)}>取消</button>
-       <button className="wb-primary" disabled={busy||(current.id==="github"&&(!state.githubScope?.selectedRepository||!state.githubScope.oauthConfigured))} onClick={()=>void action(async()=>{
+       <button className="wb-primary" disabled={busy||(current.id==="github"&&(!githubScope?.selectedRepository||!githubScope?.oauthConfigured))} onClick={()=>void action(async()=>{
         await api("/marketplace/"+current.id+"/install",{nonce:pending.nonce,fingerprint:pending.fingerprint,confirm:true});
         setPending(null);setNotice("安装成功。可在左侧管理。");
        })}>确认安装</button>
@@ -118,16 +119,16 @@ export default function PluginConnections(){
        {current.id==="github"&&<div className="ciro-market-scope">
         <h4>GitHub 仓库授权范围</h4>
         <p className="ciro-market-muted">先选择服务端已允许的仓库。聊天和 Agent 只能操作这个仓库；切换仓库时权限恢复为逐次审批。</p>
-        {!!state.githubScope?.allowedRepositories.length?<>
+        {!!githubScope?.allowedRepositories.length?<>
          <div className="ciro-market-scope-picker">
           <select aria-label="GitHub 允许的仓库" value={repoChoice} onChange={e=>setRepoChoice(e.target.value)}>
-           {state.githubScope.allowedRepositories.map(name=><option key={name} value={name}>{name}</option>)}
+           {githubScope?.allowedRepositories.map(name=><option key={name} value={name}>{name}</option>)}
           </select>
           <button className="wb-secondary" disabled={busy||!repoChoice||
-            repoChoice===state.githubScope?.selectedRepository} onClick={()=>void action(async()=>{
+            repoChoice===githubScope?.selectedRepository} onClick={()=>void action(async()=>{
              const response=await accountFetch("/api/workbench/permissions",{
               method:"POST",headers:{"Content-Type":"application/json"},
-              body:JSON.stringify({mode:"request",repo:repoChoice,custom:state.githubScope?.custom||{}})
+              body:JSON.stringify({mode:"request",repo:repoChoice,custom:githubScope?.custom||{}})
              });
              const data=await response.json();
              if(!response.ok)throw new Error(data.error||"无法设置仓库权限");
@@ -135,9 +136,9 @@ export default function PluginConnections(){
              setNotice("当前仓库："+data.policy.repo+"；已恢复逐次审批模式。");
           })}>选择仓库</button>
          </div>
-         <p className="ciro-market-muted">当前范围：{state.githubScope?.selectedRepository||"尚未选择"} · {state.githubScope?.writesEnabled?"允许请求写入，执行前仍要批准":"服务器禁止写入"}</p>
+         <p className="ciro-market-muted">当前范围：{githubScope?.selectedRepository||"尚未选择"} · {githubScope?.writesEnabled?"允许请求写入，执行前仍要批准":"服务器禁止写入"}</p>
         </>:<p className="ciro-market-error">服务器还没有设置 GitHub 仓库白名单（CIRO_GITHUB_REPOS）。请联系部署管理员；不用输入个人 Token。</p>}
-        {!state.githubScope?.oauthConfigured&&<p className="ciro-market-muted">GitHub OAuth 尚未由服务器管理员配置。你可以安装插件、选择仓库，但暂时不能连接账户；不需要把密钥发给 CIRO。</p>}
+        {!githubScope?.oauthConfigured&&<p className="ciro-market-muted">GitHub OAuth 尚未由服务器管理员配置。你可以安装插件、选择仓库，但暂时不能连接账户；不需要把密钥发给 CIRO。</p>}
        </div>}
        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
         await api("/installed/"+current.id+"/enabled",{enabled:!active.enabled});
