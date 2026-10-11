@@ -282,7 +282,7 @@ test("custom instructions save in browser and can be enabled independently of ag
   await waitForPreview(page);
   await page.getByRole("button",{name:"设置",exact:true}).click();
   await page.getByRole("button",{name:"自定义指令",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"自定义指令"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"自定义指令",level:2})).toBeVisible();
   await page.getByRole("textbox",{name:"关于你"}).fill("CIRO developer");
   await page.getByRole("textbox",{name:"希望 Ciro 如何回答"}).fill("Lead with evidence");
   await page.getByRole("switch",{name:"启用自定义指令"}).click();
