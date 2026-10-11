@@ -293,14 +293,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
         <PluginConnections/>
         <div className="wb-block-title"><div><h2>{t("插件管理")}</h2>
           <p>{t("仅列出内置可核验的适配器，不运行不可信远程插件代码。")}</p></div><PlugZap size={23}/></div>
-        <div className="wb-plugin-list">{state.capabilities.plugins.map(plugin=><article key={plugin.id} className="wb-plugin">
-          <span className="wb-plugin-icon">{plugin.id==="github"?<GitBranch size={22}/>:plugin.id==="scheduler"?<CalendarClock size={22}/>:<Users size={22}/>}</span>
-          <div><h3>{plugin.title}</h3><p>{plugin.description}</p><small>{plugin.detail}</small></div>
-          <div className="wb-plugin-side"><span className={plugin.ready?"wb-badge wb-badge--success":"wb-badge"}>{t(plugin.ready?"连接":"未配置")}</span>
-            <button disabled={!plugin.ready&&!plugin.enabled} className="wb-secondary" onClick={()=>void w.call("/plugins/"+plugin.id+"/toggle",{enabled:!plugin.enabled})}>
-              {t(plugin.enabled?"禁用":"启用")}</button></div>
-        </article>)}</div>
-        <div className="wb-footnote"><PlugZap size={17}/>{t("如需真正自主交付，请接入 CIRO 执行器与独立验证器。")}</div>
+
       </div>}
 
       {state&&currentTab==="schedules"&&<div className="wb-admin">
