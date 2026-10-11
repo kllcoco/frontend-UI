@@ -7,3 +7,6 @@ dist/
 *.log
 .vscode/
 coverage/
+artifacts/
+test-results/
+playwright-report/
