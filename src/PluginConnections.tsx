@@ -7,7 +7,7 @@ type Installed={id:string;version:string;installedAt:string;enabled:boolean};
 type Connection={provider:string;account?:{login?:string;email?:string;id?:string|number};connectedAt:string};
 type Approval={id:string;provider:string;summary:string;createdAt:string};
 type GitHubScope={allowedRepositories:string[];selectedRepository:string;mode:string;
- custom:Record<string,boolean>;writesEnabled:boolean};
+ custom:Record<string,boolean>;writesEnabled:boolean;oauthConfigured:boolean};
 type DiscoveredTool={name:string;description:string};
 type Prepared={nonce:string;fingerprint:string;plugin:Entry;expiresInSeconds:number};
 type PluginJob={id:string;provider:string;tool:string;status:string;effect:boolean;attempts:number;createdAt:number;code?:string|null};
@@ -109,7 +109,7 @@ export default function PluginConnections(){
       {pending?.plugin.id===current.id&&!active&&<div className="ciro-market-confirm">
        <strong>确认安装 {current.title}？</strong><p>版本 {pending.plugin.version} · 请确认以上权限。</p>
        <button className="wb-secondary" onClick={()=>setPending(null)}>取消</button>
-       <button className="wb-primary" disabled={busy||(current.id==="github"&&!state.githubScope?.selectedRepository)} onClick={()=>void action(async()=>{
+       <button className="wb-primary" disabled={busy||(current.id==="github"&&(!state.githubScope?.selectedRepository||!state.githubScope.oauthConfigured))} onClick={()=>void action(async()=>{
         await api("/marketplace/"+current.id+"/install",{nonce:pending.nonce,fingerprint:pending.fingerprint,confirm:true});
         setPending(null);setNotice("安装成功。可在左侧管理。");
        })}>确认安装</button>
@@ -137,6 +137,7 @@ export default function PluginConnections(){
          </div>
          <p className="ciro-market-muted">当前范围：{state.githubScope?.selectedRepository||"尚未选择"} · {state.githubScope?.writesEnabled?"允许请求写入，执行前仍要批准":"服务器禁止写入"}</p>
         </>:<p className="ciro-market-error">服务器还没有设置 GitHub 仓库白名单（CIRO_GITHUB_REPOS）。请联系部署管理员；不用输入个人 Token。</p>}
+        {!state.githubScope?.oauthConfigured&&<p className="ciro-market-muted">GitHub OAuth 尚未由服务器管理员配置。你可以安装插件、选择仓库，但暂时不能连接账户；不需要把密钥发给 CIRO。</p>}
        </div>}
        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
         await api("/installed/"+current.id+"/enabled",{enabled:!active.enabled});

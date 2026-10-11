@@ -382,7 +382,9 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     selectedRepository:policy().repo||"",
     mode:policy().mode,
     custom:policy().custom,
-    writesEnabled:env.CIRO_GITHUB_WRITES==="true"
+    writesEnabled:env.CIRO_GITHUB_WRITES==="true",
+    oauthConfigured:env.CIRO_ACCOUNTS_ENABLED==="true"&&
+     Boolean(env.CIRO_GITHUB_OAUTH_CLIENT_ID&&env.CIRO_GITHUB_OAUTH_CLIENT_SECRET&&env.CIRO_PUBLIC_ORIGIN)
    },
    installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
    jobs:jobs.list(owner(req)),

@@ -93,6 +93,7 @@ test("installed GitHub plugin completes scoped OAuth, model read, human-approved
   })).status,201);
   const catalog=(await send("/plugins/catalog")).body;
   assert.deepEqual(catalog.githubScope.allowedRepositories,["demo/repository","demo/other-repository"]);
+  assert.equal(catalog.githubScope.oauthConfigured,true);
   assert.equal(catalog.githubScope.selectedRepository,"");
   assert.equal((await send("/workbench/permissions",{
    mode:"request",repo:"demo/repository",custom:catalog.githubScope.custom
