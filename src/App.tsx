@@ -19,6 +19,8 @@ import {
 import type { ApiStatus, ChatMessage, Conversation } from "./types";
 import WorkbenchCenter from "./WorkbenchCenter";
 import AccountCenter from "./AccountCenter";
+import {startAutoSync,stopAutoSync,queueAutoSync} from "./lib/cloud-sync";
+import type {SyncPayload} from "./lib/cloud-sync";
 import type {AccountTab} from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
@@ -97,6 +99,12 @@ function exportMarkdown(chat: Conversation, language: Language) {
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
   const conversationsRef = useRef(conversations);
+  const cloudRef=useRef<SyncPayload>({
+    conversations,activeId:loadActiveId(),preferences:{
+      theme:loadTheme(),language:loadLanguage(),instructions:loadCustomInstructions(),
+      appearance:loadAppearance(),chat:loadChatPreferences()
+    }
+  });
   const [activeId, setActiveId] = useState<string | null>(loadActiveId);
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -161,6 +169,26 @@ export default function App() {
   }
 
   useEffect(() => { void refreshStatus(); }, []);
+  useEffect(()=>{
+    void startAutoSync({
+      capture:()=>cloudRef.current,
+      onRemote:remote=>{
+        setConversations(remote.conversations);
+        setActiveId(remote.activeId);
+        // Persisted values are validated again through the existing loaders.
+        setTheme(loadTheme());setLanguage(loadLanguage());
+        setInstructions(loadCustomInstructions());setAppearance(loadAppearance());
+        setPreferences(loadChatPreferences());
+      }
+    });
+    return ()=>stopAutoSync();
+  },[]);
+  useEffect(()=>{
+    cloudRef.current={conversations,activeId,preferences:{
+      theme,language,instructions,appearance,chat:preferences
+    }};
+    queueAutoSync(cloudRef.current);
+  },[conversations,activeId,theme,language,instructions,appearance,preferences]);
   useEffect(() => {
     conversationsRef.current = conversations;
     if (!busy) {

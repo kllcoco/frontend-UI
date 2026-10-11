@@ -158,3 +158,35 @@ public/backgrounds/         # 6 个本地 SVG 壁纸（含纯白）
 ### 独立验收
 
 现阶段验收范围是前端展示、本地状态、签名校验、预算准入、价格计算、浏览器交互。不能把这些自动测试等同于真实商业付款、原生技能运行、CIRO 真实模型能力或 POST_GEN1_PROJECT_WORKSPACE_MODE_V1 的 W0-W10 权威验收。继续保留 Draft PR，不合入 main，不动 NCPA 主线。
+
+
+## CIRO V0.6 — Accounts, subscriptions, keys, spending, notifications, memory and sync
+
+New Chinese/English client pages: Account & security, Subscription, API keys, Spending limits, Notifications, Memory, Device sync. All UI actions use server routes rather than fictional local success values.
+
+### Enable authentication
+
+Set CIRO_ACCOUNTS_ENABLED=true in a private .env file on the running server. Provide unique high-entropy CIRO_BOOTSTRAP_TOKEN (24+ bytes), CIRO_API_KEY_PEPPER (24+ bytes) and a stable CIRO_ACCOUNT_DATA_KEY (32 random bytes encoded using Base64). Do not put secrets into ChatGPT or a Git repository. Using Account & security, the operator creates the single owner account with the bootstrap token. The bootstrap cannot register another account after initialization.
+
+Passwords use salted scrypt hashes. HttpOnly SameSite=Lax sessions expire in 30 days; write requests require a CSRF token and trusted Origin; API keys have separate scoped access and can be revoked immediately. A password change invalidates all API keys and other sessions. The original client continues local-only by default until accounts are enabled. The local JSON store is SINGLE OWNER / SINGLE PROCESS ONLY; a public multi-tenant commercial service requires transactional storage, proper tenant isolation, backups, external secrets and key rotation.
+
+### API contracts implemented
+
+GET /api/account/session: live account readiness, logged-in user status and CSRF token for first-party session.
+POST /api/account/bootstrap, /login, /logout, /password; GET/POST /profile; POST /sessions/revoke: account lifecycle and security.
+GET/POST /api/account/api-keys and POST /api/account/api-keys/:id/revoke: one-time visible random secret; only HMAC digest stored. Allowed scopes are chat:invoke, sync:read and sync:write. API keys cannot manage accounts or payment settings.
+GET /api/account/notifications; POST /notifications/:id/read and /notifications/read-all: durable notifications created by real server events, currently refreshed while the app is open.
+GET/POST /api/account/memories, POST /memories/preferences, DELETE /memories/:id: explicit, encrypted AES-256-GCM memories. Enabled memories are passed to the future chat inference service as UNTRUSTED user background, not as tool authorization or weight training.
+GET /api/account/sync; PUT /api/account/sync: AES-GCM encrypted snapshots with version compare-and-swap and HTTP 409 on conflicts. Manual upload/recovery and opt-in automatic synchronization are wired to the actual shared server. The client batches local changes and checks server changes; conflicts stop overwriting until resolved. Custom wallpaper binary assets remain device-local.
+GET/POST /api/workbench/commercial/billing/spending: live daily/monthly/per-run limits.
+POST /billing/reservations and POST /billing/reservations/:id/release: HMAC-signed metering service authorization and release. Real usage ingestion can settle a reservation. Budget admission fails closed when complete CWU/GWU rates or trusted metering are missing. This needs an actual runtime to reserve BEFORE consuming compute: the GUI alone cannot enforce a financial hard-stop against work already running.
+
+### Real Stripe integration
+
+Configure CIRO_STRIPE_SECRET_KEY, CIRO_STRIPE_PRICE_ID, CIRO_STRIPE_WEBHOOK_SECRET and HTTPS CIRO_PUBLIC_ORIGIN. The hosted Checkout URL comes from a real request to Stripe's checkout session API. The subscription portal comes from Stripe's portal session API. POST /api/account/subscription/webhook uses exact raw body, Stripe-Signature time and HMAC verification and duplicate-id protection, and binds events to the owner/customer. Redirecting back from payment is NOT proof of payment. Subscription state changes only after trusted Stripe webhook events; an unconfigured provider returns a real 503.
+
+### Security and delivery limits
+
+CIRO_ACCOUNT_DATA_KEY must be backed up and remain stable; losing it makes encrypted memories/snapshots undecryptable. Never expose HTTP on a public interface: deploy only behind a well-configured HTTPS reverse proxy with account and rate-limit protections. The local first-party store has no multi-tenant data model, no horizontal consistency and no job queue; do not use it as a public SaaS billing ledger.
+
+The Stripe network integration is a real production API contract but cannot be end-to-end charged without the operator's own Stripe account and keys. Likewise CIRO model/agent verification requires the actual NCPA native Runtime and independent verifier. The PR remains DRAFT and does not modify NCPA GEN1.

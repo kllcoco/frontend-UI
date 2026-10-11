@@ -12,12 +12,11 @@ import {accountApi,getAccountSession,refreshAuthAfterLogin,invalidateAccountSess
   openVerifiedCheckout} from "./lib/account-api";
 import type {AccountTab,SessionSnapshot} from "./lib/account-api";
 import {commercialApi,formatUsdMicros} from "./lib/commercial-api";
-import {loadConversations,saveConversations,loadActiveId,saveActiveId,loadTheme} from "./lib/storage";
-import {loadCustomInstructions} from "./lib/instructions";
-import {loadLanguage} from "./lib/i18n";
-import {loadAppearance} from "./lib/appearance";
-import {loadChatPreferences} from "./lib/preferences";
+import {loadConversations} from "./lib/storage";
 import type {Conversation} from "./types";
+import {autoSyncEnabled,configureAutoSync,currentSyncState,readLocalSnapshot,
+  persistCloudSnapshot} from "./lib/cloud-sync";
+import type {SyncSignal} from "./lib/cloud-sync";
 
 type Props={language:Language;section:AccountTab};
 type Profile={user:NonNullable<SessionSnapshot["user"]>;sessions:{id:string;createdAt:string;expiresAt:number}[];
@@ -36,11 +35,6 @@ const labels:Record<AccountTab,string>={
 const titleFor=(code:string)=>(code==="not_connected"?"尚未连接支付服务":code);
 const money=(value:number|null,l:Language)=>formatUsdMicros(value,l==="en"?"en-US":"zh-CN");
 const toDollar=(micro:number|null)=>micro===null?"":String(micro/1000000);
-function localSnapshot():CloudSnapshot{
-  return {conversations:loadConversations(),activeId:loadActiveId(),
-    preferences:{theme:loadTheme(),language:loadLanguage(),instructions:loadCustomInstructions(),
-      appearance:loadAppearance(),chat:loadChatPreferences()}};
-}
 export default function AccountCenter({language,section}:Props){
   const t=(value:string)=>accountTranslate(language,value);
   const [session,setSession]=useState<SessionSnapshot|null>(null);
@@ -51,6 +45,8 @@ export default function AccountCenter({language,section}:Props){
   const [memoryEnabled,setMemoryEnabled]=useState(false);
   const [spending,setSpending]=useState<Spending|null>(null);
   const [sync,setSync]=useState<SyncState|null>(null);
+  const [syncSignal,setSyncSignal]=useState<SyncSignal>(currentSyncState);
+  const [automatic,setAutomatic]=useState(autoSyncEnabled);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const [email,setEmail]=useState(""),[password,setPassword]=useState(""),
@@ -96,6 +92,14 @@ export default function AccountCenter({language,section}:Props){
       }
     }
     setLoading(false);
+  },[]);
+  useEffect(()=>{
+    const listener=(event:Event)=>{
+      const msg=event as CustomEvent<SyncSignal>;
+      setSyncSignal(msg.detail);
+    };
+    window.addEventListener("ciro-cloud-sync",listener);
+    return ()=>window.removeEventListener("ciro-cloud-sync",listener);
   },[]);
   useEffect(()=>{
     mounted.current=true;setLoading(true);setError("");
@@ -148,24 +152,16 @@ export default function AccountCenter({language,section}:Props){
     await action(async()=>{
       if(!sync)throw new Error(t("请刷新后重试"));
       const result=await accountApi<SyncState>("/sync","PUT",{
-        baseVersion:sync.version,snapshot:localSnapshot()
+        baseVersion:sync.version,snapshot:readLocalSnapshot()
       });
-      setSync({...result,snapshot:localSnapshot()});
+      setSync({...result,snapshot:readLocalSnapshot()});
     },"上传成功");
   }
   async function restoreCloud(){
     if(!sync?.snapshot)throw new Error(t("服务器暂无快照"));
     await action(async()=>{
       const remote=sync.snapshot!;
-      saveConversations(remote.conversations);
-      saveActiveId(remote.activeId);
-      for(const [key,value] of Object.entries(remote.preferences||{})){
-        if(key==="theme"&&["dark","light"].includes(String(value)))localStorage.setItem("ciro.theme.v1",String(value));
-        if(key==="language"&&["en","zh-CN"].includes(String(value)))localStorage.setItem("ciro.language.v1",String(value));
-        if(key==="instructions"&&value)localStorage.setItem("ciro.custom-instructions.v1",JSON.stringify(value));
-        // Appearance/preferences are intentionally not modified blindly:
-        // the existing client owns those schemas and persistence keys.
-      }
+      persistCloudSnapshot(remote);
       window.location.reload();
     },"恢复成功");
   }
@@ -297,6 +293,13 @@ export default function AccountCenter({language,section}:Props){
     </>}
     {!loading&&auth&&section==="sync"&&<><section className="acc-card">
       <div className="acc-section-title"><Cloud size={19}/><h3>{t("跨设备同步")}</h3></div>
+      <label className="acc-toggle">{t("自动同步")}
+        <input type="checkbox" checked={automatic} onChange={e=>{
+          const next=e.target.checked;configureAutoSync(next);setAutomatic(next);window.location.reload();
+        }}/></label>
+      <p className="acc-muted">{t("开启后对话与偏好将安全地同步至你登录的服务器。")}</p>
+      <div className="acc-state"><span>{t("同步状态")}</span><strong>{syncSignal.status}</strong>
+        <small>{syncSignal.message||t("同步已就绪")}</small></div>
       <div className="acc-sync-grid"><div><small>{t("本地对话")}</small><strong>{loadConversations().length}</strong></div>
         <div><small>{t("云端对话")}</small><strong>{sync?.snapshot?.conversations.length??0}</strong></div>
         <div><small>{t("服务器版本")}</small><strong>{sync?.version??"—"}</strong></div></div>
