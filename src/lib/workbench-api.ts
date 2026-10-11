@@ -1,6 +1,6 @@
 export type PermissionMode = "request" | "auto" | "full" | "custom";
 export type AgentMode = "goal" | "plan";
-export type WorkbenchTab = "goals" | "permissions" | "github" | "plugins" | "schedules";
+export type WorkbenchTab = "goals" | "permissions" | "github" | "plugins" | "schedules" | "billing" | "apps" | "skills";
 export type PermissionCustom = {
   githubRead: boolean; githubWrite: boolean; taskExecution: boolean;
   recurringTasks: boolean; externalNetwork: boolean

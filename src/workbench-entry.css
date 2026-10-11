@@ -41,3 +41,9 @@
   .composer-workspace-link{padding:5px 6px;font-size:10px}
   .studio-launch{min-height:42px}
 }
+
+/* Grouped first-party application shortcuts in the sidebar. */
+.studio-quick-links{display:flex;flex-direction:column;gap:2px;padding:2px 0 7px}
+.studio-launch--sub{min-height:33px;margin:0;border:none;background:transparent!important;font-size:11px!important;font-weight:520!important;padding:7px 12px}
+.studio-launch--sub:hover{background:rgba(52,143,81,.09)!important}
+.sidebar--collapsed .studio-quick-links .studio-launch--sub span{display:none}

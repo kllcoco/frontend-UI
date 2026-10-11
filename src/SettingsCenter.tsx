@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, X } from "lucide-react";
+import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, Wallet, X } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -49,7 +49,10 @@ const sections: { id: Section; label: string; icon: typeof Palette }[] = [
   { id: "permissions", label: "代理与沙盒", icon: ShieldCheck },
   { id: "github", label: "GitHub 连接", icon: GitBranch },
   { id: "plugins", label: "插件管理", icon: PlugZap },
-  { id: "schedules", label: "定时任务", icon: CalendarClock }
+  { id: "schedules", label: "定时任务", icon: CalendarClock },
+  { id: "billing", label: "账单与用量", icon: Wallet },
+  { id: "apps", label: "官方应用", icon: LayoutGrid },
+  { id: "skills", label: "技能中心", icon: Sparkles }
 ];
 function SettingBlock({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return <section className="sc-section"><div className="sc-section-intro"><h3>{title}</h3>{subtitle && <p>{subtitle}</p>}</div>{children}</section>;
@@ -123,7 +126,7 @@ export default function SettingsCenter({
         <header className="sc-header"><div><span className="sc-kicker">PERSONALIZE YOUR CIRO</span><h2 id="sc-title">{t(heading)}</h2></div>
           <button className="sc-close" onClick={onClose} title={t("关闭设置")} aria-label={t("关闭设置")}><X size={20}/></button></header>
         <div className="sc-scroll">
-          {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules") &&
+          {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "appearance" && <>
             <div className="sc-section-heading"><div><h3>{t("把 Ciro 变成你的空间")}</h3><p>{t("选一处风景，或上传只属于你的背景。每次调整都会立即生效。")}</p></div>

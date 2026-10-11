@@ -5,7 +5,9 @@ import { defaultPolicy } from "./agent-policy.mjs";
 
 function initial() {
   return { version: 1, policy: defaultPolicy(), goals: [], schedules: [], approvals: [],
-    plugins: { github: true, scheduler: true, runner: true }, audit: [] };
+    plugins: { github: true, scheduler: true, runner: true }, audit: [],
+    commercial: { events: [], pinnedApps: ["chat", "workbench"], skills: {},
+      billing: { monthlyBudgetMicros: null, alertThresholdPct: 80 } } };
 }
 export function createWorkbenchStore(dir) {
   const target = join(dir, "state.json");
@@ -16,7 +18,8 @@ export function createWorkbenchStore(dir) {
     if (data?.version !== 1 || !Array.isArray(data.goals) || !Array.isArray(data.audit)) {
       throw new Error("Workbench state version invalid; refusing destructive migration.");
     }
-    state={ ...initial(), ...data, policy: data.policy || defaultPolicy() };
+    state={ ...initial(), ...data, policy: data.policy || defaultPolicy(),
+      commercial: { ...initial().commercial, ...(data.commercial || {}) } };
   }
   function save(){
     const temp = target+"."+process.pid+"."+randomUUID()+".tmp";

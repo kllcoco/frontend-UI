@@ -6,7 +6,8 @@ import {
   ArrowDownToLine, ArrowUp, BrainCircuit, Check, ChevronDown, Code2,
   Copy, FileText, Lightbulb, Menu, MessageCircle, Moon, MoreHorizontal,
   Paperclip, Pencil, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw,
-  Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Workflow, X
+  Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Workflow, X,
+  Wallet, LayoutGrid, Blocks
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -325,7 +326,7 @@ export default function App() {
     } finally { setBusy(false); }
   }
   function handleSlash(text: string): boolean {
-    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|help)(?:\s+([\s\S]*))?$/i.exec(text);
+    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|help)(?:\s+([\s\S]*))?$/i.exec(text);
     if (!match) return false;
     const command=match[1].toLowerCase();
     const argument=(match[2]||"").trim();
@@ -336,10 +337,11 @@ export default function App() {
       return true;
     }
     if (command==="help") {
-      setToast("/goal · /plan · /work · /github · /schedule · /plugins · /permissions");
+      setToast("/goal · /plan · /work · /github · /schedule · /plugins · /permissions · /billing · /apps · /skills");
     } else {
       const tab: WorkbenchTab=command==="github"?"github":command==="schedule"?"schedules":
-        command==="plugins"?"plugins":command==="permissions"?"permissions":"goals";
+        command==="plugins"?"plugins":command==="permissions"?"permissions":
+        command==="billing"?"billing":command==="apps"?"apps":command==="skills"?"skills":"goals";
       openStudio(tab);
     }
     setDraft("");
@@ -532,6 +534,11 @@ export default function App() {
           <button className="studio-launch" onClick={() => openStudio("goals")} title={t("协作空间")} aria-label={t("协作空间")}>
             <Workflow size={18}/><span>{t("协作空间")}</span><span className="studio-launch-dot" />
           </button>
+          <div className="studio-quick-links">
+            <button className="studio-launch studio-launch--sub" onClick={()=>openStudio("apps")} aria-label={t("官方应用")}><LayoutGrid size={17}/><span>{t("官方应用")}</span></button>
+            <button className="studio-launch studio-launch--sub" onClick={()=>openStudio("skills")} aria-label={t("技能中心")}><Blocks size={17}/><span>{t("技能中心")}</span></button>
+            <button className="studio-launch studio-launch--sub" onClick={()=>openStudio("billing")} aria-label={t("账单与用量")}><Wallet size={17}/><span>{t("账单与用量")}</span></button>
+          </div>
           <button className="search-trigger" onClick={() => {
             setSearchOpen(true);
             setSidebarCollapsed(false);
@@ -589,7 +596,8 @@ export default function App() {
       {studioOpen ? <main className="workspace workspace--studio">
         <div className="wb-mobile-top"><button type="button" onClick={()=>setSidebarOpen(true)} aria-label={t("打开侧栏")}><Menu size={19}/></button>
           <CiroMark small/><span>Ciro Workbench</span></div>
-        <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}/>
+        <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
+          onNavigate={route=>{if(route==="chat")createNew();else openStudio(route as WorkbenchTab);}}/>
       </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
         data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}>
         {showWallpaper && <>
@@ -715,7 +723,7 @@ export default function App() {
               <button onClick={() => setSettingsOpen(true)}>{t("如何连接 ")} <span aria-hidden="true">↗</span></button>
             </div>}
             {draft.startsWith("/") && <div className="composer-slash-help" role="note">
-              <code>/goal</code> <code>/plan</code> <code>/work</code> <code>/github</code> <code>/schedule</code> <code>/plugins</code> <code>/permissions</code>
+              <code>/goal</code> <code>/plan</code> <code>/work</code> <code>/github</code> <code>/schedule</code> <code>/plugins</code> <code>/permissions</code> <code>/billing</code> <code>/apps</code> <code>/skills</code>
             </div>}
             <div className="composer" onClick={() => composerRef.current?.focus()}>
               {attachments.length > 0 && <div className="attachments">

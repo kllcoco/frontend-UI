@@ -3,6 +3,9 @@ import { join } from "node:path";
 import { createWorkbenchStore } from "./workbench-store.mjs";
 import { checkedString, decision, normalizePolicy, safeBranch, safeFilePath } from "./agent-policy.mjs";
 import { githubConfig, verifyGitHubRepo, readGitHubFile, writeGitHubFile, createGitHubBranch } from "./github-client.mjs";
+import { createCommercialRouter } from "./commercial.mjs";
+import { selectedSkills } from "./commercial-catalog.mjs";
+import { assertBudgetAdmission } from "./commercial-billing.mjs";
 
 const PLUGIN_LABELS = {
   github: {title:"GitHub", description:"Read files and create scoped branch commits using a server-side credential."},
@@ -65,6 +68,7 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
   const adapterOptions={env,fetchFn};
   const running=new Set();
   const activeRequests=new Map();
+  const commercial=createCommercialRouter({env,store});
   // Intentional local-only API. For production, add real login, CSRF and per-user isolation.
   router.use((req,res,next)=>{
     if(["POST","PUT","PATCH","DELETE"].includes(req.method)){
@@ -108,7 +112,8 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+token,
           "X-Ciro-Workbench-Version":"1"},
         body:JSON.stringify({jobId:goal.id,goal:goal.goal,mode:goal.mode,phase,repo:goal.repo,
-          plan:goal.plan,attempt:goal.attempt,policy:store.get().policy,context,
+          plan:goal.plan,attempt:goal.attempt,policy:store.get().policy,
+          skills:selectedSkills(env,store.get()),context,
           requirements:{ evidenceDigests:true, independentVerifier:service==="verifier" }})
       });
       if(!response.ok)throw new Error(service+" returned HTTP "+response.status);
@@ -140,6 +145,14 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
           store.change("goal.authorization.revoked",{id},()=>{
             goal.status="paused";goal.error="Workspace permissions changed; resume requires fresh authorization.";
             log(goal,"revoked",goal.error);
+          });
+          break;
+        }
+        try {
+          if(goal.phase!=="plan")assertBudgetAdmission(env,store.get());
+        }catch(error){
+          store.change("goal.budget.blocked",{id},()=>{
+            goal.status="paused";goal.error=shortText(error.message);log(goal,"budget",goal.error);
           });
           break;
         }
@@ -254,6 +267,7 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
       store.change("goal.waiting_runtime",{id:goal.id},()=>{goal.status="waiting_runtime";log(goal,"waiting","Configure the CIRO runner before executing.");});
       return {status:"waiting_runtime",goal};
     }
+    if(!(goal.mode==="plan" && goal.phase==="plan")) assertBudgetAdmission(env,store.get());
     const access=(goal.mode==="plan" && goal.phase==="plan") ? { result: "allow" } : decision(store.get().policy,action,{repo:goal.repo});
     if(access.result==="deny")throw new Error(access.reason);
     if(access.result==="approval"){
@@ -268,6 +282,7 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     queueMicrotask(()=>void workGoal(goal.id));
     return {status:"queued",goal};
   }
+  router.use("/commercial",commercial.router);
   router.get("/state",(_req,res)=>res.json({...store.snapshot(),capabilities:serverCapabilities(env,store)}));
   router.post("/permissions",wrap((req,res)=>{
     const prev=store.get().policy;
@@ -321,6 +336,7 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     if(action==="github.write")return writeGitHubFile(payload,adapterOptions);
     if(action==="github.branch")return createGitHubBranch(payload.repo,payload.branch,adapterOptions);
     if(action==="task.run"){
+      assertBudgetAdmission(env,store.get());
       const g=findGoal(payload.goalId);
       if(!g)throw new Error("Goal no longer exists.");
       store.change("goal.approved",{id:g.id},()=>{

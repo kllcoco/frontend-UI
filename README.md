@@ -130,3 +130,31 @@ public/backgrounds/         # 6 个本地 SVG 壁纸（含纯白）
 ### 自定义指令（Custom instructions）
 
 设置 → 自定义指令中可以填写「关于你」和「希望 Ciro 如何回答」，最长分别 2000 字。默认关闭，用户开启后随普通聊天请求发送到配置的 CIRO API，由服务端验证大小后作为用户主动设置的个人偏好传递；不开启时只存储在当前浏览器。自定义指令不会作为沙盒、插件或 GitHub 操作的授权凭据，也不会覆盖服务端权限政策。此功能不是持久模型记忆或多设备同步。
+
+
+## CIRO V0.5：账单、官方应用和技能
+
+入口：侧栏 / 协作空间 / 设置里的「账单与用量」「官方应用」「技能中心」，支持 /billing、/apps、/skills 快捷指令。新功能均保留中文默认、英文切换、白色主题和背景 DIY。
+
+### 账单与用量
+
+- 只能记录 CIRO Runtime 通过 HMAC-SHA256 签名的实际计量收据；浏览器不允许创建计费事件，未连接时展示「暂无真实用量」而非虚假已支付账单。
+- POST /api/workbench/commercial/billing/ingest：服务端配置 CIRO_BILLING_EVENT_SECRET（至少 24 UTF-8 字节）；请求头 x-ciro-timestamp（Unix 毫秒）、x-ciro-signature（十六进制 SHA256 HMAC）；签名内容为时间戳 + 英文点号 + 原始 JSON 字节。拒绝超过五分钟的时间戳，按 eventId 去重，并对同 ID 冲突拒绝。
+- 收据字段：eventId、unit（CWU/GWU）、units（整数）、category（chat/agent/tool/training）、model、observedAt（ISO8601）与 receiptSha256（64 字符），其他敏感输入不入账本。签名表明来自受信持钥服务，**不等于测量证据已经独立验真**。
+- 配置 CIRO_BILLING_CWU_USD_PER_MILLION / CIRO_BILLING_GWU_USD_PER_MILLION 后才根据每条收据快照费率估算费用；未配置定价的用量被标成「未计价」，不能当零费用。用户曾提出的 3 美元每百万 CWU/GWU 只是可选价格配置，未作正式生效费率。
+- 展示当前 UTC 月使用量、分类、费率、明细摘要、CSV 导出、月度预算与百分比预警。设有月度预算时，代理任务开始前进行准入检查；不能计价或计量未接入时 fail-closed。
+- **不具备交易级硬上限**：运行中的请求可能在阈值到达后继续产生费用。预算为「暂停新任务」门禁而非财务实时余额控制。容量达到 20,000 条则拒绝新记录，不静默丢弃，需要外接可持久化账本。
+- **尚未接入**支付机构、充值、订阅、发票结算、跨设备账单或退款；界面明确提示不可用，绝不虚构发票。
+- 本地默认监听 127.0.0.1。公网发布前还需要用户登录、租户隔离、强 CSRF/RBAC、计量独立复算和金融结算审计。
+
+### Ciro 官方应用中心
+
+内置白名单为 Chat、Workbench、GitHub、Scheduler、Skills 和待接线的 Research、Files、Code。支持中英目录、分类搜索、收藏、取消收藏、快捷打开已开发界面；用户的收藏保存到本地服务端，下次刷新保留。目录中「已配置」只表示存在服务器设置，不代表已验证完整实际可用性。没有外部 App Store 下载或执行不可信代码。
+
+### Ciro 技能中心
+
+内置静态 manifest 目录包括 Repository Review、Test Design、Adversarial Review、Architecture Planning、Cost Analysis、Documentation、Research Workflow。支持搜索、筛选、启停、版本查看及权限需求。启用后的技能标识 id/version/scope 通过 Agent Runner 的桥协议传递，**必须先接入原生运行时**；没有 CIRO 原生执行器时只保存用户选择，不会虚构执行结果。技能本身不能提升 GitHub、沙盒及系统权限。不安装未经审查的任意第三方 skill 文件。
+
+### 独立验收
+
+现阶段验收范围是前端展示、本地状态、签名校验、预算准入、价格计算、浏览器交互。不能把这些自动测试等同于真实商业付款、原生技能运行、CIRO 真实模型能力或 POST_GEN1_PROJECT_WORKSPACE_MODE_V1 的 W0-W10 权威验收。继续保留 Draft PR，不合入 main，不动 NCPA 主线。

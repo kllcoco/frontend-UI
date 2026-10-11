@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import CommercialCenter from "./CommercialCenter";
 import type { FormEvent } from "react";
 import {
   Activity, ArrowRight, CalendarClock, Check, CheckCircle2, CircleAlert, Clock3,
   ClipboardCheck, Code2, FileCode2, GitBranch, GitCommitHorizontal, LockKeyhole,
   Pause, Play, PlugZap, Plus, RefreshCcw, Search, ShieldAlert, ShieldCheck,
-  Sparkles, Trash2, Users, WandSparkles, X, Zap
+  Sparkles, Trash2, Users, WandSparkles, X, Zap, Wallet, Grid2X2, Blocks
 } from "lucide-react";
 import type { Language } from "./lib/i18n";
 import { workbenchTranslate } from "./lib/workbench-i18n";
@@ -16,13 +17,16 @@ import type {
   WorkbenchGoal, GithubFile, WorkbenchResponse
 } from "./lib/workbench-api";
 
-type Props = { language: Language; initialTab?: WorkbenchTab; embedded?: boolean; initialGoal?: string };
+type Props = { language: Language; initialTab?: WorkbenchTab; embedded?: boolean; initialGoal?: string; onNavigate?: (route: string) => void };
 const tabs: {id:WorkbenchTab;title:string;Icon:typeof Users}[] = [
   {id:"goals",title:"目标与项目",Icon:Users},
   {id:"permissions",title:"权限与沙盒",Icon:ShieldCheck},
   {id:"github",title:"GitHub 仓库",Icon:GitBranch},
   {id:"plugins",title:"插件中心",Icon:PlugZap},
-  {id:"schedules",title:"定时任务",Icon:CalendarClock}
+  {id:"schedules",title:"定时任务",Icon:CalendarClock},
+  {id:"billing",title:"账单与用量",Icon:Wallet},
+  {id:"apps",title:"官方应用",Icon:Grid2X2},
+  {id:"skills",title:"技能中心",Icon:Blocks}
 ];
 const stages:{phase:string;title:string;role:string;Icon:typeof Users}[]=[
   {phase:"plan",title:"规划",role:"计划代理",Icon:ClipboardCheck},
@@ -79,7 +83,7 @@ function useWorkbench() {
 function readable(time:string,language:Language){
   const date=new Date(time);return Number.isNaN(date.getTime())?"—":date.toLocaleString(language==="en"?"en-US":"zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
 }
-export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal=""}:Props) {
+export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal="",onNavigate}:Props) {
   const w=useWorkbench();
   const t=(value:string)=>workbenchTranslate(language,value);
   const [tab,setTab]=useState<WorkbenchTab>(initialTab);
@@ -174,6 +178,8 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
       {w.notice&&<div role="status" className="wb-alert wb-alert--ok"><Check size={16}/>{w.notice}</div>}
       {w.loading&&!state&&<div className="wb-empty"><Activity size={24}/>{t("准备中")}</div>}
       {!state&&!w.loading&&<div className="wb-empty">{t("无法加载工作台")}<button onClick={()=>void w.refresh()}>{t("刷新")}</button></div>}
+      {state&&(currentTab==="billing"||currentTab==="apps"||currentTab==="skills")&&
+        <CommercialCenter key={currentTab} language={language} section={currentTab} onNavigate={onNavigate}/>}
       {state&&currentTab==="goals"&&<div className="wb-goals">
         <div className="wb-capabilities">
           <span className={runtime?.runner?"wb-health wb-health--ready":"wb-health"}>

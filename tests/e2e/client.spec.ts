@@ -294,3 +294,90 @@ test("custom instructions save in browser and can be enabled independently of ag
   await expect(page.getByRole("textbox",{name:"希望 Ciro 如何回答"})).toHaveValue("Lead with evidence");
   await expect(page.getByRole("switch",{name:"启用自定义指令"})).toHaveAttribute("aria-checked","true");
 });
+
+
+test("billing dashboard shows honest unconfigured usage and saves budget preferences", async ({page})=>{
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"账单与用量",exact:true}).click();
+  await expect(page.locator(".com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
+  await expect(page.getByText("暂无真实用量记录")).toBeVisible();
+  await expect(page.getByText("无收费服务接入")).toBeVisible();
+  await page.screenshot({path:imageDir+"/24-billing-usage.png",fullPage:true,animations:"disabled"});
+  await page.getByRole("textbox",{name:"预算上限（USD）"}).fill("10.50");
+  await page.getByRole("combobox",{name:"预警比例"}).selectOption("90");
+  await page.getByRole("button",{name:"保存预算"}).click();
+  await expect(page.getByText("预算已保存")).toBeVisible();
+  await expect(page.locator(".com-budget-numbers")).toContainText("$10.50");
+  await page.getByRole("button",{name:"发票管理"}).click();
+  await expect(page.getByRole("heading",{name:"账单服务尚未接入"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"支付方式"})).toBeVisible();
+  await page.screenshot({path:imageDir+"/25-billing-invoices.png",fullPage:true,animations:"disabled"});
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.getByRole("button",{name:"账单与用量",exact:true}).click();
+  await expect(page.locator(".com-budget-numbers")).toContainText("$10.50");
+});
+
+test("first-party application directory supports search, persistent pinning and real navigation",async ({page})=>{
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await expect(page.locator(".com-page-head").getByRole("heading",{name:"官方应用"})).toBeVisible();
+  await expect(page.locator(".com-app-card")).toHaveCount(8);
+  await page.screenshot({path:imageDir+"/26-official-apps.png",fullPage:true,animations:"disabled"});
+  await page.getByRole("button",{name:"收藏: Ciro GitHub"}).click();
+  await expect(page.getByRole("button",{name:"取消收藏: Ciro GitHub"})).toBeVisible();
+  await page.getByRole("textbox",{name:"搜索应用"}).fill("GitHub");
+  await expect(page.locator(".com-app-card")).toHaveCount(1);
+  await page.getByRole("textbox",{name:"搜索应用"}).fill("");
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await expect(page.getByRole("button",{name:"取消收藏: Ciro GitHub"})).toBeVisible();
+  await page.locator(".com-app-card").filter({hasText:"Ciro GitHub"}).getByRole("button",{name:/打开/}).click();
+  await expect(page.getByRole("heading",{name:"GitHub 集成"})).toBeVisible();
+});
+
+test("skills catalog enables reviewed manifests without pretending a runner exists",async ({page})=>{
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"技能中心",exact:true}).click();
+  await expect(page.locator(".com-page-head").getByRole("heading",{name:"技能中心"})).toBeVisible();
+  await expect(page.locator(".com-skill")).toHaveCount(7);
+  await expect(page.getByText("技能尚不能执行").first()).toBeVisible();
+  await page.screenshot({path:imageDir+"/27-skill-library.png",fullPage:true,animations:"disabled"});
+  const review=page.locator(".com-skill").filter({hasText:"代码审查"});
+  await review.getByRole("button",{name:"选择技能"}).click();
+  await expect(review.getByRole("button",{name:"取消技能"})).toHaveAttribute("aria-pressed","true");
+  await expect(review.getByText("已选择，等待执行器")).toBeVisible();
+  await page.screenshot({path:imageDir+"/28-skill-enabled.png",fullPage:true,animations:"disabled"});
+  await page.reload({waitUntil:"domcontentloaded"});
+  await page.getByRole("button",{name:"技能中心",exact:true}).click();
+  await expect(page.locator(".com-skill").filter({hasText:"代码审查"}).getByRole("button",{name:"取消技能"})).toBeVisible();
+});
+
+test("billing, apps and skills also appear in settings and slash navigation",async ({page})=>{
+  await waitForPreview(page);
+  await openSettings(page);
+  await page.getByRole("button",{name:"账单与用量",exact:true}).click();
+  await expect(page.locator(".sc-scroll .com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
+  await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await expect(page.locator(".sc-scroll .com-app-card")).toHaveCount(8);
+  await page.getByRole("button",{name:"技能中心",exact:true}).click();
+  await expect(page.locator(".sc-scroll .com-skill")).toHaveCount(7);
+  await page.getByRole("button",{name:"完成"}).click();
+  await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("/billing");
+  await page.getByRole("button",{name:"发送消息"}).click();
+  await expect(page.locator(".com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
+});
+
+test("billing and app catalog translate into English without mobile viewport overflow",async ({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await waitForPreview(page);
+  await page.getByRole("button",{name:"切换语言"}).click();
+  await page.getByRole("button",{name:"Open sidebar"}).click();
+  await page.getByRole("button",{name:"Billing & usage",exact:true}).click();
+  await expect(page.locator(".com-page-head").getByRole("heading",{name:"Billing & usage"})).toBeVisible();
+  await page.screenshot({path:imageDir+"/29-billing-mobile-en.png",fullPage:true,animations:"disabled"});
+  const dimensions=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,win:window.innerWidth}));
+  expect(dimensions.doc).toBeLessThanOrEqual(dimensions.win+1);
+  await page.getByRole("button",{name:"Official apps",exact:true}).last().click();
+  await expect(page.locator(".com-app-card")).toHaveCount(8);
+  await page.screenshot({path:imageDir+"/30-apps-mobile-en.png",fullPage:true,animations:"disabled"});
+});
