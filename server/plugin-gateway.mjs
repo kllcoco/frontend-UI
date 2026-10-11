@@ -90,7 +90,12 @@ function checkToolPolicy(policy,provider,tool,args,source){
      tool==="github.write_file"?"github.write":null;
    if(!action)throw fail("Unregistered GitHub tool",404);
    if(policy.repo!==args.repo)throw fail("Repository is outside selected scope",403);
-   return decision(policy,action,{repo:args.repo});
+   const verdict=decision(policy,action,{repo:args.repo});
+   if(verdict.result==="deny")return verdict;
+   // Even Full Access cannot bypass a separate approval for external mutations.
+   if(action==="github.write"||action==="github.branch")
+     return {result:"approval",reason:"External repository changes always require per-operation consent."};
+   return verdict;
  }
  if(provider==="supabase"){
    if(!["supabase.list_tools","supabase.call_tool"].includes(tool))throw fail("Unknown tool",404);
@@ -98,6 +103,23 @@ function checkToolPolicy(policy,provider,tool,args,source){
    return {result:tool==="supabase.call_tool"?"approval":"allow"};
  }
  return {result:"deny"};
+}
+function reviewedAction(provider,tool,args){
+ if(provider==="github"&&tool==="github.write_file"){
+  const repo=bounded(args.repo,210,"repository"),branch=safeBranch(args.branch),
+    path=safeFilePath(args.path);
+  if(typeof args.content!=="string"||Buffer.byteLength(args.content)>180000)
+   throw fail("Invalid file contents");
+  return "GitHub 写入 "+repo+" @ "+branch+" / "+path+
+   " · 内容 SHA256 "+sha(args.content).slice(0,16)+
+   (typeof args.message==="string"?" · 提交说明 "+args.message.slice(0,70):"");
+ }
+ if(provider==="github"&&tool==="github.create_branch")
+  return "GitHub 创建分支 "+bounded(args.repo,210,"repository")+" @ "+safeBranch(args.branch);
+ if(provider==="supabase"&&tool==="supabase.call_tool")
+  return "Supabase MCP 调用 "+bounded(args.name,100,"tool name")+
+   " · 参数 SHA256 "+sha(JSON.stringify(args.arguments??{})).slice(0,16);
+ return provider+" / "+tool;
 }
 export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  const router=express.Router();
@@ -202,7 +224,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   if(verdict.result==="approval"&&!approval){
    const pending=store.queueApproval({ownerId:user,provider,tool,args,source,
     policySignature:sha(JSON.stringify(policy())),generation:connection.generation,
-    summary:provider+" / "+tool});
+    summary:reviewedAction(provider,tool,args)});
    return {approvalRequired:true,...pending};
   }
   const operation=trackOperation(user,provider);
