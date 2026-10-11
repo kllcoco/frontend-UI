@@ -126,7 +126,7 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
   await page.screenshot({ path: imageDir + "/11-settings-storage.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "快捷键", exact: true }).click();
-  await expect(page.getByText("搜索历史")).toBeVisible();
+  await expect(page.locator(".sc-shortcut").filter({ hasText: "搜索历史" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/12-settings-shortcuts.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "隐私与安全", exact: true }).click();
