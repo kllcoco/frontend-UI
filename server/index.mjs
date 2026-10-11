@@ -7,6 +7,7 @@ import { normalizeModels, validateChat, ValidationError } from "./validate.mjs";
 import { createWorkbenchRouter } from "./workbench.mjs";
 import {createAccountService} from "./account.mjs";
 import {createStudioRouter,studioCapabilities} from "./studio.mjs";
+import {createPluginGateway} from "./plugin-gateway.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -25,6 +26,8 @@ const workbench = createWorkbenchRouter({notify:accounts.notify});
 app.use("/api/workbench", workbench.router);
 const studio=createStudioRouter();
 app.use("/api/studio",studio.router);
+const plugins=createPluginGateway();
+app.use("/api/plugins",plugins.router);
 
 const apiBase = (process.env.CIRO_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const apiPath = (process.env.CIRO_API_PATH || "/chat/completions").trim();
