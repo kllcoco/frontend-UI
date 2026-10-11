@@ -1,0 +1,40 @@
+[Unit]
+Description=CIRO dedicated single-owner API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ciro
+Group=ciro
+WorkingDirectory=/opt/ciro/frontend-UI
+EnvironmentFile=/etc/ciro/ciro.env
+Environment=CIRO_DEPLOYMENT_MODE=single-owner
+Environment=CIRO_ACCOUNTS_ENABLED=true
+Environment=HOST=127.0.0.1
+StateDirectory=ciro
+StateDirectoryMode=0700
+UMask=0077
+ExecStartPre=/usr/bin/node /opt/ciro/frontend-UI/scripts/verify-ciro-single-tenant.mjs
+ExecStart=/usr/bin/node /opt/ciro/frontend-UI/server/index.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/ciro
+LimitCORE=0
+LimitNOFILE=4096
+TasksMax=300
+
+[Install]
+WantedBy=multi-user.target

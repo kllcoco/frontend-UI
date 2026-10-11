@@ -7,7 +7,7 @@ import {
   Copy, FileText, Lightbulb, Menu, MessageCircle, Moon, MoreHorizontal,
   Paperclip, Pencil, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw,
   Search, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Workflow, X,
-  Wallet, LayoutGrid, Blocks, UserCircle, Bell, Cloud, Layers
+  Wallet, LayoutGrid, Blocks, UserCircle, Bell, Cloud, Layers, PlugZap
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -113,8 +113,11 @@ export default function App() {
   const [status, setStatus] = useState<ApiStatus>(PREVIEW);
   const [statusLoading, setStatusLoading] = useState(true);
   const [model, setModel] = useState("ciro");
-  const [studioOpen, setStudioOpen] = useState(() => new URLSearchParams(window.location.search).get("view")==="studio");
-  const [studioTab, setStudioTab] = useState<WorkbenchTab>(()=>new URLSearchParams(window.location.search).get("view")==="studio"?"studio":"goals");
+  const [studioOpen, setStudioOpen] = useState(() => ["studio","plugins"].includes(new URLSearchParams(window.location.search).get("view")||""));
+  const [studioTab, setStudioTab] = useState<WorkbenchTab>(()=>{
+    const view=new URLSearchParams(window.location.search).get("view");
+    return view==="studio"?"studio":view==="plugins"?"plugins":"goals";
+  });
   const [composerMode, setComposerMode] = useState<"chat" | AgentMode>("chat");
   const [reasoningMode,setReasoningMode]=useState<"fast"|"deep">("fast");
   const [reasoningPriority,setReasoningPriority]=useState<1|2|5>(1);
@@ -628,6 +631,7 @@ export default function App() {
             <button className="studio-quick-link" onClick={()=>openStudio("account")} aria-label={t("账户与安全")}><UserCircle size={17}/><span>{t("账户与安全")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("notifications")} aria-label={t("通知中心")}><Bell size={17}/><span>{t("通知中心")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("sync")} aria-label={t("跨设备同步")}><Cloud size={17}/><span>{t("跨设备同步")}</span></button>
+            <button className="studio-quick-link" onClick={()=>openStudio("plugins")} aria-label={t("插件中心")}><PlugZap size={17}/><span>{t("插件中心")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("apps")} aria-label={t("官方应用")}><LayoutGrid size={17}/><span>{t("官方应用")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("skills")} aria-label={t("技能中心")}><Blocks size={17}/><span>{t("技能中心")}</span></button>
             <button className="studio-quick-link" onClick={()=>openStudio("billing")} aria-label={t("账单与用量")}><Wallet size={17}/><span>{t("账单与用量")}</span></button>
@@ -682,7 +686,7 @@ export default function App() {
           <button className="sidebar-setting" onClick={() => setSettingsOpen(true)} title={t("设置")}>
             <Settings2 size={18} /><span>{t("设置与连接")}</span>
           </button>
-          <div className="sidebar-version">CIRO CLIENT <span>V0.7 STUDIO</span></div>
+          <div className="sidebar-version">CIRO CLIENT <span>V0.8 DEV</span></div>
         </div>
       </aside>
 

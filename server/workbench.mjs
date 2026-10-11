@@ -6,6 +6,7 @@ import { githubConfig, verifyGitHubRepo, readGitHubFile, writeGitHubFile, create
 import { createCommercialRouter } from "./commercial.mjs";
 import { selectedSkills } from "./commercial-catalog.mjs";
 import { assertBudgetAdmission } from "./commercial-billing.mjs";
+import {issueAgentPluginCapability} from "./plugin-agent-capability.mjs";
 
 const PLUGIN_LABELS = {
   github: {title:"GitHub", description:"Read files and create scoped branch commits using a server-side credential."},
@@ -91,6 +92,14 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     res.set("Cache-Control","no-store");
     next();
   });
+  // Authenticated accounts must use the installed-plugin gateway for GitHub.
+  // The V0.7 server-wide token endpoints are local development compatibility only.
+  router.use((req,res,next)=>{
+    if(env.CIRO_ACCOUNTS_ENABLED==="true" &&
+       (/^\/github(?:\/|$)/.test(req.path)||req.path==="/plugins/github/toggle"))
+      return res.status(410).json({error:"Use the per-user GitHub plugin in Plugin Center."});
+    next();
+  });
   const wrap=fn=>(req,res)=>Promise.resolve().then(()=>fn(req,res)).catch(error=>{
     res.status(error.statusCode||400).json({error:error.message||"Workbench action failed."});
   });
@@ -115,6 +124,8 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     const timeout=setTimeout(()=>controller.abort(),180_000);
     try {
       // Never forward credentials for external systems, only explicitly scoped policy.
+      const pluginCapability=(service==="runner"&&goal.mode==="goal"&&goal.ownerId&&
+        env.CIRO_AGENT_TOOL_CAPABILITY_SECRET)?issueAgentPluginCapability({secret:env.CIRO_AGENT_TOOL_CAPABILITY_SECRET,goal}):null;
       const response=await fetchFn(endpoint,{
         method:"POST",signal:controller.signal,
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+token,
@@ -122,6 +133,7 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
         body:JSON.stringify({jobId:goal.id,goal:goal.goal,mode:goal.mode,phase,repo:goal.repo,
           plan:goal.plan,attempt:goal.attempt,policy:store.get().policy,
           skills:selectedSkills(env,store.get()),context,
+          ...(pluginCapability?{pluginCapability}:{}) ,
           requirements:{ evidenceDigests:true, independentVerifier:service==="verifier" }})
       });
       if(!response.ok)throw new Error(service+" returned HTTP "+response.status);
@@ -413,7 +425,8 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     const goalText=checkedString(req.body?.goal,"goal",12000);
     const mode=validatedMode(req.body?.mode);
     const repo=store.get().policy.repo;
-    const goal={id:store.id(),title,goal:goalText,mode,repo,createdAt:now(),updatedAt:now(),
+    const goal={id:store.id(),title,goal:goalText,mode,repo,
+      ownerId:req.principal?.id||null,createdAt:now(),updatedAt:now(),
       phase:"plan",status:"draft",attempt:0,plan:[],evidence:[],events:[],lastResult:null,error:null};
     store.change("goal.created",{id:goal.id,mode,repo},s=>{
       s.goals.unshift(goal);s.goals=s.goals.slice(0,90);log(goal,"created","Goal accepted; execution not yet verified.");
@@ -451,7 +464,8 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
   }
   router.post("/schedules",wrap((req,res)=>{
     const value=validateSchedule(req.body);
-    const schedule={id:store.id(),...value,enabled:true,createdAt:now(),lastSlot:null};
+    const schedule={id:store.id(),...value,ownerId:req.principal?.id||null,
+      enabled:true,createdAt:now(),lastSlot:null};
     store.change("schedule.created",{id:schedule.id},s=>s.schedules.unshift(schedule));
     res.status(201).json({schedule});
   }));
@@ -484,7 +498,8 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
   }));
   function createGoalFromSchedule(schedule){
     const goal={id:store.id(),title:schedule.title,goal:schedule.goal,mode:"goal",
-      repo:store.get().policy.repo,createdAt:now(),updatedAt:now(),phase:"plan",status:"draft",attempt:0,
+      repo:store.get().policy.repo,ownerId:schedule.ownerId||null,
+      createdAt:now(),updatedAt:now(),phase:"plan",status:"draft",attempt:0,
       plan:[],evidence:[],events:[],lastResult:null,error:null};
     store.change("schedule.goal.created",{scheduleId:schedule.id,id:goal.id},s=>{s.goals.unshift(goal);s.goals=s.goals.slice(0,90);});
     return requestStart(goal,"task.run");

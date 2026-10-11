@@ -223,21 +223,28 @@ test("four sandbox permission modes require scoped consent", async ({page})=>{
   await page.screenshot({path:imageDir+"/18-workbench-permissions.png",fullPage:true,animations:"disabled"});
 });
 
-test("scheduled tasks and bundled plugin catalog show actual adapter status", async ({page})=>{
+test("scheduled tasks and manually installed marketplace render without fake plugin readiness", async ({page},testInfo)=>{
   await waitForPreview(page);
   await page.locator(".studio-launch").click();
   await page.getByRole("button",{name:"定时任务"}).click();
-  await page.getByRole("textbox",{name:"计划名称"}).fill("Hourly report");
+  // Retry-safe: a previous attempt may already have persisted another schedule.
+  const name="Hourly report - attempt "+testInfo.retry+" - "+Date.now();
+  await page.getByRole("textbox",{name:"计划名称"}).fill(name);
   await page.getByRole("textbox",{name:"计划目标"}).fill("Summarize development progress");
   await page.getByRole("combobox",{name:"运行频率"}).selectOption("hourly");
   await page.getByRole("button",{name:"添加任务"}).click();
-  await expect(page.getByText("Hourly report")).toBeVisible();
+  const card=page.locator(".wb-schedule").filter({hasText:name});
+  await expect(card.getByText(name)).toBeVisible();
   await page.screenshot({path:imageDir+"/19-workbench-schedules.png",fullPage:true,animations:"disabled"});
-  await page.getByRole("button",{name:"暂停计划"}).click();
-  await expect(page.getByRole("button",{name:"启用计划"})).toBeVisible();
-  await page.getByRole("button",{name:"插件中心"}).click();
-  await expect(page.getByText("CIRO Agent runtime")).toBeVisible();
-  await expect(page.getByText(/CIRO_AGENT_RUNNER_URL not configured/)).toBeVisible();
+  await card.getByRole("button",{name:"暂停计划"}).click();
+  await expect(card.getByRole("button",{name:"启用计划"})).toBeVisible();
+  // A separate sidebar shortcut intentionally shares this label.
+  await page.getByRole("navigation",{name:"自主协作工作台"})
+    .getByRole("button",{name:"插件中心"}).click();
+  await expect(page.getByRole("heading",{name:"发现插件"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"我的插件"})).toBeVisible();
+  await expect(page.getByRole("button",{name:"安装插件"})).toBeVisible();
+  await expect(page.getByText("即将开放").first()).toBeVisible();
   await page.screenshot({path:imageDir+"/20-workbench-plugins.png",fullPage:true,animations:"disabled"});
 });
 

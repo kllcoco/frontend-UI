@@ -32,7 +32,7 @@ test.beforeAll(async()=>{
       CIRO_BOOTSTRAP_TOKEN:SECRET,
       CIRO_API_KEY_PEPPER:"test-account-pepper-long-value-secret",
       CIRO_ACCOUNT_DATA_KEY:randomBytes(32).toString("base64"),
-      CIRO_STRIPE_SECRET_KEY:"",CIRO_PUBLIC_ORIGIN:""}
+      CIRO_STRIPE_SECRET_KEY:"",CIRO_PUBLIC_ORIGIN:"",CIRO_GITHUB_REPOS:"demo/repository"}
   });
   let ready=false;
   for(let tries=0;tries<100;tries++){
@@ -138,4 +138,38 @@ test("real account authentication, encrypted memories, spending limits and devic
   await expect(second.getByText(/A sync test conversation/).first()).toBeVisible({timeout:18000});
   await second.screenshot({path:photoDir+"/37-account-sync-second-device.png",fullPage:true,animations:"disabled"});
   await other.close();
+});
+
+
+test("plugin center lets an authenticated user choose their GitHub repository without legacy token setup",async({page})=>{
+ test.setTimeout(65000);
+ const root="http://127.0.0.1:"+port;
+ const login=await page.request.post(root+"/api/account/login",{
+  data:{email:"person@example.com",password:PASSWORD}
+ });
+ expect(login.status()).toBe(200);
+ await page.goto(root+"/",{waitUntil:"domcontentloaded"});
+ await page.locator(".studio-quick-links").getByRole("button",{name:"插件中心"}).click();
+ await expect(page.getByRole("heading",{name:"发现插件"})).toBeVisible();
+ await page.getByRole("button",{name:"安装插件"}).click();
+ await page.getByRole("button",{name:"确认安装"}).click();
+ await expect(page.getByRole("heading",{name:"GitHub 仓库授权范围"})).toBeVisible();
+ const selector=page.getByRole("combobox",{name:"GitHub 允许的仓库"});
+ await expect(selector).toBeVisible();
+ await expect(selector).toHaveValue("demo/repository");
+ await page.getByRole("button",{name:"选择仓库"}).click();
+ await expect(page.getByText("当前范围：demo/repository")).toBeVisible();
+ const catalog=await (await page.request.get(root+"/api/plugins/catalog")).json();
+ expect(catalog.githubScope.selectedRepository).toBe("demo/repository");
+ expect(catalog.githubScope.mode).toBe("request");
+ await page.screenshot({path:photoDir+"/41-github-plugin-repository-scope.png",fullPage:true,animations:"disabled"});
+ page.once("dialog",dialog=>void dialog.accept());
+ await page.getByRole("button",{name:"卸载"}).click();
+ await expect(page.getByText("尚未安装。请从右侧市场选择插件。")).toBeVisible();
+
+ // The legacy workbench tab must direct signed-in users to the safe marketplace.
+ await page.getByRole("navigation",{name:"自主协作工作台"}).getByRole("button",{name:"GitHub 仓库"}).click();
+ await expect(page.getByRole("heading",{name:"GitHub 已迁移到插件中心"})).toBeVisible();
+ await page.getByRole("button",{name:"打开插件中心"}).click();
+ await expect(page.getByRole("heading",{name:"发现插件"})).toBeVisible();
 });

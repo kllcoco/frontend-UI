@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import CommercialCenter from "./CommercialCenter";
+import PluginConnections from "./PluginConnections";
+import {getAccountSession} from "./lib/account-api";
 import type { FormEvent } from "react";
 import {
   Activity, ArrowRight, CalendarClock, Check, CheckCircle2, CircleAlert, Clock3,
@@ -85,6 +87,12 @@ function readable(time:string,language:Language){
 }
 export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal="",onNavigate}:Props) {
   const w=useWorkbench();
+  const [githubMarketOnly,setGithubMarketOnly]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    void getAccountSession().then(s=>{if(active)setGithubMarketOnly(s.enabled);}).catch(()=>{});
+    return ()=>{active=false;};
+  },[]);
   const t=(value:string)=>workbenchTranslate(language,value);
   const [tab,setTab]=useState<WorkbenchTab>(initialTab);
   const [goalTitle,setGoalTitle]=useState("");
@@ -171,7 +179,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
     {!embedded&&<nav className="wb-nav" aria-label={t("自主协作工作台")}>
       {tabs.map(({id,title,Icon})=><button key={id} type="button"
         className={tab===id?"wb-nav-item wb-nav-item--active":"wb-nav-item"}
-        onClick={()=>{setTab(id);w.setError("");}}><Icon size={17}/>{t(title)}</button>)}
+        onClick={()=>{if(onNavigate)onNavigate(id);else setTab(id);w.setError("");}}><Icon size={17}/>{t(title)}</button>)}
     </nav>}
     <div className="wb-body">
       {w.error&&<div role="alert" className="wb-alert wb-alert--error"><CircleAlert size={17}/><span>{w.error}</span><button aria-label={t("关闭设置")} onClick={()=>w.setError("")}><X size={15}/></button></div>}
@@ -248,7 +256,16 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
         <Approvals language={language} state={state} call={w.call}/>
       </div>}
 
-      {state&&currentTab==="github"&&<div className="wb-admin">
+      {state&&currentTab==="github"&&githubMarketOnly&&<div className="wb-admin">
+        <section className="wb-card">
+          <h2>{t("GitHub 已迁移到插件中心")}</h2>
+          <p className="wb-muted">登录用户请在插件中心安装 GitHub、选择允许的仓库、通过 OAuth 连接账户。旧的全局服务器令牌接口已停用，避免绕开插件权限。</p>
+          <button className="wb-primary" onClick={()=>{if(onNavigate)onNavigate("plugins");else setTab("plugins");}}>
+            <PlugZap size={17}/>{t("打开插件中心")}
+          </button>
+        </section>
+      </div>}
+      {state&&currentTab==="github"&&!githubMarketOnly&&<div className="wb-admin">
         <div className="wb-block-title"><div><h2>{t("GitHub 集成")}</h2>
           <p>{t("连接须由服务端安全持有凭据，客户端不会索要 Token。")}</p></div><GitBranch size={23}/></div>
         <div className="wb-capabilities">
@@ -289,16 +306,8 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
       </div>}
 
       {state&&currentTab==="plugins"&&<div className="wb-admin">
-        <div className="wb-block-title"><div><h2>{t("插件管理")}</h2>
-          <p>{t("仅列出内置可核验的适配器，不运行不可信远程插件代码。")}</p></div><PlugZap size={23}/></div>
-        <div className="wb-plugin-list">{state.capabilities.plugins.map(plugin=><article key={plugin.id} className="wb-plugin">
-          <span className="wb-plugin-icon">{plugin.id==="github"?<GitBranch size={22}/>:plugin.id==="scheduler"?<CalendarClock size={22}/>:<Users size={22}/>}</span>
-          <div><h3>{plugin.title}</h3><p>{plugin.description}</p><small>{plugin.detail}</small></div>
-          <div className="wb-plugin-side"><span className={plugin.ready?"wb-badge wb-badge--success":"wb-badge"}>{t(plugin.ready?"连接":"未配置")}</span>
-            <button disabled={!plugin.ready&&!plugin.enabled} className="wb-secondary" onClick={()=>void w.call("/plugins/"+plugin.id+"/toggle",{enabled:!plugin.enabled})}>
-              {t(plugin.enabled?"禁用":"启用")}</button></div>
-        </article>)}</div>
-        <div className="wb-footnote"><PlugZap size={17}/>{t("如需真正自主交付，请接入 CIRO 执行器与独立验证器。")}</div>
+        <PluginConnections/>
+
       </div>}
 
       {state&&currentTab==="schedules"&&<div className="wb-admin">
