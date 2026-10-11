@@ -264,6 +264,35 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    scopes:typeof data.scope==="string"?data.scope.split(","):[]});
   res.redirect(303,"/settings?section=plugins&connection=github");
  }));
+ router.post("/supabase/connect",wrap((req,res)=>{
+  assertInstalled(owner(req),"supabase");
+  if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")
+    throw fail("Supabase OAuth requires an authenticated browser session",403);
+  const origin=endpoint(env.CIRO_PUBLIC_ORIGIN);
+  const started=supabaseStartAuthorization(env,origin+"/api/plugins/supabase/callback");
+  store.addOAuth({provider:"supabase",ownerId:owner(req),sessionId:req.principal.sessionId,
+    stateHash:sha(started.state),verifier:started.state,codeVerifier:started.codeVerifier});
+  res.json({authorizeUrl:started.authorizeUrl,expiresInSeconds:600});
+ }));
+ router.get("/supabase/callback",wrap(async(req,res)=>{
+  if(env.CIRO_ACCOUNTS_ENABLED!=="true"||req.principal?.mode!=="session")
+    throw fail("Authenticated session required",403);
+  assertInstalled(owner(req),"supabase");
+  const code=bounded(req.query.code,300,"authorization code");
+  const state=bounded(req.query.state,150,"authorization state");
+  const pending=store.takeOAuth({provider:"supabase",ownerId:owner(req),
+    sessionId:req.principal.sessionId,stateHash:sha(state)});
+  if(!pending||!safeEqual(pending.verifier,state)||typeof pending.codeVerifier!=="string")
+    throw fail("OAuth state invalid or expired",403);
+  const origin=endpoint(env.CIRO_PUBLIC_ORIGIN);
+  const token=await supabaseToken(env,{type:"authorization_code",code,
+    codeVerifier:pending.codeVerifier,redirectUri:origin+"/api/plugins/supabase/callback"},fetchFn);
+  const identity=await supabaseIdentity(env,token.accessToken,fetchFn);
+  // No administrator credential or service-role token is permitted.
+  store.putConnection({ownerId:owner(req),provider:"supabase",
+    account:identity,secret:token,scopes:token.scopes});
+  res.redirect(303,"/settings?section=plugins&connection=supabase");
+ }));
  router.post("/:provider/disconnect",wrap((req,res)=>{
   if(!CATALOG.some(x=>x.id===req.params.provider))throw fail("Unknown provider",404);
   store.removeConnection(owner(req),req.params.provider);
