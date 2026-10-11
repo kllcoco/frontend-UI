@@ -14,7 +14,8 @@
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "playwright test",
     "test:ci": "npm run test && npm run build && npm run test:e2e",
-    "worker:plugins": "node server/plugin-worker.mjs"
+    "worker:plugins": "node server/plugin-worker.mjs",
+    "verify:single-tenant": "node scripts/verify-ciro-single-tenant.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
