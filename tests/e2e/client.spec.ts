@@ -55,6 +55,8 @@ test("appearance panel changes wallpaper and persists settings on reload", async
   await expect(sliders.nth(0)).toHaveValue("65");
   await expect(sliders.nth(1)).toHaveValue("7");
   await expect(sliders.nth(2)).toHaveValue("50");
+  await page.locator(".sc-scroll").evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(page.getByRole("button", { name: "恢复默认外观" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/03-settings-diy-controls.png", fullPage: true, animations: "disabled" });
 });
 
@@ -83,10 +85,10 @@ test("chat preview explicitly avoids impersonating a real CIRO model response", 
   await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("介绍一下 CIRO");
   await page.getByRole("button", { name: "发送消息" }).click();
   await expect(page.getByText(/这.*界面预览，并非模型回答/)).toBeVisible();
-  await expect(page.getByText("介绍一下 CIRO")).toBeVisible();
+  await expect(page.locator(".user-bubble").filter({ hasText: "介绍一下 CIRO" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/05-chat-preview.png", fullPage: true, animations: "disabled" });
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByText("介绍一下 CIRO")).toBeVisible();
+  await expect(page.locator(".user-bubble").filter({ hasText: "介绍一下 CIRO" })).toBeVisible();
   await expect(page.getByText(/界面预览，并非模型回答/)).toBeVisible();
 });
 
@@ -106,6 +108,36 @@ test("settings categories and model list display without fabricated capabilities
   await page.screenshot({ path: imageDir + "/07-settings-general.png", fullPage: true, animations: "disabled" });
 });
 
+test("remaining settings pages render and the visible toggles work", async ({ page }) => {
+  await waitForPreview(page);
+  await openSettings(page);
+
+  await page.getByRole("button", { name: "对话设置", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "对话设置" })).toBeVisible();
+  const density = page.getByRole("switch", { name: "紧凑显示" });
+  await expect(density).toHaveAttribute("aria-checked", "false");
+  await density.click();
+  await expect(density).toHaveAttribute("aria-checked", "true");
+  await page.screenshot({ path: imageDir + "/10-settings-chat.png", fullPage: true, animations: "disabled" });
+
+  await page.getByRole("button", { name: "文件与存储", exact: true }).click();
+  await expect(page.getByText("本地数据")).toBeVisible();
+  await expect(page.getByRole("button", { name: "导出全部对话 JSON" })).toBeDisabled();
+  await page.screenshot({ path: imageDir + "/11-settings-storage.png", fullPage: true, animations: "disabled" });
+
+  await page.getByRole("button", { name: "快捷键", exact: true }).click();
+  await expect(page.getByText("搜索历史")).toBeVisible();
+  await page.screenshot({ path: imageDir + "/12-settings-shortcuts.png", fullPage: true, animations: "disabled" });
+
+  await page.getByRole("button", { name: "隐私与安全", exact: true }).click();
+  await expect(page.getByText("模型密钥保留在服务端")).toBeVisible();
+  await page.screenshot({ path: imageDir + "/13-settings-privacy.png", fullPage: true, animations: "disabled" });
+
+  await page.getByRole("button", { name: "关于 Ciro", exact: true }).click();
+  await expect(page.getByText("CIRO CLIENT · PREVIEW v0.2")).toBeVisible();
+  await page.screenshot({ path: imageDir + "/14-settings-about.png", fullPage: true, animations: "disabled" });
+});
+
 test("mobile navigation and settings stay inside the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await waitForPreview(page);
@@ -116,6 +148,12 @@ test("mobile navigation and settings stay inside the viewport", async ({ page })
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "外观与背景" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/09-mobile-settings.png", fullPage: true, animations: "disabled" });
+  const mobileStatus = await page.locator(".connection-label").evaluate((element) => ({
+    width: element.clientWidth,
+    fontSize: getComputedStyle(element).fontSize
+  }));
+  expect(mobileStatus.width).toBeLessThanOrEqual(30);
+  expect(mobileStatus.fontSize).toBe("0px");
   const width = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth }));
   expect(width.doc).toBeLessThanOrEqual(width.win + 1);
 });

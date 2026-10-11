@@ -192,3 +192,9 @@ body{background:var(--bg)}
   .eyebrow{margin:10px 0}
   .welcome-subtitle{margin:10px 0 18px}
 }
+
+/* Mobile status remains a compact dot, not a vertical word stack. */
+@media(max-width:760px){
+  .topbar .connection-label{font-size:0;min-width:27px;width:27px;height:27px;padding:0;gap:0;justify-content:center;overflow:hidden;white-space:nowrap}
+  .topbar .connection-label .status-dot{width:8px;height:8px;min-width:8px}
+}

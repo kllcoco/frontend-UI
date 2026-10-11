@@ -197,3 +197,8 @@
 .sc-preview-dimmer{inset:0}
 .sc-preview-glass,.sc-preview-label{position:relative;z-index:1}
 .sc-preview-label{position:absolute}
+
+/* Keep actions accessible when the appearance page is taller than the dialog. */
+.sc-main{min-height:0}
+.sc-scroll{flex:1;min-height:0;overscroll-behavior:contain}
+.sc-footer{position:relative;z-index:2}
