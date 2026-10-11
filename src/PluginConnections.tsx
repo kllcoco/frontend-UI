@@ -110,7 +110,7 @@ export default function PluginConnections(){
       {pending?.plugin.id===current.id&&!active&&<div className="ciro-market-confirm">
        <strong>确认安装 {current.title}？</strong><p>版本 {pending.plugin.version} · 请确认以上权限。</p>
        <button className="wb-secondary" onClick={()=>setPending(null)}>取消</button>
-       <button className="wb-primary" disabled={busy||(current.id==="github"&&(!githubScope?.selectedRepository||!githubScope?.oauthConfigured))} onClick={()=>void action(async()=>{
+       <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{
         await api("/marketplace/"+current.id+"/install",{nonce:pending.nonce,fingerprint:pending.fingerprint,confirm:true});
         setPending(null);setNotice("安装成功。可在左侧管理。");
        })}>确认安装</button>
@@ -148,7 +148,7 @@ export default function PluginConnections(){
        {(current.id==="github"||current.id==="supabase")&&active.enabled&&(connected?<button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
         await api("/"+current.id+"/disconnect",{});setDiscoveredTools([]);setNotice("第三方连接已断开");
        })}>断开 {current.title} 账户 ({connected.account?.login||connected.account?.email||"已授权"})</button>:
-       <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{
+       <button className="wb-primary" disabled={busy||(current.id==="github"&&(!githubScope?.selectedRepository||!githubScope?.oauthConfigured))} onClick={()=>void action(async()=>{
         const out=await api<{authorizeUrl:string}>("/"+current.id+"/connect",{});
         const target=new URL(out.authorizeUrl);
         if(current.id==="github"?target.origin!=="https://github.com":
