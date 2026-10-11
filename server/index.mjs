@@ -71,13 +71,13 @@ app.post("/api/chat", async (req, res) => {
     if(plugins.listModelTools(user).length){
       const result=await runPluginChat({
         payload,principal:user,gateway:plugins,
-        upstream:{url:apiBase + "/" + apiPath.replace(/^\\/+/, ""),apiKey},
+        upstream:{url:apiBase + "/" + apiPath.replace(/^\/+/, ""),apiKey},
         signal:controller.signal
       });
       res.status(200).set({"Content-Type":"text/event-stream; charset=utf-8",
         "Cache-Control":"no-cache, no-transform","X-Accel-Buffering":"no"});
-      res.write("data: "+JSON.stringify({choices:[{delta:{content:result.content}}]})+"\\n\\n");
-      res.write("data: [DONE]\\n\\n");
+      res.write("data: "+JSON.stringify({choices:[{delta:{content:result.content}}]})+"\n\n");
+      res.write("data: [DONE]\n\n");
       return res.end();
     }
     const upstream = await fetch(apiBase + "/" + apiPath.replace(/^\/+/, ""), {
