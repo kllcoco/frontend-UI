@@ -39,7 +39,7 @@ async function serve(f){
   const raw=await response.text();let json;try{json=JSON.parse(raw);}catch{json=raw;}
   return {status:response.status,json};
  };
- const close=async()=>{await new Promise(resolve=>server.close(resolve));rmSync(f.dir,{recursive:true,force:true});};
+ const close=async()=>{await new Promise(resolve=>server.close(resolve));f.runtime.close();rmSync(f.dir,{recursive:true,force:true});};
  return {call,close};
 }
 test("GitHub OAuth initiation is session-bound and returns only a provider URL",async()=>{
