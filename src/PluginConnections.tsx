@@ -35,6 +35,7 @@ export default function PluginConnections(){
  const [busy,setBusy]=useState(false);
  const [repo,setRepo]=useState("");
  const [path,setPath]=useState("README.md");
+ const [readBranch,setReadBranch]=useState("");
  const [result,setResult]=useState("");
  const [repoChoice,setRepoChoice]=useState("");
  const [githubToken,setGithubToken]=useState("");
@@ -190,8 +191,18 @@ export default function PluginConnections(){
          <h4>工具验证：读取仓库文件</h4>
          <input aria-label="GitHub 仓库" value={repo} onChange={e=>setRepo(e.target.value)} placeholder="owner/repo"/>
          <input aria-label="GitHub 文件路径" value={path} onChange={e=>setPath(e.target.value)}/>
+         <input aria-label="GitHub 读取分支（可选）" value={readBranch}
+          onChange={e=>setReadBranch(e.target.value)} placeholder="例如 feat/ciro-chat-client-v1（留空则读默认分支）"/>
+         <button className="wb-secondary" disabled={busy||!repo} onClick={()=>void action(async()=>{
+          const out=await api<{result?:{entries?:{path:string;type:string;sha:string}[]}}>("/invoke",{
+           provider:"github",tool:"github.list_directory",source:"manual",
+           args:{repo,...(readBranch?{branch:readBranch}:{})}
+          });
+          setResult(JSON.stringify(out.result?.entries||[],null,2));
+          setNotice("已读取选定分支的仓库目录；未执行任何修改。");
+         })}>浏览当前仓库</button>
          <button className="wb-secondary" disabled={busy||!repo||!path} onClick={()=>void action(async()=>{
-          const out=await api<{result?:{content?:string}}>("/invoke",{provider:"github",tool:"github.read_file",source:"manual",args:{repo,path}});
+          const out=await api<{result?:{content?:string}}>("/invoke",{provider:"github",tool:"github.read_file",source:"manual",args:{repo,path,...(readBranch?{branch:readBranch}:{})}});
           setResult(out.result?.content||"无返回内容");
          })}>读取文件</button>
          <button className="wb-secondary" disabled={busy||!repo||!path} onClick={()=>void action(async()=>{
