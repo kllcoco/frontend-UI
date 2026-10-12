@@ -211,13 +211,35 @@
       "windows_local_acceptance": {
         "script": "scripts/accept-ciro-windows.ps1",
         "runs_on": "actual Windows host using disposable user for installation",
-        "node_full_regression": "NOT_RUN",
+        "node_full_regression": "FAIL_106_PASS_16_FAIL_ON_WINDOWS_BEFORE_CLEANUP_AND_LINUX_TEST_SCOPE_PATCH",
         "frontend_build": "NOT_RUN",
         "browser_e2e": "NOT_RUN",
         "windows_nsis_exe": "NOT_RUN",
         "clean_install_boot_uninstall": "NOT_RUN",
         "external_paid_runner_dispatches": 0,
-        "script_windows_execution": "NOT_RUN"
+        "script_windows_execution": "NOT_RUN",
+        "first_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "tests": 122,
+          "pass": 106,
+          "fail": 16,
+          "skipped": 0,
+          "issue_clusters": [
+            {
+              "count": 13,
+              "error": "Windows EPERM on SQLite-backed scratch directory rmSync; incomplete test-side DB disposal and possibly F drive TEMP ACL"
+            },
+            {
+              "count": 3,
+              "error": "Linux-host-only tests called unavailable process.getuid() on Windows"
+            }
+          ],
+          "tests_after_patch": "NOT_RUN",
+          "typescript_vite": "NOT_RUN",
+          "playwright_e2e": "NOT_RUN",
+          "nsis": "NOT_RUN"
+        },
+        "platform_remediation": "PR #5: close all SQLite owners before rmSync, reserve Linux-only checks for actual Linux, add Windows negative check. Rerun on owner Windows required."
       }
     },
     "isolated_verified_tests": {
