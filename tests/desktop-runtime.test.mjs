@@ -41,6 +41,7 @@ test("desktop generates stable per-user local secrets and enforces single owner"
   assert.equal(env.CIRO_DEPLOYMENT_MODE,"single-owner");
   assert.equal(env.CIRO_WORKSPACE_DATA_DIR,root);
   assert.equal(env.CIRO_GITHUB_FINE_GRAINED_PAT_ENABLED,"true");
+  assert.equal(env.CIRO_DESKTOP_AUTO_PROVISION,"true");
   assert.ok(!readFileSync(first.envPath,"utf8").includes(first.record.accountDataKey));
  }finally{rmSync(root,{recursive:true,force:true});}
 });
@@ -65,4 +66,5 @@ test("desktop child ignores inherited secrets, repository grants and Node startu
  assert.equal(env.HOST,"127.0.0.1");
  assert.equal(env.PORT,"0");
  assert.equal(env.ELECTRON_RUN_AS_NODE,"1");
+ assert.equal(env.CIRO_DESKTOP_AUTO_PROVISION,"true");
 });
