@@ -18,6 +18,16 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 
 推送 `v*` 标签会触发 `.github/workflows/release.yml`：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
 
+### 安装包签名
+
+发布工作流会在检测到对应 Secrets 时自动签名，未配置时照常构建未签名版本：
+
+| 平台 | 需要的仓库 Secrets | 获取方式 |
+| --- | --- | --- |
+| Android | `CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD` | 自建 keystore（`keytool -genkeypair ...`），务必离线备份 |
+| Windows | `WIN_CSC_LINK`（.pfx 的 base64）、`WIN_CSC_KEY_PASSWORD` | 向 CA 购买代码签名证书（OV/EV）；开源项目可申请 SignPath Foundation 免费签名 |
+| macOS | `MAC_CSC_LINK`（Developer ID Application .p12 的 base64）、`MAC_CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` | Apple Developer Program（99 美元/年）；配置后自动签名并公证 |
+
 ### 思考深度
 
 输入框中的“思考深度”五档会以 OpenAI 兼容的 `reasoning_effort`（low / medium / high）发送；服务端 `CIRO_REASONING_EFFORT=off` 可关闭透传。若原生 CIRO 模型声明 `CIRO_CHAT_REASONING_MODES=deep`，还会附带时间预算与优先级。流式返回中的 `reasoning_content` 会显示为可折叠的“思考过程”。

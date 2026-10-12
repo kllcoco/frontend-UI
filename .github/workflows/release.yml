@@ -59,7 +59,12 @@ jobs:
             target: --mac
     runs-on: ${{ matrix.os }}
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # Code signing turns on automatically once these repository secrets exist:
+      #   Windows: WIN_CSC_LINK (base64 .pfx) + WIN_CSC_KEY_PASSWORD
+      #   macOS:   MAC_CSC_LINK (base64 Developer ID .p12) + MAC_CSC_KEY_PASSWORD
+      #            APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID (notarization)
+      HAS_WIN_CERT: ${{ secrets.WIN_CSC_LINK != '' }}
+      HAS_MAC_CERT: ${{ secrets.MAC_CSC_LINK != '' }}
     steps:
       - uses: actions/checkout@v4
         with: { ref: "${{ env.CHECKOUT_REF }}" }
@@ -68,9 +73,28 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: Package installers
-        run: npx electron-builder ${{ matrix.target }} --publish never
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ] && [ "$HAS_MAC_CERT" = "true" ]; then
+            export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+            echo "macOS: signing with Developer ID${APPLE_ID:+ and notarizing}"
+          elif [ "$RUNNER_OS" = "Windows" ] && [ "$HAS_WIN_CERT" = "true" ]; then
+            export CSC_LINK="$WIN_CSC_LINK" CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
+            echo "Windows: signing with Authenticode certificate"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "No signing certificate configured for $RUNNER_OS: building unsigned"
+          fi
+          npx electron-builder ${{ matrix.target }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - name: Desktop launch smoke test (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -123,6 +147,7 @@ jobs:
           CIRO_ANDROID_KEY_PASSWORD: ${{ secrets.CIRO_ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
+          if [ -n "${CIRO_ANDROID_KEYSTORE_FILE:-}" ]; then echo "Android: release keystore"; else echo "::warning::Android APK is debug-signed (add CIRO_ANDROID_* secrets)"; fi
           ./gradlew --no-daemon assembleRelease
           version=$(node -p "require('../package.json').version")
           mkdir -p ../release
