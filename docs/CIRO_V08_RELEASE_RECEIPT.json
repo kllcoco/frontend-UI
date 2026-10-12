@@ -99,6 +99,24 @@
       "description": "Electron native wrapper, local bootstrap and encrypted state, Windows NSIS per-user installer configuration",
       "status": "SOURCE_CANDIDATE_AND_ISOLATED_BOOTSTRAP_TESTS_PASS",
       "limit": "No real Windows installer produced, signed, installed or independently accepted"
+    },
+    {
+      "id": "CIRO-V08-DESKTOP-ZERO-CONFIG",
+      "description": "No manual .env/bootstrap token/password on first native Windows launch; one auto local owner and IPC HttpOnly session",
+      "status": "SOURCE_IMPLEMENTED_TESTS_ADDED_NOT_EXECUTED",
+      "evidence": [
+        "docs/CIRO_DESKTOP_ZERO_CONFIG_AND_UI_GATE_V1.md"
+      ],
+      "limits": "Current code candidate not rebuilt or independently qualified on Windows"
+    },
+    {
+      "id": "CIRO-V08-ALL-PAGE-UI",
+      "description": "Studio style import, cross-page layout/dark/mobile consistency and screenshot regression coverage",
+      "status": "SOURCE_IMPLEMENTED_TESTS_ADDED_NOT_EXECUTED",
+      "evidence": [
+        "docs/CIRO_DESKTOP_ZERO_CONFIG_AND_UI_GATE_V1.md"
+      ],
+      "limits": "Current code candidate not rebuilt or independently qualified on Windows"
     }
   ],
   "graduation": {
@@ -202,9 +220,9 @@
       "electron": "44.7.0",
       "electron_builder": "26.17.0",
       "nsis_config": "electron-builder.yml",
-      "built_windows_exe": "PASS_BUILT_UNSIGNED_NOT_INSTALLED",
+      "built_windows_exe": "PASS_PREVIOUS_5137892_ONLY_NEW_SOURCE_NOT_BUILT",
       "windows_install_update_uninstall": "NOT_RUN",
-      "code_signing": "NOT_SIGNED_BY_AUTHENTICODE_LOCAL_RECEIPT",
+      "code_signing": "NOT_SIGNED_PREVIOUS_PACKAGE",
       "native_model_inference": "NOT_RUN",
       "preflight": "SOURCE_AND_BUILT_PRECHECKS_IMPLEMENTED; WINDOWS_NSIS_INSTALL_NOT_RUN",
       "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration",
@@ -360,6 +378,28 @@
         "installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
         "installer_signature_status": "NotSigned",
         "windows_receipt_observed_at_utc": "2026-10-12T13:45:45.0596092Z"
+      },
+      "current_source_additions": {
+        "directive_as_of": "2026-10-12",
+        "zero_config_status": "SOURCE_IMPLEMENTED_UNVERIFIED",
+        "first_launch": "Electron auto-creates local owner, uses private native IPC and HttpOnly local session, no manual bootstrap; preserve old owner.",
+        "ui_state": "Studio stylesheet import fixed and shared responsive/dark/page layout design added; screenshot audit test not executed.",
+        "test_entries": [
+          "tests/desktop-auto-provision.test.mjs",
+          "tests/desktop-shell-contract.test.mjs",
+          "tests/e2e/ui-coverage.spec.ts"
+        ],
+        "source_qa": "NOT_RUN_IN_CURRENT_ASSISTANT_RUNTIME",
+        "windows_installer_for_new_source": "NOT_BUILT",
+        "previous_installation_provenance_commit": "51378925ec9fe885563073070845890654593d4c",
+        "previous_installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+        "user_must_not_run_new_build_until": "Source review and acceptance prerequisites confirmed; no inference or paid cloud needed for UI code checks",
+        "unresolved": [
+          "UI visual inspection on real Windows across 36+ captured routes",
+          "Packaged Electron auto-provision and cookie flow need native Windows smoke test",
+          "NCPA model integration not verified",
+          "Windows package icon remains default; code signing not configured"
+        ]
       }
     },
     "isolated_verified_tests": {
