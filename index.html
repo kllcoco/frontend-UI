@@ -26,7 +26,7 @@
       #ciro-boot svg { width: 64px; height: 64px; animation: ciro-boot 1.6s cubic-bezier(.4,0,.2,1) infinite; }
       #ciro-boot .b { stop-color: #0b6b4b; } #ciro-boot .a { stop-color: #22b07a; } #ciro-boot circle { fill: #2bbf82; }
       html[data-theme="dark"] #ciro-boot .a { stop-color: #8ff0c0; } html[data-theme="dark"] #ciro-boot .b { stop-color: #3fbf86; }
-      html.ciro-ready #ciro-boot { opacity: 0; visibility: hidden; }
+      html.ciro-ready #ciro-boot { opacity: 0; visibility: hidden; pointer-events: none; }
       html.ciro-ready #ciro-boot svg { transform: scale(.86); transition: transform .42s cubic-bezier(.2,.7,.2,1); animation: none; }
       @keyframes ciro-boot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.94); opacity: .82; } }
       @media (prefers-reduced-motion: reduce) { #ciro-boot svg { animation: none; } }

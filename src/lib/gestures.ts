@@ -33,21 +33,38 @@ export function useSidebarSwipe(open: boolean, setOpen: (open: boolean) => void,
     let start: { x: number; y: number; t: number; open: boolean } | null = null;
     let dragging = false, dx = 0, width = 0;
     let panel: HTMLElement | null = null;
+    // Touch events keep targeting the element the finger landed on; if that element leaves the DOM
+    // mid-gesture (boot splash, re-rendered row) they stop bubbling to document, so listen on it too.
+    let origin: EventTarget | null = null;
+    const unhook = () => {
+      origin?.removeEventListener("touchmove", onMove as EventListener);
+      origin?.removeEventListener("touchend", onEnd);
+      origin?.removeEventListener("touchcancel", reset);
+      origin = null;
+    };
 
-    const reset = () => {
+    function reset() {
+      unhook();
       if (panel) { panel.style.transition = ""; panel.style.transform = ""; }
       document.documentElement.style.removeProperty("--cx-drawer");
       panel = null; start = null; dragging = false; dx = 0;
-    };
+    }
     const onStart = (e: TouchEvent) => {
+      unhook();
       if (!phone.matches || e.touches.length !== 1 || blockedRef.current()) return;
       const target = e.target as Element;
       if (target.closest(KEEP) || (!openRef.current && scrollsSideways(target))) return;
       const p = e.touches[0];
       start = { x: p.clientX, y: p.clientY, t: performance.now(), open: openRef.current };
+      origin = e.target;
+      origin?.addEventListener("touchmove", onMove as EventListener, { passive: false });
+      origin?.addEventListener("touchend", onEnd);
+      origin?.addEventListener("touchcancel", reset);
     };
-    const onMove = (e: TouchEvent) => {
-      if (!start) return;
+    let lastMove: Event | null = null;
+    function onMove(e: TouchEvent) {
+      if (!start || e === lastMove) return;
+      lastMove = e;
       const p = e.touches[0];
       dx = p.clientX - start.x;
       const dy = p.clientY - start.y;
@@ -66,16 +83,16 @@ export function useSidebarSwipe(open: boolean, setOpen: (open: boolean) => void,
       panel!.style.transform = "translateX(" + offset + "px)";
       // 0 → closed, 1 → open: drives the scrim fade while dragging.
       document.documentElement.style.setProperty("--cx-drawer", String(1 + offset / width));
-    };
-    const onEnd = () => {
-      if (!start || !dragging) { start = null; return; }
+    }
+    function onEnd() {
+      if (!start || !dragging) { unhook(); start = null; return; }
       const velocity = dx / Math.max(1, performance.now() - start.t);
       const next = start.open ? !(dx < -width * 0.3 || velocity < -0.35) : dx > width * 0.3 || velocity > 0.35;
       const changed = next !== start.open;
       reset();
       setRef.current(next);
       if (changed) haptic();
-    };
+    }
     document.addEventListener("touchstart", onStart, { passive: true });
     document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onEnd);
@@ -85,6 +102,7 @@ export function useSidebarSwipe(open: boolean, setOpen: (open: boolean) => void,
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
       document.removeEventListener("touchcancel", reset);
+      reset();
     };
   }, []);
 }
