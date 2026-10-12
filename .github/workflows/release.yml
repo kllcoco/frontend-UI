@@ -256,10 +256,12 @@ jobs:
           rm -f desktop-smoke.png
           sha256sum * > SHA256SUMS.txt
           ls -la
+          cd ..
+          { cat docs/RELEASE_NOTES.md; printf '\n\n---\n\n'; cat docs/INSTALL_SERVER.md; } > release-body.md
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
           name: Ciro ${{ env.RELEASE_TAG }}
-          body_path: docs/RELEASE_NOTES.md
+          body_path: release-body.md
           files: out/*

@@ -1,4 +1,4 @@
-# Ciro v0.9.2
+# Ciro v0.9.3
 
 全新设计的 Ciro 客户端：更清爽的界面、完整的个人菜单、项目、思考深度滑杆，以及 Windows / macOS / Linux 桌面端和 Android 移动端安装包。
 
@@ -6,13 +6,19 @@
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows 10/11 (x64) | `Ciro-0.9.2-win-x64.exe`（安装版）· `Ciro-0.9.2-win-x64.zip`（免安装） |
-| macOS (Apple 芯片 / Intel) | `Ciro-0.9.2-mac-arm64.dmg` · `Ciro-0.9.2-mac-x64.dmg` |
-| Linux | `Ciro-0.9.2-linux-x86_64.AppImage` · `Ciro-0.9.2-linux-amd64.deb` · `.tar.gz` |
-| Android 7.0+ | `Ciro-0.9.2-android.apk` |
+| Windows 10/11 (x64) | `Ciro-0.9.3-win-x64.exe`（安装版）· `Ciro-0.9.3-win-x64.zip`（免安装） |
+| macOS (Apple 芯片 / Intel) | `Ciro-0.9.3-mac-arm64.dmg` · `Ciro-0.9.3-mac-x64.dmg` |
+| Linux | `Ciro-0.9.3-linux-x86_64.AppImage` · `Ciro-0.9.3-linux-amd64.deb` · `.tar.gz` |
+| Android 7.0+ | `Ciro-0.9.3-android.apk` |
 | iOS / iPadOS | 用 Safari 打开部署好的 Ciro 网址 → 分享 → “添加到主屏幕”（PWA） |
 
 > 安装包未做商业代码签名：Windows 首次运行若出现 SmartScreen，点“更多信息 → 仍要运行”；macOS 请在“系统设置 → 隐私与安全性”中允许打开；Android 需允许“安装未知应用”。所有文件的 SHA-256 见 `SHA256SUMS.txt`。
+
+## v0.9.3
+
+- **服务器部署教程**：Docker 与 npm 两种安装方式的完整步骤、公网 HTTPS 与账户配置、升级方法（见本页下方）。
+- **npm 包 `ciro-client` 命令**：现在会自动读取当前目录的 `.env`；新增 `ciro-client init` 生成配置模板，以及 `--env`、`--data`、`--version` 参数。
+- `.env.example` 补充语音、图片生成与团队服务的配置项。
 
 ## v0.9.2 新功能
 

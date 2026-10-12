@@ -10,8 +10,8 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 | --- | --- |
 | 桌面客户端 | 从 Releases 下载对应平台安装包；首次运行后在“文件 → 编辑模型连接配置 (.env)”填写 `CIRO_API_BASE_URL` 等并重启 |
 | Android | 安装 `Ciro-*-android.apk`；“设置 → 模型设置 → 连接 Ciro 服务器”填写服务器地址 |
-| Docker | `docker run -p 8787:8787 -v ciro-data:/data -e CIRO_API_BASE_URL=... ghcr.io/kllcoco/ciro-client:latest` |
-| npm | `npm i -g @kllcoco/ciro-client --registry=https://npm.pkg.github.com && ciro-client --port 8787` |
+| Docker | `docker run -d --name ciro -p 8787:8787 --env-file .env -v ciro-data:/data ghcr.io/kllcoco/ciro-client:latest`（详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
+| npm | `npm i -g @kllcoco/ciro-client` → `ciro-client init` → `ciro-client`（需先配置 GitHub Packages 令牌，详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
 | 源码开发 | `npm install && cp .env.example .env && npm run dev:all`，打开 http://127.0.0.1:5173 |
 
 常用脚本：`npm test`（单元）· `npm run test:e2e`（浏览器）· `npm run desktop`（本地运行桌面版）· `npm run dist:linux|dist:win|dist:mac`（打包）· `npx cap sync android && cd android && ./gradlew assembleRelease`（Android）。
