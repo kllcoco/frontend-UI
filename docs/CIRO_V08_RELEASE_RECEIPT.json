@@ -266,6 +266,21 @@
           },
           "nsis": "NOT_RUN_BECAUSE_BROWSER_E2E_FAILED",
           "notes": "Actual Windows host used and 526 npm packages installed; Playwright browser binaries downloaded; no paid CI. Request diagnostic error-context.md or bootstrap JSON body before changing authentication logic."
+        },
+        "isolated_bootstrap_diagnosis": {
+          "observed_at": "2026-10-12",
+          "candidate_commit": "ddc9ec6313c7b80c70298c1f23c44cb1263aa912",
+          "method": "scripts/diagnose-ciro-bootstrap.mjs: disposable account state and Playwright real Chromium against local child server",
+          "browser_bootstrap_status": 201,
+          "required_payload_fields": {
+            "email": true,
+            "displayName": true,
+            "password": true,
+            "bootstrapToken": true
+          },
+          "credentials_printed": false,
+          "original_full_suite_failure": "NOT_RETESTED",
+          "explanation": "Independent browser bootstrap works; original Playwright e2e bootstrap 400/second login 401 is not yet resolved. Compare os.tmpdir, inherited process settings, free port, and concurrent webServer."
         }
       }
     },
