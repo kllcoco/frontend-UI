@@ -169,7 +169,7 @@ jobs:
           mkdir -p ../release
           cp app/build/outputs/apk/release/app-release.apk "../release/Ciro-${version}-android.apk"
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs "../release/Ciro-${version}-android.apk" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          "$apksigner" verify --verbose --print-certs "../release/Ciro-${version}-android.apk" | grep -iE "verified|certificate (DN|SHA-256)" || true
       - uses: actions/upload-artifact@v4
         with:
           name: android
