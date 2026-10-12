@@ -40,3 +40,22 @@ test("full backup exports everything and restores it on a new device", async ({ 
   await expect(page.locator(".cx-row").filter({ hasText: "需要备份的对话" })).toBeVisible();
   await expect(page.locator(".cx-project-row").filter({ hasText: "备份项目" })).toBeVisible();
 });
+
+test("code blocks run Python (with matplotlib-free stdout), JavaScript and HTML previews", async ({ page }) => {
+  test.setTimeout(120_000);
+  await fresh(page);
+  await page.getByRole("button", { name: "添加附件与模式" }).click();
+  await page.getByRole("menuitem", { name: /新建画布/ }).click();
+  const canvas = page.getByRole("complementary", { name: "画布" });
+  await canvas.getByRole("textbox", { name: "画布内容" }).fill(
+    "```python\nimport math\nprint('平方根', math.sqrt(16))\nsum(range(5))\n```\n\n```javascript\nconsole.log('js', [1,2].map(x => x * 3))\n```\n\n```html\n<h1 id=t>Hi</h1>\n```");
+  await canvas.getByRole("tab", { name: "预览" }).click();
+  const blocks = canvas.locator(".cx-code");
+  await blocks.nth(1).getByRole("button", { name: "运行代码" }).click();
+  await expect(blocks.nth(1).locator(".cx-run-out")).toContainText('js [\n  3,\n  6\n]');
+  await blocks.nth(2).getByRole("button", { name: "预览" }).click();
+  await expect(blocks.nth(2).frameLocator("iframe").locator("#t")).toHaveText("Hi");
+  await blocks.nth(0).getByRole("button", { name: "运行代码" }).click();
+  await expect(blocks.nth(0).locator(".cx-run-out")).toContainText("平方根 4.0", { timeout: 90_000 });
+  await expect(blocks.nth(0).locator(".cx-run-value")).toHaveText("10");
+});

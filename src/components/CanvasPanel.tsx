@@ -88,7 +88,7 @@ export default function CanvasPanel({ t, doc, busy, onChange, onAsk, onClose }: 
         ? <textarea ref={textRef} className="cv-editor" spellCheck={false} value={doc.content} aria-label={t("画布内容")}
           onChange={(e) => edit(e.target.value)} onKeyDown={onKey}/>
         : lang === "markdown" || lang === "md"
-          ? <div className="cv-doc message-prose"><Markdown text={doc.content} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/></div>
+          ? <div className="cv-doc message-prose"><Markdown text={doc.content} copyLabel={t("复制代码")} copiedLabel={t("已复制")} t={t}/></div>
           : <iframe className="cv-frame" title={t("预览")} sandbox="allow-scripts allow-modals allow-forms" srcDoc={srcDoc}/>}
     </div>
     <form className="cv-ask" onSubmit={(e) => { e.preventDefault(); submit(); }}>

@@ -14,13 +14,13 @@ function normalizeMath(text: string): string {
     .replace(/\\\(([\s\S]+?)\\\)/g, (_m, body) => "$" + body.trim() + "$");
 }
 
-function Markdown({ text, copyLabel, copiedLabel, canvasLabel, onCanvas }: { text: string; copyLabel: string; copiedLabel: string; canvasLabel?: string; onCanvas?: (language: string, code: string) => void }) {
+function Markdown({ text, copyLabel, copiedLabel, canvasLabel, onCanvas, t }: { text: string; copyLabel: string; copiedLabel: string; canvasLabel?: string; onCanvas?: (language: string, code: string) => void; t?: (text: string) => string }) {
   return <ReactMarkdown
     remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
     rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: "ignore" }], [rehypeHighlight, { detect: true, ignoreMissing: true }]]}
     components={{
       a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
-      pre: ({ children }) => <CodeBlock copyLabel={copyLabel} copiedLabel={copiedLabel} canvasLabel={canvasLabel} onCanvas={onCanvas}>{children}</CodeBlock>
+      pre: ({ children }) => <CodeBlock copyLabel={copyLabel} copiedLabel={copiedLabel} canvasLabel={canvasLabel} onCanvas={onCanvas} t={t}>{children}</CodeBlock>
     }}>{normalizeMath(text)}</ReactMarkdown>;
 }
 export default memo(Markdown);

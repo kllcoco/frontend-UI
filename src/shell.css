@@ -862,3 +862,20 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .bk-preview{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--cx-line);border-radius:14px;background:var(--cx-surface)}
 .bk-preview>span,.bk-preview>small{color:var(--cx-muted);font-size:12.5px}
 .bk-preview ul{margin:0;padding-left:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:2px 16px;font-size:13.5px}
+/* Code run output */
+.cx-code-head .cx-code-run{margin-left:auto;color:var(--cx-accent)}
+.cx-code-head>span:first-child{margin-right:auto}
+.cx-run{border-top:1px solid var(--code-line);background:color-mix(in srgb,var(--code-bg) 70%,var(--cx-surface))}
+.cx-run-head{display:flex;align-items:center;gap:8px;height:30px;padding:0 6px 0 14px;color:var(--code-muted);font:500 11.5px "DM Sans","Noto Sans SC",sans-serif}
+.cx-run-head>span{display:flex;align-items:center;gap:6px;flex:1}
+.cx-run-head small{font:11px ui-monospace,monospace}
+.cx-run-head button{display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:none;color:var(--code-muted)}
+.cx-run-head button:hover{background:color-mix(in srgb,var(--code-text) 8%,transparent)}
+:root[data-theme] .cx-shell .cx-code pre.cx-run-out{padding:4px 16px 12px;max-height:340px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12.5px}
+.cx-run-err{color:#d4473b}
+.cx-run-value{color:var(--code-muted)}
+.cx-run-img{display:block;max-width:100%;margin:4px 16px 14px;border-radius:8px;background:#fff}
+.cx-run-empty{margin:0;padding:2px 16px 12px;color:var(--code-muted);font-size:12.5px}
+.cx-run-frame{display:block;width:100%;height:320px;border:0;background:#fff}
+.cx-spin{animation:cx-rot 1s linear infinite}
+@keyframes cx-rot{to{transform:rotate(360deg)}}

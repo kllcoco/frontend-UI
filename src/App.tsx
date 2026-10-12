@@ -1523,7 +1523,7 @@ export default function App() {
                       </div>}
                       <div className={["message-prose", message.preview ? "message-prose--preview" : ""].join(" ")}>
                         {body ? <Markdown text={body} copyLabel={t("复制代码")} copiedLabel={t("已复制")}
-                          canvasLabel={t("在画布中打开")} onCanvas={message.preview ? undefined : openCanvas}/> : null}
+                          canvasLabel={t("在画布中打开")} onCanvas={message.preview ? undefined : openCanvas} t={isStreaming ? undefined : t}/> : null}
                         {isStreaming && message.content && <span className="typing-cursor" aria-label={t("正在生成")}/>}
                       </div>
                     </> : editingId === message.id ? (
