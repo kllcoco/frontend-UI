@@ -100,7 +100,11 @@ jobs:
         with: { node-version: "22", cache: npm }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
-      - uses: android-actions/setup-android@v3
+      - name: Use the runner's preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
       - run: npm ci --no-audit --no-fund
       - run: npm run build && npx cap sync android
       - name: Decode signing key (optional)
