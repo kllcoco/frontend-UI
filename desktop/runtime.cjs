@@ -58,6 +58,7 @@ function childEnvironment(base,root,record){
   CIRO_ACCOUNTS_ENABLED:"true",CIRO_PUBLIC_ORIGIN:"",
   CIRO_WORKSPACE_DATA_DIR:root,CIRO_ACCOUNT_DATA_KEY:record.accountDataKey,
   CIRO_API_KEY_PEPPER:record.apiPepper,CIRO_BOOTSTRAP_TOKEN:record.bootstrapToken,
+  CIRO_DESKTOP_AUTO_PROVISION:"true",
   CIRO_GITHUB_FINE_GRAINED_PAT_ENABLED:"true"};
 }
 module.exports={trustedLocalUrl,loadOrCreateSecrets,childEnvironment};
