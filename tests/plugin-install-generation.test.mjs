@@ -48,6 +48,6 @@ test("reinstall cannot resurrect a credential left behind by an interrupted unin
   assert.equal(outbound,0);
  }finally{
   await new Promise(resolve=>server.close(resolve));
-  gateway.installs.close();gateway.store.close();rmSync(dir,{recursive:true,force:true});
+  gateway.close();rmSync(dir,{recursive:true,force:true});
  }
 });
