@@ -24,8 +24,13 @@ export type ChatMessage = {
   generated?: { id: string; thumb: string }[];
   /** Assistant: native units reported by the model service (never estimated from tokens). */
   usage?: { cwu?: number; gwu?: number };
+  /** Assistant: model that produced this answer (set for model comparisons). */
+  model?: string;
+  /** Assistant: side-by-side answers while comparing models; cleared once one is chosen. */
+  compare?: CompareAnswer[];
 };
-export type AnswerVersion = Pick<ChatMessage, "content" | "reasoning" | "thinkingMs" | "tools" | "webSearch" | "createdAt" | "preview" | "feedback" | "usage">;
+export type CompareAnswer = { model: string; content: string; status: "running" | "done" | "error"; error?: string; usage?: { cwu?: number; gwu?: number }; ms?: number };
+export type AnswerVersion = Pick<ChatMessage, "content" | "reasoning" | "thinkingMs" | "tools" | "webSearch" | "createdAt" | "preview" | "feedback" | "usage" | "model">;
 
 export type Conversation = {
   id: string;

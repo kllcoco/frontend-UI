@@ -2,7 +2,7 @@ import { localeTag } from "./lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from "react";
 import {
-  ArrowDownToLine, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
+  ArrowDownToLine, Columns2, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
   GitBranch, Layers, LayoutGrid, Lightbulb, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
   Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, AudioLines, Users
@@ -23,6 +23,7 @@ import { requestSync, startSync, stopSync } from "./lib/sync";
 import { formatUnits } from "./lib/usage";
 import type { UsageKind } from "./lib/usage";
 import type { SyncItem, SyncKind } from "./lib/sync";
+import type { CompareAnswer } from "./types";
 import { loadPrompts, savePrompts } from "./lib/prompts";
 import type { SavedPrompt } from "./lib/prompts";
 import { accountApi, accountFetch, getAccountSession, invalidateAccountSession } from "./lib/account-api";
@@ -147,6 +148,8 @@ export default function App() {
   });
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [compareModels, setCompareModels] = useState<string[]>([]);
+  const [comparePicker, setComparePicker] = useState(false);
   const [readingFiles, setReadingFiles] = useState(0);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -901,7 +904,56 @@ export default function App() {
     setAttachments([]);
     setSidebarOpen(false);
     if (composerRef.current) composerRef.current.style.height = "auto";
-    void generateReply(conversationId, history, projectId);
+    if (compareModels.length >= 2 && status.configured) void generateCompare(conversationId, history, projectId, compareModels);
+    else void generateReply(conversationId, history, projectId);
+  }
+
+  /** Model comparison: the same turn goes to 2–3 models in parallel; the user keeps one answer. */
+  async function generateCompare(conversationId: string, history: ChatMessage[], projectId: string | undefined, models: string[]) {
+    const assistantId = newId();
+    const reply: ChatMessage = { id: assistantId, role: "assistant", content: "", createdAt: Date.now(),
+      compare: models.map((m) => ({ model: m, content: "", status: "running" })) };
+    setConversations((old) => old.map((chat) => chat.id === conversationId ? { ...chat, messages: [...history, reply], updatedAt: Date.now() } : chat));
+    const patchCompare = (i: number, patch: Partial<CompareAnswer>) => setConversations((old) => old.map((chat) => chat.id !== conversationId ? chat : {
+      ...chat, messages: chat.messages.map((m) => m.id !== assistantId || !m.compare ? m : { ...m, compare: m.compare.map((c, j) => j === i ? { ...c, ...patch } : c) })
+    }));
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setBusy(true); setGeneratingId(conversationId); setAtBottom(true);
+    const prepared = await Promise.all(history.map(async (m) => m.images?.length
+      ? { ...m, imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : m));
+    try {
+      await Promise.all(models.map(async (m, i) => {
+        const started = Date.now();
+        let text = "";
+        try {
+          await streamChat({ model: m, instructions, reasoning: reasoningRequest(thinkingLevel, status),
+            project: projectContext(projects.find((p) => p.id === projectId)), messages: prepared, signal: controller.signal,
+            usageKind: "chat", chatId: conversationId, onUsage: (usage) => patchCompare(i, { usage }),
+            onDelta: (delta) => { text += delta; patchCompare(i, { content: text }); } });
+          patchCompare(i, text ? { status: "done", ms: Date.now() - started } : { status: "error", error: t("接口未返回任何文本") });
+        } catch (error) {
+          patchCompare(i, { status: "error", error: controller.signal.aborted ? t("生成已停止。") : error instanceof Error ? error.message : t("未知错误") });
+        }
+      }));
+    } finally {
+      controllerRef.current = null;
+      setGeneratingId(null);
+      setBusy(false);
+    }
+  }
+  /** Keep one compared answer; the others stay available as versions of this reply. */
+  function chooseCompare(conversationId: string, message: ChatMessage, index: number) {
+    const answers = (message.compare || []).filter((c) => c.content);
+    const chosen = message.compare?.[index];
+    if (!chosen?.content) return;
+    const versions = answers.map((c) => ({ content: c.content, createdAt: message.createdAt, usage: c.usage, model: c.model }));
+    setConversations((old) => old.map((chat) => chat.id !== conversationId ? chat : { ...chat, updatedAt: Date.now(),
+      messages: chat.messages.map((m) => m.id !== message.id ? m : { ...m, compare: undefined, content: chosen.content,
+        usage: chosen.usage, model: chosen.model, versions, versionIndex: answers.indexOf(chosen) }) }));
+    const chat = conversationsRef.current.find((c) => c.id === conversationId);
+    const question = chat?.messages.filter((m) => m.role === "user").at(-1)?.content || "";
+    if (preferencesRef.current.autoTitle && chat && chat.messages.length === 2) void autoTitle(conversationId, question, chosen.content);
   }
 
   /** Voice mode: post a spoken turn into the current chat and resolve with the answer text. */
@@ -963,7 +1015,7 @@ export default function App() {
   }
   function snapshot(m: ChatMessage): AnswerVersion {
     return { content: m.content, reasoning: m.reasoning, thinkingMs: m.thinkingMs, tools: m.tools, webSearch: m.webSearch,
-      createdAt: m.createdAt, preview: m.preview, feedback: m.feedback, usage: m.usage };
+      createdAt: m.createdAt, preview: m.preview, feedback: m.feedback, usage: m.usage, model: m.model };
   }
   /** Write the visible answer back into its version slot (after streaming or feedback). */
   function syncVersion(conversationId: string, messageId: string) {
@@ -1530,10 +1582,10 @@ export default function App() {
                 const assistant = message.role === "assistant";
                 const lastAssistant = assistant && index === current.messages.length - 1;
                 const isStreaming = busy && generatingId === current.id && lastAssistant;
-                const thinking = isStreaming && !message.content;
+                const thinking = isStreaming && !message.content && !message.compare;
                 const body = message.preview ? previewText(language) : message.content;
                 const thoughtOpen = openThoughts[message.id] ?? (isStreaming && !message.content);
-                return <article key={message.id} className={["message", assistant ? "message--assistant" : "message--user"].join(" ")}>
+                return <article key={message.id} className={["message", assistant ? "message--assistant" : "message--user", message.compare ? "message--compare" : ""].join(" ")}>
                   {assistant && <div className="message-avatar"><CiroMark small/></div>}
                   <div className="message-body">
                     {assistant ? <>
@@ -1562,6 +1614,20 @@ export default function App() {
                           <button type="button" className="cx-gen-dl" onClick={() => void downloadImage(g.id, g.thumb)} aria-label={t("下载图片")}><Download size={15}/></button>
                         </figure>)}
                       </div>}
+                      {message.compare && <div className="cx-compare" role="group" aria-label={t("模型对比")}>
+                        {message.compare.map((c, i) => <section key={c.model + i} className="cx-compare-col">
+                          <header><strong>{c.model}</strong>
+                            {c.status === "running" ? <span className="cx-shimmer">{t("生成中…")}</span> :
+                              <small>{c.usage?.cwu !== undefined ? formatUnits(c.usage.cwu, localeTag(language)) + " CWU · " : ""}{c.ms ? (c.ms / 1000).toFixed(1) + " s" : ""}</small>}</header>
+                          <div className="message-prose">
+                            {c.content ? <Markdown text={c.content} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/> : null}
+                            {c.error && <p className="cx-compare-err">⚠️ {c.error}</p>}
+                          </div>
+                          {c.status !== "running" && c.content && <button type="button" className="cx-btn cx-btn--primary" disabled={busy}
+                            onClick={() => chooseCompare(current.id, message, i)}><Check size={15}/>{t("使用这个回答")}</button>}
+                        </section>)}
+                      </div>}
+                      {message.model && !message.compare && <span className="cx-model-tag">{message.model}</span>}
                       <div className={["message-prose", message.preview ? "message-prose--preview" : ""].join(" ")}>
                         {body ? <Markdown text={body} copyLabel={t("复制代码")} copiedLabel={t("已复制")}
                           canvasLabel={t("在画布中打开")} onCanvas={message.preview ? undefined : openCanvas} t={isStreaming ? undefined : t}/> : null}
@@ -1694,6 +1760,11 @@ export default function App() {
                         <ImagePlus size={16}/><span><strong>{t("生成图片")}</strong><small>{status.images ? t("用文字描述，生成一张图片") : t("需服务端开启 CIRO_IMAGES=on")}</small></span>{composerMode === "image" && <Check size={15}/>}</button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); openCanvas("markdown", ""); }}>
                         <PanelRight size={16}/><span><strong>{t("新建画布")}</strong><small>{t("在右侧编辑文档或代码，并让 Ciro 协助修改")}</small></span></button>
+                      <button role="menuitem" onClick={() => {
+                        setPlusOpen(false);
+                        if (!status.configured || status.models.length < 2) { notify(status.configured ? "对比需要服务端配置多个模型（CIRO_MODELS）" : "连接推理服务后可对比模型"); return; }
+                        setComposerMode("chat"); setComparePicker(true); }}>
+                        <Columns2 size={16}/><span><strong>{t("对比模型")}</strong><small>{t("同一个问题同时问 2–3 个模型，并排比较")}</small></span>{compareModels.length >= 2 && <Check size={15}/>}</button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setPromptsOpen(true); }}>
                         <BookMarked size={16}/><span><strong>{t("提示词库")}</strong><small>{t("保存并一键插入常用提示词")}</small></span></button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setDraft("/"); focusComposer(); }}>
@@ -1705,6 +1776,19 @@ export default function App() {
                     {composerMode === "goal" ? <Target size={14}/> : composerMode === "image" ? <ImagePlus size={14}/> : <ListChecks size={14}/>}
                     <span>{t(composerMode === "goal" ? "目标模式" : composerMode === "image" ? "生成图片" : "计划模式")}</span><X size={13}/>
                   </button>}
+                  {composerMode === "chat" && compareModels.length >= 2 && <button type="button" className="cx-mode-pill cx-mode-pill--compare" onClick={(e) => { e.stopPropagation(); setComparePicker(true); }}
+                    aria-label={t("对比模型") + "：" + compareModels.join(" / ")}>
+                    <Columns2 size={14}/><span>{compareModels.join(" · ")}</span><em>{compareModels.length}</em>
+                    <X size={13} role="button" aria-label={t("退出对比")} onClick={(e) => { e.stopPropagation(); setCompareModels([]); }}/>
+                  </button>}
+                  {comparePicker && <div className="cx-compare-pick" role="dialog" aria-label={t("选择要对比的模型")} onClick={(e) => e.stopPropagation()}>
+                    <strong>{t("选择 2–3 个模型")}</strong>
+                    {status.models.map((m) => { const on = compareModels.includes(m);
+                      return <label key={m}><input type="checkbox" checked={on} disabled={!on && compareModels.length >= 3}
+                        onChange={() => setCompareModels((list) => on ? list.filter((x) => x !== m) : [...list, m])}/>{m}</label>; })}
+                    <div><button type="button" className="cx-btn" onClick={() => { setCompareModels([]); setComparePicker(false); }}>{t("关闭对比")}</button>
+                      <button type="button" className="cx-btn cx-btn--primary" disabled={compareModels.length < 2} onClick={() => { setComparePicker(false); focusComposer(); }}>{t("完成")}</button></div>
+                  </div>}
                   {composerMode === "chat" && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
                     aria-pressed={webSearchOn && Boolean(status.webSearch)} title={t("联网搜索")} aria-label={t("联网搜索")}
                     onClick={(e) => { e.stopPropagation();

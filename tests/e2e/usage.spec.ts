@@ -22,3 +22,30 @@ test("replies show reported CWU and the usage page totals them (tokens are never
   await expect(page.locator(".us-grid")).toContainText("ciro");
   await expect(page.locator(".us-root")).not.toContainText("176");
 });
+
+test("compare two models side by side and keep one answer (others become versions)", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole("button", { name: "添加附件与模式" }).click();
+  await page.getByRole("menuitem", { name: /对比模型/ }).click();
+  const picker = page.getByRole("dialog", { name: "选择要对比的模型" });
+  await picker.getByLabel("ciro", { exact: true }).check();
+  await picker.getByLabel("ciro-pro").check();
+  await picker.getByRole("button", { name: "完成" }).click();
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("比较一下");
+  await page.keyboard.press("Enter");
+  const grid = page.getByRole("group", { name: "模型对比" });
+  await expect(grid.locator(".cx-compare-col")).toHaveCount(2);
+  await expect(grid.locator(".cx-compare-col").nth(1)).toContainText("来自 ciro-pro 的回答");
+  await expect(grid.locator(".cx-compare-col").nth(1)).toContainText("2,500 CWU");
+  await grid.locator(".cx-compare-col").nth(1).getByRole("button", { name: "使用这个回答" }).click();
+  await expect(grid).toHaveCount(0);
+  await expect(page.locator(".message--assistant .message-prose")).toContainText("来自 ciro-pro 的回答");
+  await expect(page.locator(".cx-model-tag")).toHaveText("ciro-pro");
+  const nav = page.locator(".message--assistant .cx-version");
+  await expect(nav).toContainText("2 / 2");
+  await nav.getByRole("button", { name: "上一个版本" }).click();
+  await expect(page.locator(".message--assistant .message-prose")).toContainText("来自 ciro 的回答");
+  await expect(page.locator(".cx-model-tag")).toHaveText("ciro");
+});
