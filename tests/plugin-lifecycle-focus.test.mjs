@@ -177,7 +177,11 @@ test("installed GitHub plugin completes scoped OAuth, model read, human-approved
   assert.equal(proposed.status,202);
   assert.equal(proposed.body.approvalRequired,true);
   assert.equal(providerRequests.filter(x=>x.method==="PUT").length,beforeWrite);
-  const approval=await send("/plugins/approvals/"+proposed.body.id,{decision:"approve"});
+  const preview=await send("/plugins/approvals/"+proposed.body.id+"/preview");
+  assert.equal(preview.status,200);
+  assert.equal(preview.body.content,"approved content");
+  assert.equal((await send("/plugins/approvals/"+proposed.body.id+"/preview",undefined,"other")).status,404);
+  const approval=await send("/plugins/approvals/"+proposed.body.id,{decision:"approve",reviewSha256:preview.body.requestSha256});
   assert.equal(approval.status,200,JSON.stringify(approval.body));
   assert.equal(providerRequests.filter(x=>x.method==="PUT").length,beforeWrite+1);
   assert.equal((await send("/plugins/approvals/"+proposed.body.id,{decision:"approve"})).status,404);
