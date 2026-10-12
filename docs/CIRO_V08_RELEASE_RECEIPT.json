@@ -213,7 +213,7 @@
         "runs_on": "actual Windows host using disposable user for installation",
         "node_full_regression": "PASS_120_TESTS_3_LINUX_ONLY_SKIPPED",
         "frontend_build": "PASS_TYPESCRIPT_VITE",
-        "browser_e2e": "FAIL_27_PASS_2_FAIL",
+        "browser_e2e": "FAIL_27_PASS_2_FAIL_APPS_SKILLS",
         "windows_nsis_exe": "NOT_RUN",
         "clean_install_boot_uninstall": "NOT_RUN",
         "external_paid_runner_dispatches": 0,
@@ -281,6 +281,38 @@
           "credentials_printed": false,
           "original_full_suite_failure": "NOT_RETESTED",
           "explanation": "Independent browser bootstrap works; original Playwright e2e bootstrap 400/second login 401 is not yet resolved. Compare os.tmpdir, inherited process settings, free port, and concurrent webServer."
+        },
+        "third_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "node_tests": {
+            "total": 123,
+            "passed": 120,
+            "failed": 0,
+            "skipped_linux_only": 3,
+            "status": "PASS"
+          },
+          "frontend_build": {
+            "status": "PASS",
+            "vite_modules": 1866,
+            "warning": "634.86 kB bundle size warning, no build failure"
+          },
+          "playwright_e2e": {
+            "total": 29,
+            "passed": 27,
+            "failed": 2,
+            "status": "FAIL",
+            "failures": [
+              "App pin button becomes unavailable after page reload despite having been available before reload; persisted backend state not proven at reload",
+              "Code review skill selection button is not found after catalog loads; possible pre-existing enabled server state or presentation mismatch"
+            ]
+          },
+          "nsis": "NOT_RUN_due_to_failing_browser_gate"
+        },
+        "e2e_isolation_patch": {
+          "code_commit": "4916ca8b8ba5ccfef0d843d1ef22779788b96862",
+          "status": "COMMITTED_NOT_WINDOWS_RETESTED",
+          "implementation": "In release acceptance CIRO_E2E_STRICT=true; Playwright creates isolated ignored backend workbench directory, prevents reuse of previous HTTP server; app pin and skill state regressions are still asserted without weakening expectations",
+          "known_limit": "Potential port 8787/5173 conflict now correctly fails closed; manual local developer e2e still supports server reuse"
         }
       }
     },
