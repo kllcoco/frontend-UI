@@ -12,11 +12,11 @@ test("production marketplace downloads a signed package and pins digest at user 
  const dir=mkdtempSync(join(tmpdir(),"ciro-signed-http-"));
  const keys=generateKeyPairSync("ed25519");
  const issuer="ciro-official",keyId="release1";
- const manifest={schema:"ciro.plugin-manifest.v1",id:"github",version:"0.8.0",
+ const manifest={schema:"ciro.plugin-manifest.v1",id:"github",version:"0.8.1",
   title:"GitHub",description:"Scoped repository tool connector",
   publisher:issuer,runtime:{kind:"builtin",adapter:"github"},
   permissions:["github.read","github.write"],
-  tools:["github.read_file","github.create_branch","github.write_file"],
+  tools:["github.list_directory","github.read_file","github.create_branch","github.write_file","github.open_pull_request"],
   issuedAt:new Date(Date.now()-60_000).toISOString(),
   expiresAt:new Date(Date.now()+86_400_000).toISOString()};
  const envelope={schema:"ciro.signed-plugin.v1",issuer,keyId,manifest,signature:""};
