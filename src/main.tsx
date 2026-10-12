@@ -9,6 +9,9 @@ import "./workbench.css";
 import "./workbench-entry.css";
 import "./commercial.css";
 import "./account.css";
+// Shared Studio styles were previously missing from the production entrypoint.
+import "./studio.css";
+import "./ui-foundation.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
