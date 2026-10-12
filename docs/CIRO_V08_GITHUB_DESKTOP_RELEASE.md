@@ -20,7 +20,8 @@ In a trusted CIRO Desktop installation:
 - Review the local `.env` and set `CIRO_GITHUB_WRITES=true`, `CIRO_GITHUB_SELF_REPAIR_ENABLED=true`, `CIRO_GITHUB_SELF_REPO=kllcoco/frontend-UI`; restart the app. Any write still requires separate human approval.
 - At [GitHub Fine-grained PAT settings](https://github.com/settings/personal-access-tokens), issue a short-lived personal token for **only** `kllcoco/frontend-UI`, granting repository **Contents: Read/Write** and **Pull requests: Read/Write**, with no Administration/Actions/Secrets permissions. Never paste the token into ChatGPT, Git, logs, screenshots or a public server.
 - In CIRO Plugin Center: install GitHub → select `kllcoco/frontend-UI` → enter the PAT in the **local password field** → verify reading `README.md`. The API checks real GitHub `GET /user` and `GET /repos/{owner}/{repo}` before encrypting it.
-- Ask CIRO to read a bounded file, suggest a patch and create `ciro/qa-repair-...` **only after explicit approval**; write the file into that branch **only after a separate approval**; open a **draft PR** through `ciro_github_open_pull_request` **only after another approval**. Review the complete diff, test outputs and permissions before manually merging.
+- Install the updated **GitHub v0.8.1** manifest explicitly. Old installs cannot inherit new directory/PR tools; uninstall and reinstall after reviewing the new tool list. Read-only `ciro_github_list_directory` can browse approved repository folders; `ciro_github_read_file` can read `main` or a safe explicit ref such as `feat/ciro-chat-client-v1`. The UI also has a read-branch box.
+- Ask CIRO to read a bounded file, suggest a patch and create `ciro/qa-repair-...` from the **selected existing source branch** (`base` parameter) **only after explicit approval**; write the file into that branch **only after a separate approval**; open a **draft PR** through `ciro_github_open_pull_request` **only after another approval**. Review the complete diff, test outputs and permissions before manually merging.
 - Disconnect the plugin and confirm subsequent requests fail. PAT connections remove the token **locally** on disconnect; unlike the app-managed OAuth grant, **GitHub cannot be forced to revoke this PAT by CIRO**: revoke it at the GitHub token settings as a separate manual step.
 
 **Important:** The GitHub account currently connected to ChatGPT is sufficient for real GitHub repository actions in this conversation but **does not become a CIRO application token**. The new in-app PAT path requires the owner to authorize it inside CIRO; until that happens, it is coded/testable but **not live-provider accepted**.
@@ -56,7 +57,7 @@ Source contract notes:
 | --- | --- |
 | GitHub connector via ChatGPT operator account | Real GitHub repo read/write via connected connector has occurred, **not** CIRO in-app OAuth acceptance |
 | CIRO GitHub repo read/branch/write source | Existing source and mocked integration tests were previously qualified |
-| CIRO local fine-grained PAT + draft PR source | Implemented on candidate branch, **full Node tests / live CIRO login not yet verified** |
+| CIRO local fine-grained PAT + GitHub v0.8.1 read/PR source | Implemented on candidate branch; **6/6 isolated policy/desktop tests pass**, full Node suite/live CIRO login not yet verified |
 | Electron shell / bootstrap / packaging configuration | Implemented in source, Windows-built installer **NOT RUN** |
 | Native client signed installer / Windows E2E | **NOT RUN**, do not call graduated |
 | CIRO inference backed by actual NCPA GEN1 runtime | **NOT VERIFIED**; preview UI isn't model inference |
