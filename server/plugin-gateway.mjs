@@ -4,7 +4,7 @@ import {join} from "node:path";
 import {createPluginConnectionStore} from "./plugin-connection-store.mjs";
 import {createPluginInstallStore} from "./plugin-install-store.mjs";
 import {createWorkbenchStore} from "./workbench-store.mjs";
-import {decision,validateRepo,safeFilePath,safeBranch} from "./agent-policy.mjs";
+import {decision,validateRepo,safeFilePath,safeBranch,safeReadRef} from "./agent-policy.mjs";
 import {createSupabaseMcpSession} from "./mcp-client.mjs";
 import {supabaseOAuthConfig,supabaseStartAuthorization,supabaseToken,supabaseIdentity} from "./supabase-oauth.mjs";
 import {verifyAgentPluginCapability} from "./plugin-agent-capability.mjs";
@@ -14,7 +14,7 @@ import {buildSelfRepairDraft} from "./github-self-repair.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
- {id:"github",title:"GitHub",status:"oauth_supported",tools:["github.read_file","github.create_branch","github.write_file","github.open_pull_request"]},
+ {id:"github",title:"GitHub",status:"oauth_supported",tools:["github.list_directory","github.read_file","github.create_branch","github.write_file","github.open_pull_request"]},
  {id:"supabase",title:"Supabase",status:"requires_user_delegated_connector",tools:["supabase.list_tools","supabase.call_tool"]}
 ]);
 const sha=value=>createHash("sha256").update(value).digest("hex");
@@ -62,9 +62,25 @@ const encodePath=p=>p.split("/").map(encodeURIComponent).join("/");
 async function runGithub(env,credential,tool,args,fetchFn,signal){
  const repo=repoAllowed(env,bounded(args.repo,210,"repository"));
  const prefix="/repos/"+repo;
+ if(tool==="github.list_directory"){
+   const path=args.path?safeFilePath(args.path):"";
+   const branch=args.branch?safeReadRef(args.branch):"";
+   const url=prefix+"/contents"+(path?"/"+encodePath(path):"")+
+     (branch?"?ref="+encodeURIComponent(branch):"");
+   const files=await githubCall(env,credential,"GET",url,undefined,fetchFn,signal);
+   if(!Array.isArray(files))throw fail("GitHub path is not a directory",400);
+   const entries=files.slice(0,200).flatMap(item=>{
+    if(typeof item?.path!=="string"||!["file","dir"].includes(item.type))return [];
+    try{safeFilePath(item.path);}catch{return [];}
+    return [{path:item.path,type:item.type,
+      size:Number.isSafeInteger(item.size)?item.size:null,
+      sha:typeof item.sha==="string"?item.sha:null}];
+   });
+   return {repo,path,branch:branch||null,entries,truncated:files.length>200};
+ }
  if(tool==="github.read_file"){
    const path=safeFilePath(args.path);
-   const branch=args.branch?safeBranch(args.branch):"";
+   const branch=args.branch?safeReadRef(args.branch):"";
    const result=await githubCall(env,credential,"GET",prefix+"/contents/"+encodePath(path)+(branch?"?ref="+encodeURIComponent(branch):""),undefined,fetchFn,signal);
    if(result.type!=="file"||result.encoding!=="base64"||result.size>180000)throw fail("Unsupported file",400);
    return {repo,path,sha:result.sha,content:Buffer.from(result.content.replace(/\s/g,""),"base64").toString("utf8")};
@@ -72,8 +88,10 @@ async function runGithub(env,credential,tool,args,fetchFn,signal){
  if(env.CIRO_GITHUB_WRITES!=="true")throw fail("Server-side GitHub writes are disabled",403);
  if(tool==="github.create_branch"){
    const branch=safeBranch(args.branch);
-   const meta=await githubCall(env,credential,"GET",prefix,undefined,fetchFn,signal);
-   const base=await githubCall(env,credential,"GET",prefix+"/git/ref/heads/"+encodeURIComponent(meta.default_branch),undefined,fetchFn,signal);
+   const readBase=args.base?safeReadRef(args.base):
+     safeReadRef((await githubCall(env,credential,"GET",prefix,undefined,fetchFn,signal)).default_branch);
+   const base=await githubCall(env,credential,"GET",prefix+"/git/ref/heads/"+encodePath(readBase),undefined,fetchFn,signal);
+   if(typeof base?.object?.sha!=="string")throw fail("GitHub branch base unavailable",502);
    return githubCall(env,credential,"POST",prefix+"/git/refs",{ref:"refs/heads/"+branch,sha:base.object.sha},fetchFn,signal);
  }
  if(tool==="github.open_pull_request"){
@@ -98,7 +116,7 @@ async function runGithub(env,credential,tool,args,fetchFn,signal){
 function checkToolPolicy(policy,provider,tool,args,source){
  if(source!=="chat"&&source!=="agent"&&source!=="manual")throw fail("Unknown tool source");
  if(provider==="github"){
-   const action=tool==="github.read_file"?"github.read":tool==="github.create_branch"?"github.branch":
+   const action=(tool==="github.read_file"||tool==="github.list_directory")?"github.read":tool==="github.create_branch"?"github.branch":
      tool==="github.write_file"?"github.write":tool==="github.open_pull_request"?"github.write":null;
    if(!action)throw fail("Unregistered GitHub tool",404);
    if(policy.repo!==args.repo)throw fail("Repository is outside selected scope",403);
@@ -127,7 +145,8 @@ function reviewedAction(provider,tool,args){
    (typeof args.message==="string"?" · 提交说明 "+args.message.slice(0,70):"");
  }
  if(provider==="github"&&tool==="github.create_branch")
-  return "GitHub 创建分支 "+bounded(args.repo,210,"repository")+" @ "+safeBranch(args.branch);
+  return "GitHub 创建分支 "+bounded(args.repo,210,"repository")+" @ "+safeBranch(args.branch)+
+   (args.base?"（基于 "+safeReadRef(args.base)+"）":"（基于默认分支）");
  if(provider==="github"&&tool==="github.open_pull_request")
   return "GitHub 创建草稿 PR · "+bounded(args.repo,210,"repository")+" · "+safeBranch(args.branch)+
    " -> "+bounded(args.base,130,"base")+" · "+bounded(args.title,120,"title");
@@ -290,10 +309,13 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  }
 
  const MODEL_TOOLS=Object.freeze({
+  ciro_github_list_directory:{name:"github.list_directory",description:"浏览授权仓库目录，只返回文件路径与SHA，可指定读取分支。",
+    properties:{repo:{type:"string"},path:{type:"string"},branch:{type:"string"}},
+    required:["repo"]},
   ciro_github_read_file:{name:"github.read_file",description:"读取 GitHub 仓库中已授权范围内的文本文件。",
     properties:{repo:{type:"string"},path:{type:"string"},branch:{type:"string"}},required:["repo","path"]},
   ciro_github_create_branch:{name:"github.create_branch",description:"在已授权仓库创建功能分支（可能需要用户审批）。",
-    properties:{repo:{type:"string"},branch:{type:"string"}},required:["repo","branch"]},
+    properties:{repo:{type:"string"},branch:{type:"string"},base:{type:"string"}},required:["repo","branch"]},
   ciro_github_write_file:{name:"github.write_file",description:"写入已授权功能分支的仓库文件，必须经用户审批；不得直接写入主分支。",
     properties:{repo:{type:"string"},branch:{type:"string"},path:{type:"string"},
       content:{type:"string"},message:{type:"string"},expectedSha:{type:"string"}},
@@ -312,7 +334,7 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    const permission=policy(),repo=permission.repo;
    if(repo && (env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim()).includes(repo)){
     for(const [functionName,item] of Object.entries(MODEL_TOOLS)){
-     const action=item.name==="github.read_file"?"github.read":
+     const action=(item.name==="github.read_file"||item.name==="github.list_directory")?"github.read":
       item.name==="github.create_branch"?"github.branch":"github.write";
      if(item.name==="github.open_pull_request"&&
         (env.CIRO_GITHUB_SELF_REPAIR_ENABLED!=="true"||env.CIRO_GITHUB_SELF_REPO!==repo))continue;
