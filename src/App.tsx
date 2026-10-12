@@ -128,6 +128,13 @@ function exportMarkdown(chat: Conversation, language: Language) {
 
 type SharePayload = { subject?: string; text?: string; images?: string[] };
 
+/** "1.2.10" > "1.2.9"; non-numeric parts compare as 0. */
+function isNewerVersion(remote: string, local: string): boolean {
+  const a = remote.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0), b = local.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); }
+  return false;
+}
+
 function loadFlag(key: string, fallback: boolean) {
   try { const v = localStorage.getItem(key); return v === null ? fallback : v === "true"; } catch { return fallback; }
 }
@@ -270,6 +277,15 @@ export default function App() {
   }
 
   useEffect(() => { void refreshStatus(); void refreshSession(); }, []);
+  // New version notice: the server was upgraded while this page stayed open.
+  const [updateDismissed, setUpdateDismissed] = useState("");
+  useEffect(() => {
+    const check = () => { if (document.visibilityState === "visible") void getApiStatus().then(setStatus).catch(() => undefined); };
+    const timer = window.setInterval(check, 10 * 60_000);
+    document.addEventListener("visibilitychange", check);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", check); };
+  }, []);
+  const newVersion = status.version && !desktop() && isNewerVersion(status.version, __APP_VERSION__) && updateDismissed !== status.version ? status.version : null;
   useEffect(() => {
     const timer = window.setInterval(() => { if (session?.authenticated) void refreshSession(); }, 60_000);
     return () => window.clearInterval(timer);
@@ -1863,6 +1879,11 @@ export default function App() {
       {lightbox && <div className="cx-lightbox" role="dialog" aria-modal="true" aria-label={t("查看图片")} onClick={() => setLightbox(null)}>
         <img src={lightbox} alt=""/><button type="button" className="cx-icon" aria-label={t("关闭")}><X size={20}/></button></div>}
       {toast && <div className="toast" role="status" key={toast}><Check size={16}/> {toast}</div>}
+      {newVersion && <div className="cx-update" role="status">
+        <Sparkles size={16}/><span>{t("Ciro 已更新到")} v{newVersion}</span>
+        <button type="button" className="cx-btn cx-btn--primary" onClick={() => window.location.reload()}>{t("刷新")}</button>
+        <button type="button" className="cx-icon" aria-label={t("稍后")} onClick={() => setUpdateDismissed(newVersion)}><X size={15}/></button>
+      </div>}
     </div>
   );
 }

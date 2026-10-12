@@ -24,7 +24,8 @@ export async function getApiStatus(): Promise<ApiStatus> {
     stt:(value as {stt?:unknown}).stt===true,
     tts:(value as {tts?:unknown}).tts===true,
     images:(value as {images?:unknown}).images===true,
-    team:(value as {team?:unknown}).team===true
+    team:(value as {team?:unknown}).team===true,
+    version:typeof (value as {version?:unknown}).version==="string"?(value as {version:string}).version:undefined
   };
 }
 

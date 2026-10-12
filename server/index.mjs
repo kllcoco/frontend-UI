@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { normalizeModels, validateChat, ValidationError } from "./validate.mjs";
 import { createWorkbenchRouter } from "./workbench.mjs";
 import {createAccountService} from "./account.mjs";
@@ -51,6 +51,11 @@ const forwardEffort=!["0","false","off","no"].includes((process.env.CIRO_REASONI
 const webSearch=["1","true","on","yes"].includes((process.env.CIRO_WEB_SEARCH||"off").trim().toLowerCase());
 const configuredModes=["fast",...(process.env.CIRO_CHAT_REASONING_MODES||"").split(",").map(x=>x.trim()).filter(x=>["deep"].includes(x))];
 
+// Version of the deployed web app, so open pages can offer a refresh after an upgrade.
+const appVersion = (() => {
+  try { return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")).version || ""; }
+  catch { return ""; }
+})();
 app.get("/api/status", (_req, res) => {
   res.set("Cache-Control", "no-store").json({
     configured,
@@ -61,7 +66,8 @@ app.get("/api/status", (_req, res) => {
     reasoningEffort:configured&&forwardEffort,
     webSearch:configured&&webSearch,
     ...mediaFeatures(),
-    studioVersion:"ciro-studio.v1"
+    studioVersion:"ciro-studio.v1",
+    version:appVersion
   });
 });
 

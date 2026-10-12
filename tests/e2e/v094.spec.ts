@@ -76,3 +76,15 @@ test("content shared from another app opens a new chat with text and images fill
   await expect(page.getByRole("textbox", { name: "向 Ciro 发送消息" })).toHaveValue("帮我看看这张图");
   await expect(page.locator(".attachment-chip")).toHaveCount(1);
 });
+
+test("a newer server version offers a refresh", async ({ page }) => {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, json: { ...(await res.json()), version: "99.0.0" } });
+  });
+  await page.goto("/");
+  const notice = page.getByRole("status").filter({ hasText: "Ciro 已更新到 v99.0.0" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "稍后" }).click();
+  await expect(notice).toHaveCount(0);
+});

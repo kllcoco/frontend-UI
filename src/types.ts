@@ -61,4 +61,6 @@ export type ApiStatus = {
   tts?: boolean;
   images?: boolean;
   team?: boolean;
+  /** Version of the web app deployed on the server (for the "new version" notice). */
+  version?: string;
 };

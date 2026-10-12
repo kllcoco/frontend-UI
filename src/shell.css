@@ -918,3 +918,8 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 :root[data-theme] .cx-shell .cx-mode-pill,:root[data-theme] .cx-shell .td-chip,:root[data-theme] .cx-shell .composer-toolbar-left .cx-chip{white-space:nowrap;flex:none}
 .cx-mode-pill--compare em{display:none;font-style:normal;font-weight:700}
 @media (max-width:760px){.cx-mode-pill--compare span{display:none}.cx-mode-pill--compare em{display:inline}}
+/* New version notice */
+.cx-update{position:fixed;right:20px;bottom:20px;z-index:110;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;border:1px solid var(--cx-line);border-radius:14px;background:var(--cx-raised);box-shadow:var(--cx-shadow);font-size:13.5px;animation:cx-pop .2s var(--cx-ease)}
+.cx-update>svg{color:var(--cx-accent)}
+.cx-update .cx-btn{height:32px}
+@media (max-width:760px){.cx-update{left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom))}}
