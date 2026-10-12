@@ -64,10 +64,17 @@ The UI requires the operator to open the preview and explicitly acknowledge it.
 This preview is **not** a diff or test evidence: it does not replace independent
 tests, Windows installer verification, or live CIRO model acceptance.
 
-Pure-Node logic preview tests were exercised locally: 3/3 PASS on an equivalent
-local helper before pushing the patch. Exact branch-wide `npm test`,
-`npm run build`, Electron installation, live CIRO GitHub PAT authentication and
-NCPA inference **remain unverified**. No GitHub Actions run has been requested.
+Exact GitHub-blob-matched desktop/runtime, Electron main shell (with mocked Electron),
+GitHub read-ref policy, draft-PR policy, and approval-preview sources and test files
+were all checked and executed locally with Node 22, **12/12 PASS**. The checked-out
+blob of `tests/desktop-shell-contract.test.mjs` was also verified against the
+repository SHA. Run `npm run test:desktop-core` from the repository root to
+reproduce these no-dependency smoke tests without installing packages.
+This is an isolated/offline core smoke test: Electron itself is mocked for
+the shell integration checks and real Windows installation is not exercised.
+Full `npm test`, `npm run build`, browser E2E, Electron installation,
+live CIRO GitHub PAT authentication and NCPA inference **remain unverified**.
+No GitHub Actions run has been requested.
 
 ## Qualification state
 
