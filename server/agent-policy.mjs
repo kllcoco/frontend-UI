@@ -58,6 +58,16 @@ export function safeFilePath(value) {
       /(?:^|\/)(?:secrets?|node_modules|\.git)(?:\/|$)/i.test(value)) throw new Error("Invalid repository path.");
   return value;
 }
+// Read-only lookups may target main or existing feat/* branches.
+ // Branch creation and writes must still use the stricter safeBranch below.
+export function safeReadRef(value){
+ if(typeof value!=="string"||
+    !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,130}$/.test(value)||
+    value.includes("..")||value.includes("//")||value.endsWith("/")||
+    value.endsWith(".lock")||value.startsWith("refs/"))
+   throw new Error("Invalid read-only GitHub branch/ref");
+ return value;
+}
 export function safeBranch(value) {
   if (typeof value !== "string" || !/^(ciro|feature|repair)\/[a-zA-Z0-9][a-zA-Z0-9._/-]{0,130}$/.test(value) ||
       value.includes("..") || value.includes("//") || value.endsWith("/")) throw new Error("Use a non-protected branch under ciro/, feature/ or repair/.");
