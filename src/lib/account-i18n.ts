@@ -112,7 +112,7 @@ const terms:Readonly<Record<string,string>>={
   "账号初始化已被关闭": "Account initialization is locked",
   "高安全模式": "Security controls",
   "本机服务器只允许一个拥有者账户。": "The server allows a single owner account.",
-  "更改密码后所有 API 密钥都将作废。": "All API keys are revoked when the password changes."
+  "更改密码后所有 API 密钥都将作废。": "All API keys are revoked when the password changes.",
   "桌面版已自动完成本机初始化": "Your desktop workspace is automatically configured",
   "本机登录暂不可用": "Desktop session unavailable",
   "请重新启动 Ciro 桌面版，无需手动输入初始化口令。": "Please restart the Ciro desktop app. No manual bootstrap code is needed.",
