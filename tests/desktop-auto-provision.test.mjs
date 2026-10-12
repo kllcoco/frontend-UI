@@ -55,7 +55,9 @@ test("native desktop provisions one private owner and durable password-free UI l
   assert.notEqual(auto.raw,second.raw);
   assert.equal(recreated.store.get().owner.id,owner.id);
   assert.equal(recreated.store.get().owner.passwordHash,owner.passwordHash);
-  assert.equal(recreated.store.get().sessions.length,2);
+  assert.equal(recreated.store.get().sessions.length,1);
+  assert.equal(recreated.store.get().sessions[0].nativeDesktop,true);
+  assert.equal(recreated.store.get().sessions[0].hash.includes(auto.raw),false);
   const malicious=await fetch(base+"/api/account/bootstrap",{
    method:"POST",headers:{"Content-Type":"application/json"},
    body:JSON.stringify({email:"other@example.test",displayName:"Other",password:"long-password-test",
