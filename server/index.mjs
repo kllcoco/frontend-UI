@@ -152,7 +152,9 @@ if (existsSync(dist)) {
 
 const port = Number(process.env.PORT || "8787");
 const host = process.env.HOST || "127.0.0.1";
-app.listen(port, host, () => {
-  console.log("Ciro client listening at http://" + host + ":" + port);
+const listener=app.listen(port, host, () => {
+  const actualPort=listener.address().port;
+  if(typeof process.send==="function")process.send({type:"ciro-server-ready",host,port:actualPort});
+  console.log("Ciro client listening at http://" + host + ":" + actualPort);
   console.log(configured ? "CIRO proxy configured (upstream not yet verified)" : "Preview mode: no inference backend configured");
 });
