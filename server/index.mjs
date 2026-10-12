@@ -26,8 +26,8 @@ app.disable("x-powered-by");
 const keepRaw = (req, _res, buf) => { req.rawBody = Buffer.from(buf); };
 const chatJson = express.json({ limit: "25mb", verify: keepRaw });
 const defaultJson = express.json({ limit: "1mb", verify: keepRaw });
-// Only chat requests may carry image attachments; everything else keeps the 1 MB cap.
-app.use((req, res, next) => (req.path === "/api/chat" ? chatJson : defaultJson)(req, res, next));
+// Chat (image attachments) and sync pushes may be large; everything else keeps the 1 MB cap.
+app.use((req, res, next) => (req.path === "/api/chat" || req.path === "/api/account/sync/v2/push" ? chatJson : defaultJson)(req, res, next));
 const accounts=createAccountService();
 app.use("/api/account",accounts.router);
 const shares=createShareRouters();

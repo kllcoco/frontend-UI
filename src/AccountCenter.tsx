@@ -3,7 +3,7 @@ import {useCallback,useEffect,useRef,useState} from "react";
 import type {FormEvent} from "react";
 import {
   Activity,ArrowUpRight,Bell,Check,CheckCircle2,
-  CircleAlert,Cloud,CloudDownload,CloudUpload,Copy,CreditCard,
+  CircleAlert,Cloud,Copy,CreditCard,
   Fingerprint,KeyRound,LockKeyhole,LogIn,LogOut,Plus,RefreshCcw,
   ShieldCheck,ShieldAlert,Trash2,UserCircle,Wallet,BookOpen
 } from "lucide-react";
@@ -14,9 +14,8 @@ import {accountApi,getAccountSession,refreshAuthAfterLogin,invalidateAccountSess
 import type {AccountTab,SessionSnapshot} from "./lib/account-api";
 import {commercialApi,formatUsdMicros} from "./lib/commercial-api";
 import {loadConversations} from "./lib/storage";
-import {autoSyncEnabled,configureAutoSync,currentSyncState,readLocalSnapshot,
-  persistCloudSnapshot} from "./lib/cloud-sync";
-import type {SyncSignal,SyncPayload} from "./lib/cloud-sync";
+import {setSyncEnabled,syncEnabled,syncNow,syncSignal as currentSyncSignal} from "./lib/sync";
+import type {SyncSignal} from "./lib/sync";
 
 type Props={language:Language;section:AccountTab};
 type Profile={user:NonNullable<SessionSnapshot["user"]>;sessions:{id:string;createdAt:string;expiresAt:number}[];
@@ -26,7 +25,6 @@ type Notification={id:string;type:string;title:string;body:string;createdAt:stri
 type MemoryEntry={id:string;category:string;content:string;createdAt:string};
 type Spending={dailyLimitMicros:number|null;monthlyLimitMicros:number|null;singleRequestLimitMicros:number|null;
   reservedCount:number;dailyCommittedPlusReservedMicros:number;monthlyCommittedPlusReservedMicros:number;admissionRequiresSignedRuntime:boolean};
-type SyncState={version:number;snapshot:SyncPayload|null;updatedAt:string|null};
 const labels:Record<AccountTab,string>={
   account:"账户与安全",subscription:"订阅管理", "api-keys":"API 密钥",
   spending:"消费限额",notifications:"通知中心",memory:"记忆管理",sync:"跨设备同步"
@@ -43,9 +41,8 @@ export default function AccountCenter({language,section}:Props){
   const [memories,setMemories]=useState<MemoryEntry[]>([]);
   const [memoryEnabled,setMemoryEnabled]=useState(false);
   const [spending,setSpending]=useState<Spending|null>(null);
-  const [sync,setSync]=useState<SyncState|null>(null);
-  const [syncSignal,setSyncSignal]=useState<SyncSignal>(currentSyncState);
-  const [automatic,setAutomatic]=useState(autoSyncEnabled);
+  const [syncSignal,setSyncSignal]=useState<SyncSignal>(currentSyncSignal);
+  const [automatic,setAutomatic]=useState(syncEnabled);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const [email,setEmail]=useState(""),[password,setPassword]=useState(""),
@@ -76,10 +73,7 @@ export default function AccountCenter({language,section}:Props){
       const result=await accountApi<{memories:MemoryEntry[];enabled:boolean}>("/memories");
       if(mounted.current){setMemories(result.memories);setMemoryEnabled(result.enabled);}
     }
-    if(activeSection==="sync"){
-      const result=await accountApi<SyncState>("/sync");
-      if(mounted.current)setSync(result);
-    }
+    if(activeSection==="sync")void syncNow();
     if(activeSection==="spending"){
       const result=await commercialApi<Spending>("/billing/spending");
       if(mounted.current){
@@ -97,8 +91,8 @@ export default function AccountCenter({language,section}:Props){
       const msg=event as CustomEvent<SyncSignal>;
       setSyncSignal(msg.detail);
     };
-    window.addEventListener("ciro-cloud-sync",listener);
-    return ()=>window.removeEventListener("ciro-cloud-sync",listener);
+    window.addEventListener("ciro-sync",listener);
+    return ()=>window.removeEventListener("ciro-sync",listener);
   },[]);
   useEffect(()=>{
     mounted.current=true;setLoading(true);setError("");
@@ -123,7 +117,7 @@ export default function AccountCenter({language,section}:Props){
         email,password,...(initial?{bootstrapToken:bootstrap,displayName}:{})
       });
       await refreshAuthAfterLogin();
-      window.dispatchEvent(new Event("ciro-sync-preference-changed"));
+      void syncNow();
     },"已登录");
   }
   async function updatePassword(e:FormEvent<HTMLFormElement>){
@@ -146,23 +140,6 @@ export default function AccountCenter({language,section}:Props){
       dailyUsd:daily.trim()?daily.trim():null,monthlyUsd:monthly.trim()?monthly.trim():null,
       singleRequestUsd:single.trim()?single.trim():null
     }));
-  }
-  async function uploadCloud(){
-    await action(async()=>{
-      if(!sync)throw new Error(t("请刷新后重试"));
-      const result=await accountApi<SyncState>("/sync","PUT",{
-        baseVersion:sync.version,snapshot:readLocalSnapshot()
-      });
-      setSync({...result,snapshot:readLocalSnapshot()});
-    },"上传成功");
-  }
-  async function restoreCloud(){
-    if(!sync?.snapshot)throw new Error(t("服务器暂无快照"));
-    await action(async()=>{
-      const remote=sync.snapshot!;
-      persistCloudSnapshot(remote);
-      window.location.reload();
-    },"恢复成功");
   }
   const note=profile?.subscription;
   const auth=session?.authenticated;
@@ -292,21 +269,20 @@ export default function AccountCenter({language,section}:Props){
     </>}
     {!loading&&auth&&section==="sync"&&<><section className="acc-card">
       <div className="acc-section-title"><Cloud size={19}/><h3>{t("跨设备同步")}</h3></div>
-      <label className="acc-toggle">{t("自动同步")}
+      <label className="acc-toggle">{t("在此设备上同步")}
         <input type="checkbox" checked={automatic} onChange={e=>{
-          const next=e.target.checked;configureAutoSync(next);setAutomatic(next);
+          const next=e.target.checked;setSyncEnabled(next);setAutomatic(next);
         }}/></label>
-      <p className="acc-muted">{t("开启后对话与偏好将安全地同步至你登录的服务器。")}</p>
-      <div className="acc-state"><span>{t("同步状态")}</span><strong>{syncSignal.status}</strong>
-        <small>{syncSignal.message||t("同步已就绪")}</small></div>
+      <p className="acc-muted">{t("对话、项目、提示词和设置会加密保存到你的服务器，并在登录同一账户的设备间自动同步；两台设备改了同一个对话时，以最后修改的为准。")}</p>
+      <div className="acc-state"><span>{t("同步状态")}</span>
+        <strong>{t(({off:"已关闭",local:"本地模式",unauthenticated:"未登录",syncing:"正在同步…",ready:"已同步",error:"同步失败"} as const)[syncSignal.status])}</strong>
+        <small>{syncSignal.status==="error"?syncSignal.message:syncSignal.lastSyncedAt?t("上次同步：")+new Date(syncSignal.lastSyncedAt).toLocaleString():""}</small></div>
       <div className="acc-sync-grid"><div><small>{t("本地对话")}</small><strong>{loadConversations().length}</strong></div>
-        <div><small>{t("云端对话")}</small><strong>{sync?.snapshot?.conversations.length??0}</strong></div>
-        <div><small>{t("服务器版本")}</small><strong>{sync?.version??"—"}</strong></div></div>
-      <div className="acc-actions"><button className="acc-primary" disabled={busy||!sync} onClick={()=>void uploadCloud()}><CloudUpload size={16}/>{t("保存到服务器")}</button>
-        <button className="acc-secondary" disabled={busy||!sync?.snapshot} onClick={()=>void restoreCloud()}><CloudDownload size={16}/>{t("从服务器恢复")}</button>
-        <button className="acc-secondary" onClick={()=>void action(()=>refresh(section))}><RefreshCcw size={15}/>{t("刷新")}</button></div>
-      {syncSignal.status==="conflict"&&<p className="acc-warning"><CircleAlert size={15}/>{t("检测到版本冲突，请先获取服务器的最新数据，再决定保留哪一份。")}</p>}
-      <p className="acc-muted">{t("相同账户可以从不同设备登录。")} {t("背景图片本体仍只保存在当前设备。")}</p>
+        <div><small>{t("云端条目")}</small><strong>{syncSignal.cloudCount??"—"}</strong></div>
+        <div><small>{t("本次会话已同步")}</small><strong>{syncSignal.pushed+syncSignal.pulled}</strong></div></div>
+      <div className="acc-actions"><button className="acc-primary" disabled={!automatic||syncSignal.status==="syncing"} onClick={()=>void syncNow()}>
+        <RefreshCcw size={15}/>{t("立即同步")}</button></div>
+      <p className="acc-muted">{t("相同账户可以从不同设备登录。")} {t("背景图片本体和附件原图仍只保存在当前设备。")}</p>
     </section></>}
   </section>;
 }

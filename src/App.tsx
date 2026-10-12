@@ -19,8 +19,10 @@ import WorkbenchCenter from "./WorkbenchCenter";
 import AccountCenter from "./AccountCenter";
 import StudioCenter from "./StudioCenter";
 import type { StudioTab } from "./lib/studio-api";
-import { startAutoSync, stopAutoSync, queueAutoSync } from "./lib/cloud-sync";
-import type { SyncPayload } from "./lib/cloud-sync";
+import { requestSync, startSync, stopSync } from "./lib/sync";
+import type { SyncItem, SyncKind } from "./lib/sync";
+import { loadPrompts, savePrompts } from "./lib/prompts";
+import type { SavedPrompt } from "./lib/prompts";
 import { accountApi, accountFetch, getAccountSession, invalidateAccountSession } from "./lib/account-api";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
@@ -206,9 +208,8 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
 
-  const cloudRef = useRef<SyncPayload>({
-    conversations, activeId, preferences: { theme, language, instructions, appearance, chat: preferences }
-  });
+  const projectsRef = useRef(projects);
+  const settingsRef = useRef({ themePref, languagePref, instructions, appearance, chat: preferences, profile });
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -266,29 +267,57 @@ export default function App() {
     const timer = window.setInterval(() => { if (session?.authenticated) void refreshSession(); }, 60_000);
     return () => window.clearInterval(timer);
   }, [session?.authenticated]);
+  // Cross-device sync: the engine reads the refs below and applies remote changes through `apply`,
+  // which updates the ref immediately (so the same sync pass sees them) and then React state.
   useEffect(() => {
-    const handlers = {
-      capture: () => cloudRef.current,
-      onRemote: (remote: SyncPayload) => {
-        setConversations(remote.conversations);
-        setActiveId(remote.activeId);
-        setThemePref(loadThemePref()); setLanguagePref(loadLanguagePref());
-        setInstructions(loadCustomInstructions()); setAppearance(loadAppearance());
-        setPreferences(loadChatPreferences());
+    const merge = <T extends { id: string }>(list: T[], up: Record<string, unknown>[], del: string[]) => {
+      const incoming = new Map(up.map((x) => [String(x.id), x as unknown as T]));
+      const kept = list.filter((x) => !del.includes(x.id)).map((x) => incoming.get(x.id) ?? x);
+      const known = new Set(kept.map((x) => x.id));
+      return [...kept, ...[...incoming.values()].filter((x) => !known.has(x.id))];
+    };
+    startSync({
+      idle: () => !busyRef.current,
+      collect: () => {
+        const items: SyncItem[] = [];
+        conversationsRef.current.filter((c) => !c.temporary).forEach((c) => items.push({ kind: "conversation", id: c.id, mtime: c.updatedAt, data: c as unknown as Record<string, unknown> }));
+        projectsRef.current.forEach((p) => items.push({ kind: "project", id: p.id, mtime: p.updatedAt, data: p as unknown as Record<string, unknown> }));
+        if (localStorage.getItem("ciro.prompts.v1") !== null) loadPrompts().forEach((p) => items.push({ kind: "prompt", id: p.id, mtime: p.createdAt, data: p as unknown as Record<string, unknown> }));
+        items.push({ kind: "settings", id: "main", mtime: 0, data: settingsRef.current as unknown as Record<string, unknown> });
+        return items;
+      },
+      apply: (kind: SyncKind, up, del) => {
+        if (kind === "conversation") {
+          const valid = up.filter((c) => typeof c.id === "string" && typeof c.title === "string" && Array.isArray(c.messages) && typeof c.updatedAt === "number");
+          conversationsRef.current = merge(conversationsRef.current, valid, del);
+          setConversations((prev) => merge(prev, valid, del));
+          if (del.includes(activeIdRef.current || "")) setActiveId(null);
+        } else if (kind === "project") {
+          const valid = up.filter((p) => typeof p.id === "string" && typeof p.name === "string" && Array.isArray(p.files));
+          projectsRef.current = merge(projectsRef.current, valid, del);
+          setProjects((prev) => merge(prev, valid, del));
+        } else if (kind === "prompt") {
+          savePrompts(merge<SavedPrompt>(loadPrompts(), up.filter((p) => typeof p.id === "string" && typeof p.content === "string"), del));
+        } else if (kind === "settings" && up[0]) {
+          const next = { ...settingsRef.current, ...up[0] } as typeof settingsRef.current;
+          settingsRef.current = next;
+          if (["light", "dark", "system"].includes(next.themePref)) setThemePref(next.themePref);
+          if (["system", "zh-CN", "zh-TW", "en"].includes(next.languagePref)) setLanguagePref(next.languagePref);
+          if (next.instructions && typeof next.instructions === "object") setInstructions(next.instructions);
+          if (next.appearance && typeof next.appearance === "object") setAppearance(next.appearance);
+          if (next.chat && typeof next.chat === "object") setPreferences({ ...loadChatPreferences(), ...next.chat });
+          if (next.profile && typeof next.profile.displayName === "string") setProfile(next.profile);
+        }
       }
-    };
-    const restart = () => { void startAutoSync(handlers); };
-    restart();
-    window.addEventListener("ciro-sync-preference-changed", restart);
-    return () => {
-      window.removeEventListener("ciro-sync-preference-changed", restart);
-      stopAutoSync();
-    };
+    });
+    return () => stopSync();
   }, []);
   useEffect(() => {
-    cloudRef.current = { conversations: conversations.filter((c) => !c.temporary), activeId: current?.temporary ? null : activeId, preferences: { theme, language, instructions, appearance, chat: preferences } };
-    queueAutoSync(cloudRef.current);
-  }, [conversations, activeId, theme, language, instructions, appearance, preferences]);
+    settingsRef.current = { themePref, languagePref, instructions, appearance, chat: preferences, profile };
+    requestSync();
+  }, [themePref, languagePref, instructions, appearance, preferences, profile]);
+  useEffect(() => { projectsRef.current = projects; requestSync(); }, [projects]);
+  useEffect(() => { if (!busy) requestSync(); }, [conversations, busy]);
   useEffect(() => {
     conversationsRef.current = conversations;
     if (!busy) { saveConversations(conversations); return; }

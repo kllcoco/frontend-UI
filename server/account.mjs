@@ -1,3 +1,4 @@
+import {createSyncStore,SYNC_KINDS,SYNC_LIMITS} from "./sync-store.mjs";
 import express from "express";
 import {
   randomBytes,randomUUID,createHash,createHmac,scrypt as scryptCb,
@@ -188,7 +189,10 @@ function validateSnapshot(value){
 }
 export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   const enabled=env.CIRO_ACCOUNTS_ENABLED==="true";
-  const store=createAccountStore(dir||env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime");
+  const dataDir=dir||env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime";
+  const store=createAccountStore(dataDir);
+  let syncDb=null;
+  const syncStore=()=>syncDb||(syncDb=createSyncStore(dataDir));
   const router=express.Router();
   function issueSession(res,owner){
     const raw=token(),csrf=token(),id=randomUUID(),expiresAt=Date.now()+COOKIE_MAX_AGE;
@@ -436,6 +440,37 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const enc=sealJSON(data,env,"ciro-sync:"+owner.id);
     store.change("sync.snapshot.updated",s=>{s.sync.version++;s.sync.encrypted=enc;s.sync.updatedAt=new Date().toISOString();});
     res.json({version:store.get().sync.version,updatedAt:store.get().sync.updatedAt});
+  }));
+  // Incremental sync (v2): per-item encrypted rows with tombstones; see server/sync-store.mjs.
+  const syncAad=key=>"ciro-sync2:"+store.get().owner.id+":"+key;
+  const syncRow=r=>({key:r.key,kind:r.kind,id:r.item_id,rev:Number(r.rev),mtime:Number(r.mtime),deleted:!!r.deleted,
+    data:r.deleted||!r.payload?null:unsealJSON(JSON.parse(r.payload),env,syncAad(r.key))});
+  router.get("/sync/v2/changes",guardedRead((req,res)=>{
+    const since=Number(req.query.since||0);
+    if(!Number.isSafeInteger(since)||since<0)throw bad("Invalid since");
+    const db=syncStore(),rows=db.since(since,SYNC_LIMITS.pageItems+1);
+    const page=rows.slice(0,SYNC_LIMITS.pageItems);
+    res.json({rev:page.length?Number(page.at(-1).rev):Math.max(since,db.rev()),latest:db.rev(),
+      more:rows.length>SYNC_LIMITS.pageItems,count:db.count(),items:page.map(syncRow)});
+  }));
+  router.post("/sync/v2/push",guardedRead((req,res)=>{
+    const input=req.body?.items;
+    if(!Array.isArray(input)||input.length>SYNC_LIMITS.batchItems)throw bad("Invalid sync batch");
+    const items=input.map(x=>{
+      if(!x||!SYNC_KINDS.has(x.kind)||typeof x.id!=="string"||!x.id||x.id.length>120||
+        !Number.isSafeInteger(x.mtime)||x.mtime<0||typeof x.deleted!=="boolean")throw bad("Invalid sync item");
+      if(!x.deleted&&(!x.data||typeof x.data!=="object"||Array.isArray(x.data)))throw bad("Invalid sync item data");
+      const payload=x.deleted?null:JSON.stringify(sealJSON(x.data,env,syncAad(x.kind+":"+x.id)));
+      if(payload&&payload.length>SYNC_LIMITS.itemBytes*1.4)throw bad("Sync item too large");
+      return {...x,key:x.kind+":"+x.id,payload};
+    });
+    const db=syncStore();
+    if(db.total()+items.length>SYNC_LIMITS.totalItems)throw bad("Sync storage is full",413);
+    // Older edits never overwrite newer ones; equal mtime lets the latest writer win.
+    const results=db.write(items,(item,existing)=>existing&&Number(existing.mtime)>item.mtime?null:{payload:item.payload});
+    res.json({rev:db.rev(),count:db.count(),
+      accepted:results.filter(r=>r.accepted).map(r=>({key:r.item.key,rev:r.rev})),
+      rejected:results.filter(r=>!r.accepted).map(r=>syncRow(r.existing))});
   }));
   const hasStripe=()=>publicSubscription(store,env).configured;
   router.post("/subscription/checkout",protectedSession(async(_req,res)=>{
