@@ -59,3 +59,20 @@ test("code blocks run Python (with matplotlib-free stdout), JavaScript and HTML 
   await expect(blocks.nth(0).locator(".cx-run-out")).toContainText("平方根 4.0", { timeout: 90_000 });
   await expect(blocks.nth(0).locator(".cx-run-value")).toHaveText("10");
 });
+
+test("content shared from another app opens a new chat with text and images filled in", async ({ page }) => {
+  await fresh(page);
+  // PWA share target (GET)
+  await page.goto("/?share=1&title=" + encodeURIComponent("文章标题") + "&url=" + encodeURIComponent("https://example.com/a"));
+  await expect(page.getByRole("textbox", { name: "向 Ciro 发送消息" })).toHaveValue("文章标题\n\nhttps://example.com/a");
+  expect(page.url()).not.toContain("share=1");
+  // Android bridge: CiroShare.take() then window.ciroReceiveShare()
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  await page.evaluate((img) => {
+    let pending: string | null = JSON.stringify({ subject: "", text: "帮我看看这张图", images: [img] });
+    (window as unknown as { CiroShare: { take: () => string | null } }).CiroShare = { take: () => { const v = pending; pending = null; return v; } };
+    (window as unknown as { ciroReceiveShare: () => void }).ciroReceiveShare();
+  }, png);
+  await expect(page.getByRole("textbox", { name: "向 Ciro 发送消息" })).toHaveValue("帮我看看这张图");
+  await expect(page.locator(".attachment-chip")).toHaveCount(1);
+});

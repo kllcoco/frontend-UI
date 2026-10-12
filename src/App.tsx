@@ -123,6 +123,8 @@ function exportMarkdown(chat: Conversation, language: Language) {
   URL.revokeObjectURL(url);
 }
 
+type SharePayload = { subject?: string; text?: string; images?: string[] };
+
 function loadFlag(key: string, fallback: boolean) {
   try { const v = localStorage.getItem(key); return v === null ? fallback : v === "true"; } catch { return fallback; }
 }
@@ -458,6 +460,7 @@ export default function App() {
     else window.print();
   };
   useEffect(() => desktop()?.onUpdate?.((info) => setUpdateInfo(info)), []);
+  const shareRef = useRef<(p: SharePayload) => Promise<void>>(async () => undefined);
   const backRef = useRef<() => boolean>(() => false);
   backRef.current = () => {
     if (voiceOpen) { setVoiceOpen(false); return true; }
@@ -484,6 +487,40 @@ export default function App() {
     const w = window as unknown as { ciroHandleBack?: () => boolean };
     w.ciroHandleBack = () => backRef.current();
     return () => { delete w.ciroHandleBack; };
+  }, []);
+  // "Share → Ciro": Android passes shared text/images through the CiroShare bridge; the PWA share
+  // target arrives as ?share=1&title=&text=&url=. Either way a new chat opens with the content filled in.
+  shareRef.current = async (payload: SharePayload) => {
+    createNew();
+    const text = [payload.subject, payload.text].map((x) => (x || "").trim()).filter(Boolean)
+      .filter((x, i, all) => all.indexOf(x) === i).join("\n\n");
+    setDraft(text);
+    const images = (payload.images || []).slice(0, LIMITS.files);
+    if (images.length) {
+      try {
+        const files = await Promise.all(images.map(async (url, i) => {
+          const blob = await (await fetch(url)).blob();
+          return new File([blob], "shared-" + (i + 1) + "." + (blob.type.split("/")[1] || "png"), { type: blob.type });
+        }));
+        setAttachments((await Promise.all(files.map(readAttachment))).slice(0, LIMITS.files));
+      } catch { notify("读取分享的图片失败"); }
+    }
+    notify("已填入分享的内容");
+    window.setTimeout(() => composerRef.current?.focus(), 50);
+  };
+  useEffect(() => {
+    const w = window as unknown as { ciroReceiveShare?: (p?: SharePayload) => void; CiroShare?: { take: () => string | null } };
+    w.ciroReceiveShare = (direct?: SharePayload) => {
+      let payload = direct;
+      if (!payload) { try { const raw = w.CiroShare?.take(); payload = raw ? JSON.parse(raw) as SharePayload : undefined; } catch { payload = undefined; } }
+      if (payload) void shareRef.current(payload);
+    };
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("share") === "1") {
+      w.ciroReceiveShare({ subject: params.get("title") || "", text: [params.get("text"), params.get("url")].filter(Boolean).join("\n") });
+      window.history.replaceState(null, "", window.location.pathname);
+    } else w.ciroReceiveShare();
+    return () => { delete w.ciroReceiveShare; };
   }, []);
   useEffect(() => {
     function shortcuts(event: globalThis.KeyboardEvent) {
