@@ -204,7 +204,7 @@
       "nsis_config": "electron-builder.yml",
       "built_windows_exe": "PASS_BUILT_UNSIGNED_NOT_INSTALLED",
       "windows_install_update_uninstall": "NOT_RUN",
-      "code_signing": "NOT_CONFIGURED",
+      "code_signing": "NOT_SIGNED_BY_AUTHENTICODE_LOCAL_RECEIPT",
       "native_model_inference": "NOT_RUN",
       "preflight": "SOURCE_AND_BUILT_PRECHECKS_IMPLEMENTED; WINDOWS_NSIS_INSTALL_NOT_RUN",
       "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration",
@@ -332,14 +332,34 @@
           "nsis_arch": "x64",
           "app_icon": "DEFAULT_ELECTRON_ICON_NEEDS_BRANDING",
           "code_signing": "SKIPPED_NO_CERT_CONFIGURED",
-          "installer_sha256": "AWAITING_LOCAL_RECEIPT",
-          "authenticode_status": "AWAITING_LOCAL_RECEIPT",
+          "installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+          "authenticode_status": "NotSigned",
           "first_run_install_uninstall": "NOT_RUN",
           "live_github_approved_write": "NOT_RUN",
           "native_ncpa_verified_inference": "NOT_RUN",
-          "source": "User-provided PowerShell actual Windows log: 29 passed, desktop win source/built PASS, electron-builder built NSIS and blockmap, local receipt created",
-          "claim": "Windows code/build/browser/NSIS packaging accepted for tested code commit only; not product graduation"
-        }
+          "source": "User provided genuine Windows acceptance local JSON receipt, cross-matched to previous PowerShell build/E2E log; original local EXE is not independently accessible via GitHub connector.",
+          "claim": "Windows local Node/build/browser/NSIS packaging PASS at exact 5137892; Authenticode NotSigned; disposable first install/live GitHub/native NCPA NOT RUN; desktop full graduation false.",
+          "observed_at_utc": "2026-10-12T13:45:45.0596092Z",
+          "windows_receipt_reported_by_operator": {
+            "schema": "ciro.v08.windows-local-acceptance.v1",
+            "observedAt": "2026-10-12T13:45:45.0596092Z",
+            "commit": "51378925ec9fe885563073070845890654593d4c",
+            "nodeTests": "PASS",
+            "frontendBuild": "PASS",
+            "browserE2E": "PASS",
+            "windowsNsisBuild": "PASS",
+            "installerSHA256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+            "signatureStatus": "NotSigned",
+            "cleanInstallBootUninstall": "NOT_RUN",
+            "githubLiveRead": "NOT_RUN",
+            "nativeModelStream": "NOT_RUN",
+            "nativeNcpaAuthority": "NOT_VERIFIED",
+            "graduated": false
+          }
+        },
+        "installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+        "installer_signature_status": "NotSigned",
+        "windows_receipt_observed_at_utc": "2026-10-12T13:45:45.0596092Z"
       }
     },
     "isolated_verified_tests": {
