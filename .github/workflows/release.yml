@@ -249,7 +249,11 @@ jobs:
       - name: Checksums
         run: |
           cd out
-          rm -rf desktop-smoke.png ui-screenshots
+          rm -rf ui-screenshots
+          # artifacts can keep sub-folders (e.g. release/); publish every file flat
+          find . -mindepth 2 -type f -exec mv -f {} . \;
+          find . -mindepth 1 -type d -exec rm -rf {} +
+          rm -f desktop-smoke.png
           sha256sum * > SHA256SUMS.txt
           ls -la
       - uses: softprops/action-gh-release@v2
