@@ -36,9 +36,10 @@ function loadOrCreateSecrets(root){
  if(!existsSync(envPath)){
   const defaults=[
    "# CIRO Desktop owner-only configuration; never commit or paste credentials",
-   "CIRO_GITHUB_REPOS=kllcoco/frontend-UI",
+   "# Operator must explicitly allowlist a GitHub repository; no company repo is granted by default",
+   "CIRO_GITHUB_REPOS=",
    "CIRO_GITHUB_WRITES=false",
-   "CIRO_GITHUB_SELF_REPO=kllcoco/frontend-UI",
+   "CIRO_GITHUB_SELF_REPO=",
    "CIRO_GITHUB_SELF_REPAIR_ENABLED=false",
    "# CIRO_API_BASE_URL= (own model inference endpoint; leave empty for preview)",
    ""
