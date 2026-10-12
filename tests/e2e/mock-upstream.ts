@@ -14,7 +14,8 @@ export function startMockModel(port: number): Promise<Server> {
       const model = payload.model || "ciro";
       const last = payload.messages?.at(-1)?.content || "";
       // Auxiliary prompts (titles, follow-ups) get short answers.
-      const text = /JSON|标题|title/i.test(last) ? (/JSON/.test(last) ? '["追问一","追问二"]' : "测试标题") : "来自 " + model + " 的回答：" + last.slice(0, 40);
+      const memory = /记忆助手|memory assistant/i.test(last);
+      const text = memory ? (/我喜欢简洁/.test(last) ? '["用户喜欢简洁的回答"]' : "[]") : /JSON|标题|title/i.test(last) ? (/JSON/.test(last) ? '["追问一","追问二"]' : "测试标题") : "来自 " + model + " 的回答：" + last.slice(0, 40) + (last.includes("附件：") ? "（已收到附件）" : "");
       const cwu = model === "ciro-pro" ? 2500 : 1234;
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       for (const part of [text.slice(0, 6), text.slice(6)]) res.write("data: " + JSON.stringify({ choices: [{ delta: { content: part } }] }) + "\n\n");

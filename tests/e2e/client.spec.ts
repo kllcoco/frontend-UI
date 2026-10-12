@@ -33,7 +33,7 @@ test("default first visit is Chinese with the ivory theme and orbit logo", async
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
   await expect(page.locator(".workspace")).toHaveCSS("background-color", "rgb(250, 249, 246)");
   await expect(page.locator(".wallpaper-image")).toHaveCount(0);
-  await expect(page.locator(".suggestion-card")).toHaveCount(4);
+  await expect(page.locator(".suggestion-card")).toHaveCount(0);
   await page.screenshot({ path: imageDir + "/01-welcome-desktop.png", fullPage: true, animations: "disabled" });
 });
 

@@ -11,6 +11,9 @@ export type ChatMessage = {
   depth?: string;
   feedback?: "up" | "down";
   images?: { id: string; name: string; thumb: string }[];
+  /** User: attached text/code/PDF files. Shown as chips; their text (`attachText`) is sent to the model with `content`. */
+  files?: { name: string; size: number }[];
+  attachText?: string;
   tools?: { name: string; args: string }[];
   webSearch?: boolean;
   /** Assistant: every generated answer for this turn; versionIndex is the one shown. */
@@ -24,6 +27,8 @@ export type ChatMessage = {
   generated?: { id: string; thumb: string }[];
   /** Assistant: native units reported by the model service (never estimated from tokens). */
   usage?: { cwu?: number; gwu?: number };
+  /** Assistant: memories Ciro saved by itself from this turn (each can be undone). */
+  autoMemories?: { id: string; content: string }[];
   /** Assistant: model that produced this answer (set for model comparisons). */
   model?: string;
   /** Assistant: side-by-side answers while comparing models; cleared once one is chosen. */

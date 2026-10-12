@@ -291,6 +291,8 @@ export default function SettingsCenter({
             <SettingBlock title={t("记忆")} subtitle={t("Ciro 会在对话中参考这些关于你的信息；临时对话不会使用记忆。")}>
               <SettingRow title={t("启用记忆")} description={t("登录账户时记忆加密保存在服务器，否则保存在此设备")}>
                 <Toggle checked={preferences.memoryEnabled} title={t("启用记忆")} onChange={(v) => updatePreference("memoryEnabled", v)}/></SettingRow>
+              <SettingRow title={t("自动记忆")} description={t("Ciro 会从对话中总结你的长期偏好、背景和正在做的事，自动写入记忆；每次写入都可撤销，不会记录密码、证件等敏感信息")}>
+                <Toggle checked={preferences.memoryEnabled && preferences.autoMemory} title={t("自动记忆")} onChange={(v) => updatePreference("autoMemory", v)}/></SettingRow>
               <MemoryManager t={t} enabled={preferences.memoryEnabled}/>
             </SettingBlock>
             <div className="sc-info-card"><ShieldCheck size={18}/><div>

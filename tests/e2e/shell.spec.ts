@@ -162,7 +162,8 @@ test("slash menu, plus menu and attachments work from the composer", async ({ pa
   await (await chooser).setFiles({ name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# hello") });
   await expect(page.locator(".attachment-chip")).toContainText("notes.md");
   await page.getByRole("button", { name: "发送消息" }).click();
-  await expect(page.locator(".user-bubble")).toContainText("notes.md");
+  await expect(page.locator(".cx-msg-file")).toContainText("notes.md");
+  await expect(page.locator(".user-bubble")).not.toContainText("```");
 });
 
 test("collapsed sidebar rail and mobile layout keep every control reachable", async ({ page }) => {

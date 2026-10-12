@@ -10,6 +10,8 @@ export type ChatPreferences = {
   accent: Accent;
   fontFamily: FontFamily;
   memoryEnabled: boolean;
+  /** Let Ciro summarize conversations and save lasting facts/preferences to memory by itself. */
+  autoMemory: boolean;
 };
 export type Accent = "jade" | "blue" | "violet" | "amber" | "rose" | "graphite";
 export type FontFamily = "sans" | "system" | "serif";
@@ -27,7 +29,8 @@ export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   followUps: true,
   accent: "jade",
   fontFamily: "sans",
-  memoryEnabled: true
+  memoryEnabled: true,
+  autoMemory: true
 };
 
 export function loadChatPreferences(): ChatPreferences {
@@ -45,7 +48,8 @@ export function loadChatPreferences(): ChatPreferences {
       followUps: typeof value.followUps === "boolean" ? value.followUps : true,
       accent: ACCENTS.includes(value.accent as Accent) ? value.accent as Accent : "jade",
       fontFamily: ["sans", "system", "serif"].includes(value.fontFamily || "") ? value.fontFamily as FontFamily : "sans",
-      memoryEnabled: typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : true
+      memoryEnabled: typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : true,
+      autoMemory: typeof value.autoMemory === "boolean" ? value.autoMemory : true
     };
   } catch {
     return { ...DEFAULT_CHAT_PREFERENCES };

@@ -49,3 +49,32 @@ test("compare two models side by side and keep one answer (others become version
   await expect(page.locator(".message--assistant .message-prose")).toContainText("来自 ciro 的回答");
   await expect(page.locator(".cx-model-tag")).toHaveText("ciro");
 });
+
+test("Ciro writes lasting preferences to memory by itself, and the user can undo it", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("我喜欢简洁的回答，以后都这样");
+  await page.keyboard.press("Enter");
+  const chip = page.locator(".cx-memory-chip--auto");
+  await expect(chip).toContainText("用户喜欢简洁的回答");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.memories.v1") || "[]").map((m: { content: string }) => m.content))).toEqual(["用户喜欢简洁的回答"]);
+  // An ordinary question saves nothing.
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("今天天气怎么样");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".message--assistant")).toHaveCount(2);
+  await expect(page.locator(".cx-memory-chip--auto")).toHaveCount(1);
+  await chip.getByRole("button", { name: "撤销" }).click();
+  await expect(chip).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.memories.v1") || "[]").length)).toBe(0);
+});
+
+test("attached files show as chips while the model still receives their text", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.locator('input[type=file]').first().setInputFiles({ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# 计划\n- 第一步") });
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("总结这个文件");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cx-msg-file")).toContainText("plan.md");
+  await expect(page.locator(".user-bubble")).toHaveText("总结这个文件");
+  await expect(page.locator(".message--assistant .message-prose")).toContainText("（已收到附件）");
+});

@@ -27,14 +27,19 @@ async function overflow(page: Page, where: string): Promise<string[]> {
       const label = el.getAttribute("aria-label") ? "[" + el.getAttribute("aria-label") + "]" : "";
       return el.tagName.toLowerCase() + c + label;
     };
-    const clippedBy = (el: Element) => {
+    // Inside a scroll/clip container that itself sits in the viewport: the content is reachable by scrolling.
+    const clipped = (el: Element, outY: boolean) => {
       for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
-        const s = getComputedStyle(p);
-        if (/(auto|scroll|hidden|clip)/.test(s.overflowX + s.overflowY)) return p;
+        if (p instanceof SVGElement) continue;
+        const st = getComputedStyle(p);
+        if (!/(auto|scroll|hidden|clip)/.test(st.overflowX + st.overflowY)) continue;
+        const c = p.getBoundingClientRect();
+        if (c.left >= -1 && c.right <= W + 1 && (!outY || (c.top >= -1 && c.bottom <= H + 1))) return true;
       }
-      return null;
+      return false;
     };
     for (const el of Array.from(document.body.querySelectorAll("*"))) {
+      if (el instanceof SVGElement && el.tagName.toLowerCase() !== "svg") continue; // judged by its <svg>
       const s = getComputedStyle(el);
       if (s.display === "none" || s.visibility === "hidden" || Number(s.opacity) === 0) continue;
       if (el.closest(".cx-sidebar:not(.cx-sidebar--open)") && W <= 760) continue; // off-canvas drawer
@@ -45,11 +50,7 @@ async function overflow(page: Page, where: string): Promise<string[]> {
       const overlay = s.position === "fixed" || s.position === "absolute";
       const outY = overlay && (r.top < -1 || r.bottom > H + 1);
       if (!outX && !outY) continue;
-      const clip = clippedBy(el);
-      if (clip) {
-        const c = clip.getBoundingClientRect();
-        if (c.left >= -1 && c.right <= W + 1 && (!outY || (c.top >= -1 && c.bottom <= H + 1))) continue;
-      }
+      if (clipped(el, outY)) continue;
       // Report only the outermost offender of a subtree.
       if (el.parentElement && out.some((x) => x.startsWith("@" + describe(el.parentElement!)))) continue;
       out.push("@" + describe(el) + " x=" + Math.round(r.left) + ".." + Math.round(r.right) + " y=" + Math.round(r.top) + ".." + Math.round(r.bottom));
@@ -60,7 +61,7 @@ async function overflow(page: Page, where: string): Promise<string[]> {
 }
 
 async function openNav(page: Page, mobile: boolean) {
-  if (mobile && !(await page.locator(".cx-sidebar--open").count())) { await page.locator(".cx-mobile-menu").first().click(); await page.waitForTimeout(350); }
+  if (mobile && !(await page.locator(".cx-sidebar--open").count())) { await page.locator(".cx-mobile-menu:visible, .wb-mobile-top button:visible").first().click(); await page.waitForTimeout(350); }
 }
 async function closeAll(page: Page) {
   for (let i = 0; i < 3; i += 1) { await page.keyboard.press("Escape"); await page.waitForTimeout(80); }
@@ -69,13 +70,14 @@ async function closeAll(page: Page) {
 for (const size of SIZES) {
   test("no overflow · " + size.name, async ({ page }) => {
     test.setTimeout(240_000);
+    page.setDefaultTimeout(8000);
     const mobile = size.width <= 760;
     await page.setViewportSize({ width: size.width, height: size.height });
     await page.goto(ciro.url + "/");
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     const issues: string[] = [];
-    const check = async (where: string) => { await page.waitForTimeout(250); issues.push(...await overflow(page, where)); };
+    const check = async (where: string) => { await page.waitForTimeout(250); const found = await overflow(page, where); if (found.length) console.log("OVERFLOW", where, found.slice(0, 4).join(" ;; ")); issues.push(...found); };
 
     await check("home");
     await page.locator(".td-chip").click(); await check("thinking slider"); await closeAll(page);
@@ -120,11 +122,12 @@ for (const size of SIZES) {
       await openNav(page, mobile);
       const sidebar = page.locator(".cx-sidebar");
       const direct = sidebar.locator(".cx-nav").getByRole("button", { name: item, exact: true });
-      if (!(await direct.count())) {
+      if (!(await direct.isVisible())) {
         const toggle = sidebar.locator(".cx-more-toggle");
         if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
         await sidebar.locator(".cx-more").getByRole("button", { name: item, exact: true }).click();
       } else await direct.click();
+      if (mobile) await page.waitForTimeout(300);
       await check(item);
     }
 

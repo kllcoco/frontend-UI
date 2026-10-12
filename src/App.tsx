@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from "react";
 import {
   ArrowDownToLine, Columns2, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
-  GitBranch, Layers, LayoutGrid, Lightbulb, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
+  GitBranch, Layers, LayoutGrid, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
   Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, AudioLines, Users
 } from "lucide-react";
@@ -52,9 +52,10 @@ import PromptLibrary from "./components/PromptLibrary";
 import ShareDialog from "./components/ShareDialog";
 import FindBar from "./components/FindBar";
 import ViewBoundary from "./components/ViewBoundary";
+import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import CanvasPanel from "./components/CanvasPanel";
 import VoiceMode from "./components/VoiceMode";
-import { addMemory, localMemoriesForChat, removeMemory } from "./lib/memory";
+import { addMemory, listMemories, localMemoriesForChat, removeMemory } from "./lib/memory";
 import type { CanvasDoc } from "./components/CanvasPanel";
 import Markdown from "./components/Markdown";
 import { ACCEPT, AttachmentError, LIMITS, getImage, makeThumb, putImage, readAttachment } from "./lib/attachments";
@@ -64,16 +65,6 @@ import { speechInputSupported, speechOutputSupported, useDictation, useReadAloud
 const PREVIEW: ApiStatus = { configured: false, model: "ciro", models: ["ciro"], mode: "preview" };
 const ACCOUNT_TABS = ["account", "subscription", "api-keys", "spending", "notifications", "memory", "sync"];
 const STUDIO_TABS = ["studio", "thinking", "ide", "knowledge", "research", "media", "compute", "library", "marketplace", "devices"];
-const prompts: { title: string; detail: string; prompt: string; icon: LucideIcon; tint: string }[] = [
-  { title: "理清一个复杂问题", detail: "找到关键变量与下一步",
-    prompt: "帮我系统分析这个问题：请先列出关键假设、未知变量和验证步骤。", icon: BrainCircuit, tint: "mint" },
-  { title: "一起写点代码", detail: "从思路到可运行实现",
-    prompt: "请帮我设计一个可靠的软件模块，先明确需求、接口和测试方案。", icon: Code2, tint: "lavender" },
-  { title: "提炼文章与资料", detail: "把信息整理成洞见",
-    prompt: "请帮我总结一篇文章的核心观点、证据和可执行启发。", icon: FileText, tint: "peach" },
-  { title: "探索新的想法", detail: "让灵感更进一步",
-    prompt: "和我一起头脑风暴，提出几个有新意、可验证的研究方向。", icon: Lightbulb, tint: "blue" }
-];
 const SLASH_COMMANDS: [string, string][] = [
   ["/goal", "目标模式：交给代理自主完成"], ["/plan", "计划模式：只规划不执行"], ["/studio", "打开融合工作台"],
   ["/work", "打开协作空间"], ["/plugins", "插件中心"], ["/ide", "代码工作区"], ["/research", "研究工作台"],
@@ -127,6 +118,17 @@ function exportMarkdown(chat: Conversation, language: Language) {
   URL.revokeObjectURL(url);
 }
 
+/** What the model receives for a message: the typed text plus any attached file text. */
+function modelContent(m: ChatMessage): string {
+  return m.attachText ? [m.content, m.attachText].filter(Boolean).join("\n\n---\n\n") : m.content;
+}
+/** Older messages stored attachments inline; show only the typed part in the bubble. */
+function bubbleText(m: ChatMessage, attachLabel: string): string {
+  if (m.attachText !== undefined) return m.content;
+  const cut = m.content.indexOf("\n\n---\n\n" + attachLabel);
+  return cut > 0 ? m.content.slice(0, cut) : m.content;
+}
+
 type SharePayload = { subject?: string; text?: string; images?: string[] };
 
 /** "1.2.10" > "1.2.9"; non-numeric parts compare as 0. */
@@ -157,6 +159,7 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [compareModels, setCompareModels] = useState<string[]>([]);
+  const [expandedUser, setExpandedUser] = useState<Record<string, boolean>>({});
   const [comparePicker, setComparePicker] = useState(false);
   const [readingFiles, setReadingFiles] = useState(0);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -505,6 +508,9 @@ export default function App() {
     if (studioOpen || current || viewProject || composerMode !== "chat") { createNew(); return true; }
     return false;
   };
+  // Phone gestures: swipe right/left to open/close the sidebar, swipe sheets down to dismiss them.
+  useSidebarSwipe(sidebarOpen, setSidebarOpen, () => Boolean(settingsSection || voiceOpen || lightbox || paletteOpen));
+  useSheetSwipe();
   useEffect(() => {
     const w = window as unknown as { ciroHandleBack?: () => boolean };
     w.ciroHandleBack = () => backRef.current();
@@ -617,8 +623,8 @@ export default function App() {
         instructions,
         reasoning: reasoningRequest(thinkingLevel, status),
         project: projectContext(projects.find((p) => p.id === projectId)),
-        messages: await Promise.all(history.map(async (m) => m.images?.length
-          ? { ...m, imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : m)),
+        messages: await Promise.all(history.map(async (m) => ({ ...m, content: modelContent(m), ...(m.images?.length
+          ? { imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : {}) }))),
         signal: controller.signal,
         webSearch: useWeb,
         usageKind: "chat", chatId: conversationId,
@@ -645,6 +651,11 @@ export default function App() {
       if (!answer) throw new Error(t("接口未返回任何文本"));
       applyCanvasReply(conversationId, answer);
       if (preferencesRef.current.autoTitle && history.length === 1) void autoTitle(conversationId, history[0].content, answer);
+      const chatNow = conversationsRef.current.find((c) => c.id === conversationId);
+      if (preferencesRef.current.memoryEnabled && preferencesRef.current.autoMemory && !chatNow?.temporary) {
+        const said = [...history].reverse().find((m) => m.role === "user")?.content || "";
+        void autoRemember(conversationId, assistantId, said);
+      }
       if (preferencesRef.current.followUps) {
         const question = [...history].reverse().find((m) => m.role === "user")?.content || "";
         void suggestFollowUps(conversationId, assistantId, question, answer);
@@ -693,6 +704,29 @@ export default function App() {
     catch { list = raw.split("\n").map((l) => l.replace(/^[\s\d.、)\-*•"]+|["\s]+$/g, "")).filter(Boolean); }
     list = list.map((x) => x.trim().slice(0, 80)).filter(Boolean).slice(0, 3);
     if (list.length) patchMessage(conversationId, messageId, { suggestions: list });
+  }
+  /** Auto memory: Ciro reads the user's latest message and saves lasting facts about them (never secrets). */
+  async function autoRemember(conversationId: string, messageId: string, said: string) {
+    const text = said.split("\n\n---\n\n")[0].trim();
+    if (text.length < 6) return;
+    let known: string[] = [];
+    try { known = (await listMemories()).map((m) => m.content); } catch { /* memory store unavailable */ }
+    let raw = "";
+    try {
+      raw = await quickAsk((language === "en"
+        ? "You are Ciro's memory assistant. From the user's message below, extract lasting facts about the USER worth remembering for future chats: background, long-term preferences, ongoing projects, standing instructions. Skip one-off questions, task content and anything sensitive (passwords, IDs, card numbers, health, exact addresses). Do not repeat what is already remembered. Reply ONLY with a JSON array of at most 2 short third-person strings (e.g. \"Prefers concise answers\"), or [] if nothing qualifies.\n\nAlready remembered:\n"
+        : "你是 Ciro 的记忆助手。阅读下面这条用户消息，提取值得在以后对话中长期记住的、关于用户本人的稳定信息：身份背景、长期偏好、正在进行的项目、希望以后一直遵守的要求。不要记录一次性的问题或任务内容，也不要记录任何敏感信息（密码、证件号、银行卡、健康状况、详细住址）。不要重复已记住的内容。只输出 JSON 字符串数组，最多 2 条，每条不超过 40 字，用第三人称（如“用户喜欢简洁的回答”）；没有值得记住的就输出 []。\n\n已记住：\n")
+        + (known.slice(0, 40).map((k) => "- " + k).join("\n") || "（无）") + "\n\n" + (language === "en" ? "User message:\n" : "用户消息：\n") + text.slice(0, 2000),
+        "memory", conversationId);
+    } catch { return; }
+    let items: string[] = [];
+    try { const parsed = JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1)); if (Array.isArray(parsed)) items = parsed.map(String); } catch { return; }
+    const norm = (x: string) => x.replace(/[\s，。,.!！"“”]/g, "").toLowerCase();
+    const seen = new Set(known.map(norm));
+    items = items.map((x) => x.trim().slice(0, 120)).filter((x) => x.length >= 4 && !seen.has(norm(x))).slice(0, 2);
+    const saved: { id: string; content: string }[] = [];
+    for (const item of items) { try { const m = await addMemory(item); saved.push({ id: m.id, content: m.content }); } catch { break; } }
+    if (saved.length) patchMessage(conversationId, messageId, { autoMemories: saved });
   }
   async function autoTitle(conversationId: string, question: string, answer: string) {
     const initial = conversationsRef.current.find((c) => c.id === conversationId)?.title;
@@ -879,6 +913,7 @@ export default function App() {
     if (busy) return;
     const text = (textOverride ?? draft).trim();
     if (!text && attachments.length === 0) return;
+    haptic(6);
     if (handleSlash(text)) return;
     if (composerMode === "image") { void generateImage(text); return; }
     if (composerMode !== "chat") {
@@ -893,9 +928,11 @@ export default function App() {
     ).join("\n\n");
     const images = attachments.flatMap((file) => file.kind === "image" ? [file] : []);
     images.forEach((image) => void putImage(image.id, image.dataUrl));
-    const content = [text, attachmentText].filter(Boolean).join("\n\n---\n\n") || (images.length ? t("请看这张图片。") : "");
+    const textFiles = attachments.flatMap((file) => file.kind === "text" ? [{ name: file.name, size: file.size }] : []);
+    const content = text || (textFiles.length ? t("请看附件。") : images.length ? t("请看这张图片。") : "");
     const now = Date.now();
     const user: ChatMessage = { id: newId(), role: "user", content, createdAt: now,
+      ...(textFiles.length ? { files: textFiles, attachText: attachmentText } : {}),
       ...(images.length ? { images: images.map(({ id, name, thumb }) => ({ id, name, thumb })) } : {}) };
     const conversationId = current?.id ?? newId();
     const history = [...(current?.messages || []), user];
@@ -937,8 +974,8 @@ export default function App() {
     const controller = new AbortController();
     controllerRef.current = controller;
     setBusy(true); setGeneratingId(conversationId); setAtBottom(true);
-    const prepared = await Promise.all(history.map(async (m) => m.images?.length
-      ? { ...m, imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : m));
+    const prepared = await Promise.all(history.map(async (m) => ({ ...m, content: modelContent(m), ...(m.images?.length
+      ? { imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : {}) })));
     try {
       await Promise.all(models.map(async (m, i) => {
         const started = Date.now();
@@ -1065,7 +1102,10 @@ export default function App() {
     if (!current || busy) return;
     const text = editValue.trim();
     setEditingId(null);
-    if (!text || text === message.content) return;
+    const typed = bubbleText(message, t("附件："));
+    if (!text || text === typed) return;
+    // Legacy messages kept attachment text inline: keep it attached to the edited prompt.
+    if (message.attachText === undefined && typed !== message.content) message = { ...message, attachText: message.content.slice(typed.length + 7) };
     const index = current.messages.findIndex((m) => m.id === message.id);
     if (index < 0) return;
     const edits = message.edits?.length ? message.edits.map((e) => ({ ...e }))
@@ -1253,22 +1293,20 @@ export default function App() {
     if (event.key === "Escape" && composerMode !== "chat" && !draft) { setComposerMode("chat"); return; }
     if (event.key === "ArrowUp" && !draft && current && !busy) {
       const lastUser = [...current.messages].reverse().find((m) => m.role === "user");
-      if (lastUser) { event.preventDefault(); setEditingId(lastUser.id); setEditValue(lastUser.content); }
+      if (lastUser) { event.preventDefault(); setEditingId(lastUser.id); setEditValue(bubbleText(lastUser, t("附件："))); }
       return;
     }
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     const modified = event.ctrlKey || event.metaKey;
+    // On-screen keyboards: Enter is a new line, the send button sends (as in other mobile chat apps).
+    if (!modified && window.matchMedia("(max-width: 760px) and (pointer: coarse)").matches) return;
     if ((preferences.sendWithEnter && !modified) || (!preferences.sendWithEnter && modified)) {
       event.preventDefault();
       sendMessage();
     }
   }
 
-  function choosePrompt(text: string) {
-    setDraft(text);
-    setSidebarOpen(false);
-    focusComposer();
-  }
+
 
   const readyLabel = statusLoading ? t("正在检查") : status.configured ? t("推理接口已配置") : t("界面预览模式");
   const showWallpaper = appearance.preset !== "white" && (appearance.scope === "all" || !current);
@@ -1359,7 +1397,8 @@ export default function App() {
 
   function renderRow(chat: Conversation) {
     const active = activeId === chat.id && !studioOpen;
-    return <div className={["cx-row", active ? "cx-row--active" : "", rowMenuId === chat.id ? "cx-row--menu" : ""].join(" ")} key={chat.id}>
+    return <div className={["cx-row", active ? "cx-row--active" : "", rowMenuId === chat.id ? "cx-row--menu" : ""].join(" ")} key={chat.id}
+      onContextMenu={(e) => { if (renamingId === chat.id) return; e.preventDefault(); haptic(); setMoveMenuId(null); setRowMenuId(chat.id); }}>
       {renamingId === chat.id
         ? <input className="cx-rename" autoFocus value={renameValue} aria-label={t("重命名对话")}
           onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename}
@@ -1669,7 +1708,19 @@ export default function App() {
                       {message.images?.length ? <div className="cx-msg-images">{message.images.map((image) =>
                         <button type="button" key={image.id} onClick={() => void getImage(image.id).then((full) => setLightbox(full || image.thumb))}
                           aria-label={t("查看图片") + " " + image.name}><img src={image.thumb} alt={image.name}/></button>)}</div> : null}
-                      <div className="user-bubble">{message.content}</div>
+                      {message.files?.length ? <div className="cx-msg-files">{message.files.map((f) =>
+                        <span key={f.name} className="cx-msg-file" title={f.name}><FileText size={15}/><span>{f.name}</span>
+                          <small>{f.size >= 1000 ? Math.round(f.size / 1000) + "K" : f.size} {t("字")}</small></span>)}</div> : null}
+                      {(() => {
+                        const shown = bubbleText(message, t("附件："));
+                        const long = shown.length > 700 || shown.split("\n").length > 12;
+                        const open = expandedUser[message.id];
+                        return <div className={long && !open ? "user-bubble user-bubble--clamped" : "user-bubble"}>
+                          {shown}
+                          {long && <button type="button" className="cx-bubble-more" onClick={() => setExpandedUser((m) => ({ ...m, [message.id]: !open }))}>
+                            {open ? t("收起") : t("展开全部")}</button>}
+                        </div>;
+                      })()}
                     </>}
                     {preferences.showTime && <time className="message-time" dateTime={new Date(message.createdAt).toISOString()}>
                       {new Date(message.createdAt).toLocaleTimeString(localeTag(language), { hour: "2-digit", minute: "2-digit" })}
@@ -1694,6 +1745,11 @@ export default function App() {
                         {message.usage.cwu !== undefined && <>{formatUnits(message.usage.cwu, localeTag(language))} CWU</>}
                         {message.usage.gwu ? <> · {formatUnits(message.usage.gwu, localeTag(language))} GWU</> : null}</span>}
                     </div>}
+                    {assistant && message.autoMemories?.length ? <div className="cx-memory-chip cx-memory-chip--auto">
+                      <BrainCircuit size={13}/><span>{t("已更新记忆：")}{message.autoMemories.map((m) => m.content).join("；")}</span>
+                      <button type="button" onClick={() => void Promise.all(message.autoMemories!.map((m) => removeMemory(m.id))).then(() => {
+                        patchMessage(current.id, message.id, { autoMemories: undefined }); notify("已撤销记忆"); }).catch(() => notify("撤销失败"))}>{t("撤销")}</button>
+                    </div> : null}
                     {lastAssistant && !busy && message.suggestions?.length ? <div className="cx-followups" aria-label={t("你可能还想问")}>
                       {message.suggestions.map((q) => <button type="button" key={q} onClick={() => sendMessage(q)}>
                         <CornerDownRight size={14}/><span>{q}</span></button>)}
@@ -1711,7 +1767,7 @@ export default function App() {
                         onClick={() => void addMemory(message.content).then((m) => { patchMessage(current.id, message.id, { rememberedId: m.id }); notify("Ciro 会记住这条信息"); })
                           .catch(() => notify("保存记忆失败"))}><Bookmark size={15}/></button>}
                       <button aria-label={t("编辑消息")} title={t("编辑消息")} disabled={busy}
-                        onClick={() => { setEditingId(message.id); setEditValue(message.content); }}><Pencil size={15}/></button>
+                        onClick={() => { setEditingId(message.id); setEditValue(bubbleText(message, t("附件："))); }}><Pencil size={15}/></button>
                     </div>}
                   </div>
                 </article>;
@@ -1837,16 +1893,6 @@ export default function App() {
                 </div>
               </div>
             </div>
-              {!current && !viewProject && !temporaryMode && <div className="cx-suggestions">
-              {prompts.map((idea, index) => {
-                const Icon = idea.icon;
-                return <button className="suggestion-card cx-suggestion" key={idea.title} style={{ animationDelay: index * 60 + "ms" }}
-                  onClick={() => choosePrompt(t(idea.prompt))}>
-                  <span className={["suggestion-icon", "suggestion-icon--" + idea.tint].join(" ")}><Icon size={18} strokeWidth={1.9}/></span>
-                  <span className="suggestion-copy"><strong>{t(idea.title)}</strong><small>{t(idea.detail)}</small></span>
-                </button>;
-              })}
-            </div>}
             <p className="composer-disclaimer">{t(composerMode === "chat" ? "Ciro 可能出错，请核实重要信息。" : "代理执行受权限和验证器约束。")} <span>{preferences.sendWithEnter ? t("Enter 发送 · Shift + Enter 换行") : t("Ctrl / ⌘ + Enter 发送 · Enter 换行")}</span></p>
           </div>
         </div>

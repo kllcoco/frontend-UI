@@ -5,7 +5,7 @@ import type { UsageEntry, UsageKind } from "../lib/usage";
 import type { Conversation } from "../types";
 
 const DAY = 86_400_000;
-const KIND: Record<UsageKind, string> = { chat: "对话回答", title: "自动标题", followups: "追问建议", canvas: "画布", voice: "语音", other: "其他" };
+const KIND: Record<UsageKind, string> = { chat: "对话回答", title: "自动标题", followups: "追问建议", memory: "自动记忆", canvas: "画布", voice: "语音", other: "其他" };
 const startOfDay = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
 /** Settings → Usage: native CWU/GWU reported by the model service, aggregated on this device. */

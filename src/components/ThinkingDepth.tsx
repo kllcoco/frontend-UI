@@ -70,6 +70,7 @@ export default function ThinkingDepth({ value, onChange, t, note }: Props) {
       <span key={level.id} className="td-chip-label">{t(level.label)}</span>
       <ChevronDown size={13} className={open ? "td-chev td-chev--open" : "td-chev"}/>
     </button>
+    {open && <div className="td-scrim" aria-hidden="true" onClick={() => setOpen(false)}/>}
     {open && <div className="td-pop" role="dialog" aria-label={t("思考深度")} style={style}>
       <div className="td-head">
         <div><strong>{t("思考深度")}</strong><span>{t("拖动滑杆调节 Ciro 回答前的思考时间")}</span></div>

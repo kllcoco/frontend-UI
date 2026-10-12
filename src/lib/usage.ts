@@ -1,7 +1,7 @@
 /* Usage in Ciro's native units: CWU (compute work units) and GWU (GPU work units).
    Only what the model service reports is counted. Token counts are never converted into CWU. */
 export type Usage = { cwu?: number; gwu?: number };
-export type UsageKind = "chat" | "title" | "followups" | "canvas" | "voice" | "other";
+export type UsageKind = "chat" | "title" | "followups" | "memory" | "canvas" | "voice" | "other";
 export type UsageEntry = { at: number; cwu: number; gwu: number; model: string; kind: UsageKind; chatId?: string };
 
 const KEY = "ciro.usage.v1";
