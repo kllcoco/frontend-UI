@@ -82,3 +82,32 @@ test("desktop provisioning is denied in plain web, public, or incorrectly bound 
   assert.equal(reader.store.get().owner,null);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test("native upgrade preserves an existing password-based owner's identity and secrets",async()=>{
+ const dir=mkdtempSync(join(tmpdir(),"ciro-desktop-migration-"));
+ const env=profile();
+ try{
+  const old=createAccountService({dir,env:{...env,CIRO_DESKTOP_AUTO_PROVISION:"false"}});
+  const app=express();app.use(express.json());app.use("/api/account",old.router);
+  const listener=await new Promise(resolve=>{
+   const server=app.listen(0,"127.0.0.1",()=>resolve(server));
+  });
+  try{
+   const base="http://127.0.0.1:"+listener.address().port;
+   const created=await fetch(base+"/api/account/bootstrap",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email:"existing@example.com",displayName:"Existing Owner",
+     password:"existing-owner-safe-password",bootstrapToken:env.CIRO_BOOTSTRAP_TOKEN})
+   });
+   assert.equal(created.status,201);
+  }finally{await new Promise(resolve=>listener.close(resolve));}
+  const original=old.store.get().owner;
+  const native=createAccountService({dir,env});
+  const session=await native.provisionDesktopSession();
+  assert.match(session.raw,/^[A-Za-z0-9_-]{40,}$/);
+  assert.equal(session.ownerIsDesktopLocal,false);
+  assert.equal(native.store.get().owner.email,original.email);
+  assert.equal(native.store.get().owner.passwordHash,original.passwordHash);
+  assert.equal(native.store.get().owner.id,original.id);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
