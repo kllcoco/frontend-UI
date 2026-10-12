@@ -15,6 +15,8 @@
 
 - Production main entrypoint must import `studio.css`: all ten Studio modules previously lacked their stylesheet due to an omitted import.
 - Final shared `ui-foundation.css` applies responsive sizing, overflow-safe cards/forms/tables, dark-mode contrast for plugin marketplace, coherent action targets, keyboard focus indicators, and reduced-motion behavior.
+- Native Windows taskbar and installer must use the official Ciro crescent logo (`build/icon.svg`, validated by package preflight) instead of the Electron default icon; actual Windows packaged conversion remains a pending test.
+- Packaged Electron must not register the PWA service worker on each new loopback port (avoid stale per-port caches and deceptive UI after upgrading).
 - Scope covers Chat/welcome, Studio dashboard and its 9 special areas, Workbench, Settings, Account & Security, Memory, Notifications, Sync, Billing, Official Apps, Skills, Plugin Center, and small-screen layouts.
 - Automated browser audit takes screenshots and checks viewport overflow and loaded Studio computed layout across major pages. **Screenshots are evidence to inspect, not automated aesthetic approval.**
 - No arbitrary permission changes, arbitrary plugin code execution, silent NCPA model download, unexpected charges or claims about an unverified native inference backend.
@@ -28,6 +30,7 @@
 | Local account persistence/migration | `tests/desktop-auto-provision.test.mjs` | Test added, NOT RUN |
 | Studio root styling and responsive consistency | `src/main.tsx`, `src/studio.css`, `src/ui-foundation.css` | Source candidate modified, visual QA NOT RUN |
 | Per-page screenshot/overflow regression | `tests/e2e/ui-coverage.spec.ts` | Test added, NOT RUN |
+| Desktop brand icon & stale cache prevention | `build/icon.svg`, `electron-builder.yml`, `scripts/desktop-package-preflight.mjs`, `src/main.tsx` | Source implemented, NOT RUN |
 | Windows installer smoke | `scripts/accept-ciro-windows.ps1 -InstallInDisposableSession` (disposable Windows user ONLY) | Existing original smoke plus new owner assertion; NOT RUN |
 | GitHub and native NCPA live integrations | Independent consent/evidence | NOT RUN |
 | Public commercial release | Signed installer, independent security/UX review, real integration | NOT QUALIFIED |
