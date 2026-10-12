@@ -184,6 +184,7 @@
     "self_repair": {
       "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
       "tools": [
+        "github.list_directory",
         "github.read_file",
         "github.create_branch",
         "github.write_file",
@@ -191,7 +192,10 @@
       ],
       "allowed_changes": "allowlisted feature branches, draft PR only, owner approvals mandatory",
       "live_github_token_authorization": "NOT_RUN_IN_CIRO_CLIENT",
-      "code_gate": "FULL_REGRESSION_NOT_RUN"
+      "code_gate": "FULL_REGRESSION_NOT_RUN",
+      "plugin_version": "0.8.1",
+      "install_grant_rule": "Installed plugin manifest SHA/version must exactly match current advertised capabilities; older grants require explicit uninstall and reinstall",
+      "read_scope": "Read allowed repo with safe explicit main/feat/* ref; build new repair branch only under ciro/feature/repair; all writes approvals required"
     },
     "desktop": {
       "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
@@ -205,15 +209,16 @@
     },
     "isolated_verified_tests": {
       "status": "PASS",
-      "passed": 4,
+      "passed": 6,
       "failed": 0,
-      "method": "Node v22.16.0 local isolated exact-source modules desktop/runtime.cjs and server/github-self-repair.mjs, with matching Git blob hashes",
-      "note": "NOT the full CIRO npm test, production build or Electron Windows integration"
+      "method": "Node v22.16.0 local exact-source isolated tests: desktop/runtime.cjs, server/github-self-repair.mjs, server/agent-policy.mjs, including main/preload JS syntax checks",
+      "note": "Not full npm test, React TypeScript build, app bootstrap, real provider login, or Windows installer"
     },
     "constraints": [
       "No paid resources or Windows CI workflow execution without owner cost approval",
       "Do not claim signed installer / model / full commercial graduation from source code alone"
     ],
-    "independent_acceptance": "NOT_GRADUATED"
+    "independent_acceptance": "NOT_GRADUATED",
+    "last_source_review": "2026-10-12"
   }
 }
