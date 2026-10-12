@@ -16,7 +16,7 @@
 In a trusted CIRO Desktop installation:
 
 - On first launch, open the local Ciro user-data directory and read `desktop-secrets.json`. Enter only its `bootstrapToken` into **账户中心 → 初始化管理员账户**. Preserve the entire key file securely: its `accountDataKey` encrypts persisted credentials and data. Do not share or commit it.
-- The desktop creates a separate local `.env` with the sole allowed repository `kllcoco/frontend-UI` by default.
+- The desktop creates a separate local `.env` with **no allowed GitHub repositories by default**. For our internal test, the owner explicitly sets `CIRO_GITHUB_REPOS=kllcoco/frontend-UI` and `CIRO_GITHUB_SELF_REPO=kllcoco/frontend-UI`. No installer grants access to our company repository automatically.
 - Review the local `.env` and set `CIRO_GITHUB_WRITES=true`, `CIRO_GITHUB_SELF_REPAIR_ENABLED=true`, `CIRO_GITHUB_SELF_REPO=kllcoco/frontend-UI`; restart the app. Any write still requires separate human approval.
 - At [GitHub Fine-grained PAT settings](https://github.com/settings/personal-access-tokens), issue a short-lived personal token for **only** `kllcoco/frontend-UI`, granting repository **Contents: Read/Write** and **Pull requests: Read/Write**, with no Administration/Actions/Secrets permissions. Never paste the token into ChatGPT, Git, logs, screenshots or a public server.
 - In CIRO Plugin Center: install GitHub → select `kllcoco/frontend-UI` → enter the PAT in the **local password field** → verify reading `README.md`. The API checks real GitHub `GET /user` and `GET /repos/{owner}/{repo}` before encrypting it.
