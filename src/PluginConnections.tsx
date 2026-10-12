@@ -110,6 +110,7 @@ export default function PluginConnections(){
       <p>{current.description}</p>
       <h4>插件请求的权限</h4><div className="ciro-market-tags">{current.permissions.map(x=><code key={x}>{x}</code>)}</div>
       <p className="ciro-market-muted">安装后不会自动登录第三方账号。需要使用时，再由用户亲自授权；高风险操作仍需审批。</p>
+      {active&&active.version!==current.version&&<p className="ciro-market-error">插件能力已更新至 v{current.version}。旧版不会自动获得新权限：请先卸载再重新安装确认。</p>}
       {pending?.plugin.id===current.id&&!active&&<div className="ciro-market-confirm">
        <strong>确认安装 {current.title}？</strong><p>版本 {pending.plugin.version} · 请确认以上权限。</p>
        <button className="wb-secondary" onClick={()=>setPending(null)}>取消</button>
