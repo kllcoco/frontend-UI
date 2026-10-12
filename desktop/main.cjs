@@ -191,6 +191,10 @@ function createWindow() {
     mainWindow.webContents.once("did-finish-load", () => setTimeout(async () => {
       const image = await mainWindow.webContents.capturePage();
       writeFileSync(process.env.CIRO_DESKTOP_SMOKE, image.toPNG());
+      const menu = Menu.getApplicationMenu();
+      writeFileSync(process.env.CIRO_DESKTOP_SMOKE + ".menu.json", JSON.stringify({
+        language, items: menu ? menu.items.map((item) => ({ label: item.label, sub: item.submenu ? item.submenu.items.map((x) => x.label).filter(Boolean) : [] })) : []
+      }, null, 2));
       app.quit();
     }, 2500));
   }
