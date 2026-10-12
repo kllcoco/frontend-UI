@@ -44,3 +44,25 @@ test("desktop generates stable per-user local secrets and enforces single owner"
   assert.ok(!readFileSync(first.envPath,"utf8").includes(first.record.accountDataKey));
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("desktop child ignores inherited secrets, repository grants and Node startup hooks",()=>{
+ const {childEnvironment}=require("../desktop/runtime.cjs");
+ const root="C:/user/ciro-data";
+ const record={accountDataKey:Buffer.alloc(32,7).toString("base64"),
+  apiPepper:"p".repeat(30),bootstrapToken:"t".repeat(30)};
+ const env=childEnvironment({PATH:"C:/bin",SystemRoot:"C:/Windows",
+  CIRO_GITHUB_REPOS:"attacker/repo",CIRO_GITHUB_WRITES:"true",
+  CIRO_GITHUB_TOKEN:"ambient-secret",CIRO_API_BASE_URL:"https://untrusted.example",
+  CIRO_ACCOUNT_DATA_KEY:"wrong-key",CIRO_PLUGIN_TRUSTED_KEYS_JSON:"untrusted",
+  NODE_OPTIONS:"--require ./evil.js",NODE_PATH:"./evil-modules",
+  DOTENV_CONFIG_PATH:"C:/temp/evil.env",HOST:"0.0.0.0",PORT:"8080"},root,record);
+ assert.equal(env.PATH,"C:/bin");
+ assert.equal(env.SystemRoot,"C:/Windows");
+ for(const k of ["CIRO_GITHUB_REPOS","CIRO_GITHUB_WRITES","CIRO_GITHUB_TOKEN",
+  "CIRO_API_BASE_URL","CIRO_PLUGIN_TRUSTED_KEYS_JSON","NODE_OPTIONS",
+  "NODE_PATH","DOTENV_CONFIG_PATH"])assert.equal(env[k],undefined,k);
+ assert.equal(env.CIRO_ACCOUNT_DATA_KEY,record.accountDataKey);
+ assert.equal(env.HOST,"127.0.0.1");
+ assert.equal(env.PORT,"0");
+ assert.equal(env.ELECTRON_RUN_AS_NODE,"1");
+});
