@@ -17,6 +17,7 @@ $receipt = [ordered]@{
   windowsNsisBuild = 'NOT_RUN'
   installerSHA256 = $null
   signatureStatus = 'NOT_RUN'
+  desktopAutoProvision = 'NOT_RUN'
   cleanInstallBootUninstall = 'NOT_RUN'
   githubLiveRead = 'NOT_RUN'
   nativeModelStream = 'NOT_RUN'
@@ -90,6 +91,16 @@ try {
           if ($appProcess.HasExited) { break }
         }
         if (-not $started) { throw 'Desktop first-start key file not created' }
+        # First launch must create an actual authenticated local owner automatically.
+        # A secret file alone does NOT qualify seamless onboarding.
+        $ownerState = Join-Path $dataDir 'account-state.json'
+        if (-not (Test-Path $ownerState)) { throw 'Native desktop failed to provision a local account automatically' }
+        $owner = Get-Content $ownerState -Raw | ConvertFrom-Json
+        if ($null -eq $owner.owner -or $owner.owner.desktopLocal -ne $true) {
+          throw 'Native desktop did not create a verified local-only owner'
+        }
+        $receipt.desktopAutoProvision = 'PASS_NO_MANUAL_BOOTSTRAP'
+        Save-Receipt
         if ($appProcess.HasExited) { throw 'Ciro quit unexpectedly after first boot' }
         $windowReady = $false
         for ($i=0; $i -lt 30; $i++) {
