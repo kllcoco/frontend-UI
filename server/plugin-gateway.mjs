@@ -170,6 +170,10 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  const policy=()=>workbenchPolicy();
  function assertInstalled(user,provider){const record=installs.installed(user,provider);
   if(!record||!record.enabled)throw fail("Install and enable the plugin in the marketplace first",403);
+  const meta=installs.getPlugin(provider);
+  const expected=meta&&sha(JSON.stringify({id:meta.id,version:meta.version,permissions:meta.permissions,tools:meta.tools}));
+  if(!meta?.ready||record.version!==meta.version||record.manifestHash!==expected)
+   throw fail("Plugin capabilities changed; reinstall and review permissions",409);
   return record;
  }
  const activeToolRequests=new Map();
