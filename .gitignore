@@ -13,3 +13,6 @@ playwright-report/
 
 # Local CIRO Workbench private state (separate from source and evidence)
 .ciro-runtime/
+
+# Installer output (reproducible from source; do not commit executables)
+release/
