@@ -556,7 +556,11 @@ export default function App() {
     window.setTimeout(() => composerRef.current?.focus(), 0);
   }
 
-  const readyLabel = statusLoading ? t("正在检查") : status.configured ? t("推理接口已配置") : t("界面预览模式");
+  const readyLabel = statusLoading ? t("正在检查") : status.configured
+    ? t("推理接口已配置")
+    : window.ciroNativeBridge
+      ? (language==="en"?"Desktop ready · model not connected":"本机已就绪 · 模型待连接")
+      : t("界面预览模式");
   const showWallpaper = appearance.preset !== "white" && (appearance.scope === "all" || !current);
   const wallpaperStyle: CSSProperties = {
     backgroundImage: "url('" + backgroundUrl(appearance.preset, customImageUrl) + "')",
