@@ -1,6 +1,8 @@
+import { localeTag } from "../lib/i18n";
+import type { Language } from "../lib/i18n";
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import { FileText, FolderOpen, MessageCircle, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { Download, FileText, FolderOpen, MessageCircle, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import type { Conversation } from "../types";
 import type { Project } from "../lib/projects";
 import { PROJECT_COLORS, PROJECT_LIMITS } from "../lib/projects";
@@ -10,17 +12,18 @@ type Props = {
   t: (text: string) => string;
   project: Project;
   chats: Conversation[];
-  language: "zh-CN" | "en";
+  language: Language;
   onChange: (project: Project) => void;
   onDelete: () => void;
   onOpenChat: (id: string) => void;
   onNotify: (text: string) => void;
+  onExport: () => void;
 };
 
 const textFile = /\.(txt|md|markdown|json|csv|ts|tsx|js|jsx|mjs|cjs|py|html|css|scss|xml|yaml|yml|toml|ini|sql|log|sh|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|rb|php|vue|svelte)$/i;
 
 /** Project home: name, colour, instructions, reference files and the project's chats. */
-export default function ProjectView({ t, project, chats, language, onChange, onDelete, onOpenChat, onNotify }: Props) {
+export default function ProjectView({ t, project, chats, language, onChange, onDelete, onOpenChat, onNotify, onExport }: Props) {
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(project.name);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -63,6 +66,7 @@ export default function ProjectView({ t, project, chats, language, onChange, onD
         </div>
       </div>
       <div className="pv-actions">
+        <button type="button" className="cx-icon" onClick={onExport} aria-label={t("导出项目")} title={t("导出项目（可分享给团队成员）")}><Download size={16}/></button>
         <button type="button" className="cx-icon" onClick={() => setEditingName(true)} aria-label={t("重命名项目")} title={t("重命名项目")}><Pencil size={16}/></button>
         <button type="button" className="cx-icon pv-danger" aria-label={t("删除项目")} title={t("删除项目")}
           onClick={() => { if (window.confirm(t("删除项目后，其中的对话会移回“最近”，确定删除？"))) onDelete(); }}><Trash2 size={16}/></button>
@@ -99,7 +103,7 @@ export default function ProjectView({ t, project, chats, language, onChange, onD
         <MessageCircle size={16}/>
         <span className="pv-chat-copy"><strong>{chat.title}</strong>
           <small>{(chat.messages.find((m) => m.role === "assistant" && !m.preview)?.content || chat.messages[0]?.content || "").slice(0, 120)}</small></span>
-        <time>{new Date(chat.updatedAt).toLocaleDateString(language === "en" ? "en-US" : "zh-CN", { month: "short", day: "numeric" })}</time>
+        <time>{new Date(chat.updatedAt).toLocaleDateString(localeTag(language), { month: "short", day: "numeric" })}</time>
       </button>)}
     </div>
   </section>;

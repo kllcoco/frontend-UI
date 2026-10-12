@@ -1,3 +1,4 @@
+import { localize } from "./i18n";
 import type { Language } from "./i18n";
 const english:ReadOnlyMap = new Map([
   ["服务已配置","Backend configuration present"],
@@ -401,4 +402,4 @@ const english:ReadOnlyMap = new Map([
   ]
 ]);
 type ReadOnlyMap = ReadonlyMap<string,string>;
-export function commerceTranslate(language:Language,value:string):string {return language==="en"?(english.get(value)||value):value;}
+export function commerceTranslate(language:Language,value:string):string {return localize(language,value,(k)=>english.get(k));}

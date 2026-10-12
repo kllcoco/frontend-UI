@@ -1,12 +1,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-const COMMANDS = new Set(["new-chat", "search", "settings", "toggle-sidebar", "shortcuts", "about", "export-chat", "export-pdf", "focus-composer"]);
+const COMMANDS = new Set(["new-chat", "search", "settings", "toggle-sidebar", "shortcuts", "about", "export-chat", "export-pdf", "focus-composer", "find"]);
 
 contextBridge.exposeInMainWorld("ciroDesktop", {
   platform: process.platform,
   version: ipcRenderer.sendSync("ciro:version"),
   setLanguage: (language) => {
-    if (language === "zh-CN" || language === "en") ipcRenderer.send("ciro:set-language", language);
+    if (language === "zh-CN" || language === "zh-TW" || language === "en") ipcRenderer.send("ciro:set-language", language);
   },
   onCommand: (handler) => {
     const listener = (_event, command) => { if (COMMANDS.has(command)) handler(command); };
@@ -22,5 +22,6 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
   updateAction: (action) => {
     if (["download", "install", "check"].includes(action)) ipcRenderer.send("ciro:update-action", action);
   },
-  exportPdf: (name) => ipcRenderer.invoke("ciro:export-pdf", String(name || "Ciro"))
+  exportPdf: (name) => ipcRenderer.invoke("ciro:export-pdf", String(name || "Ciro")),
+  openWindow: (chatId) => ipcRenderer.send("ciro:open-window", chatId ? String(chatId) : "")
 });

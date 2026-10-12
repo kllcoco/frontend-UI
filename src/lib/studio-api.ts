@@ -1,3 +1,5 @@
+import { localeTag } from "./i18n";
+import type { Language } from "./i18n";
 import {accountFetch} from "./account-api";
 export type StudioTab="studio"|"thinking"|"ide"|"knowledge"|"research"|"media"|"compute"|"library"|"marketplace"|"devices";
 export type NativeService={configured:boolean;verified:boolean;status:string};
@@ -47,8 +49,8 @@ export async function studioApi<T>(path:string,method="GET",body?:unknown):Promi
   }
   return data as T;
 }
-export function humanBytes(value:number,language:"zh-CN"|"en"){
+export function humanBytes(value:number,language:Language){
   if(value<1024)return value+" B";
-  return new Intl.NumberFormat(language==="en"?"en-US":"zh-CN",{maximumFractionDigits:1})
+  return new Intl.NumberFormat(localeTag(language),{maximumFractionDigits:1})
     .format(value/1024)+" KB";
 }

@@ -1,3 +1,4 @@
+import { localeTag } from "./lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import CommercialCenter from "./CommercialCenter";
 import PluginConnections from "./PluginConnections";
@@ -83,7 +84,7 @@ function useWorkbench() {
   return {state,loading,error,notice,setError,setNotice,refresh,call};
 }
 function readable(time:string,language:Language){
-  const date=new Date(time);return Number.isNaN(date.getTime())?"—":date.toLocaleString(language==="en"?"en-US":"zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+  const date=new Date(time);return Number.isNaN(date.getTime())?"—":date.toLocaleString(localeTag(language),{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
 }
 export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal="",onNavigate}:Props) {
   const w=useWorkbench();

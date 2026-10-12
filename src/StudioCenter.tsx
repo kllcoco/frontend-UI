@@ -1,3 +1,4 @@
+import { localeTag } from "./lib/i18n";
 import {useEffect,useMemo,useRef,useState} from "react";
 import type {ChangeEvent,FormEvent,ReactNode} from "react";
 import {
@@ -302,7 +303,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     });
   }
   function labelledNumber(n:number|undefined,suffix=""){
-    return typeof n==="number"?new Intl.NumberFormat(language==="en"?"en-US":"zh-CN",{maximumFractionDigits:1}).format(n)+suffix:"—";
+    return typeof n==="number"?new Intl.NumberFormat(localeTag(language),{maximumFractionDigits:1}).format(n)+suffix:"—";
   }
   return <div className="stu-root">
     <header className="stu-header">

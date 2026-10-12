@@ -18,7 +18,11 @@ export async function getApiStatus(): Promise<ApiStatus> {
     mode: value.configured === true ? "configured" : "preview",
     reasoningModes:Array.isArray(value.reasoningModes)?value.reasoningModes.filter((m):m is "fast"|"deep"=>m==="fast"||m==="deep"):["fast"],
     reasoningEffort:value.reasoningEffort===true,
-    webSearch:(value as {webSearch?:unknown}).webSearch===true
+    webSearch:(value as {webSearch?:unknown}).webSearch===true,
+    stt:(value as {stt?:unknown}).stt===true,
+    tts:(value as {tts?:unknown}).tts===true,
+    images:(value as {images?:unknown}).images===true,
+    team:(value as {team?:unknown}).team===true
   };
 }
 
@@ -35,6 +39,7 @@ type StreamOptions = {
   /** Streamed OpenAI-style tool calls (name + incrementally streamed JSON arguments). */
   onTool?: (index: number, name: string | undefined, argsDelta: string) => void;
   webSearch?: boolean;
+  memories?: string[];
 };
 export type ReasoningRequest={mode:"fast"|"deep";effort?:"minimal"|"low"|"medium"|"high";maxSeconds?:number;priority?:1|2|5};
 
@@ -74,7 +79,7 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
   return false;
 }
 
-export async function streamChat({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch }: StreamOptions): Promise<void> {
+export async function streamChat({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -85,7 +90,8 @@ export async function streamChat({ messages, model, instructions, reasoning, pro
       ...(instructions?.enabled ? { instructions } : {}),
       ...(reasoning&&(reasoning.mode==="deep"||reasoning.effort)?{reasoning}:{}),
       ...(project&&(project.instructions.trim()||project.files.length)?{project}:{}),
-      ...(webSearch?{webSearch:true}:{})
+      ...(webSearch?{webSearch:true}:{}),
+      ...(memories?.length?{memories}:{})
     })
   });
 

@@ -137,7 +137,7 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
   await page.screenshot({ path: imageDir + "/13-settings-privacy.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "关于 Ciro", exact: true }).click();
-  await expect(page.getByText("CIRO CLIENT · v0.9.1")).toBeVisible();
+  await expect(page.getByText("CIRO CLIENT · v0.9.2")).toBeVisible();
   await page.screenshot({ path: imageDir + "/14-settings-about.png", fullPage: true, animations: "disabled" });
 });
 

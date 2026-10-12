@@ -11,6 +11,7 @@ import {createPluginGateway} from "./plugin-gateway.mjs";
 import {runPluginChat} from "./plugin-chat-runtime.mjs";
 import {assertPluginDeploymentSafe} from "./plugin-release-gate.mjs";
 import {createShareRouters} from "./share.mjs";
+import {createMediaRouter,mediaFeatures} from "./media.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -59,9 +60,12 @@ app.get("/api/status", (_req, res) => {
     reasoningModes:configured?configuredModes:["fast"],
     reasoningEffort:configured&&forwardEffort,
     webSearch:configured&&webSearch,
+    ...mediaFeatures(),
     studioVersion:"ciro-studio.v1"
   });
 });
+
+app.use("/api", createMediaRouter({ apiBase, apiKey }));
 
 app.post("/api/chat", async (req, res) => {
   if (!configured) {

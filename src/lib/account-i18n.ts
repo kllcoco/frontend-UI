@@ -1,3 +1,4 @@
+import { localize } from "./i18n";
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
   "账户与安全": "Account & security",
@@ -114,4 +115,4 @@ const terms:Readonly<Record<string,string>>={
   "本机服务器只允许一个拥有者账户。": "The server allows a single owner account.",
   "更改密码后所有 API 密钥都将作废。": "All API keys are revoked when the password changes."
 };
-export function accountTranslate(language:Language,value:string):string {return language==="en"?(terms[value]||value):value;}
+export function accountTranslate(language:Language,value:string):string {return localize(language,value,(k)=>terms[k]);}

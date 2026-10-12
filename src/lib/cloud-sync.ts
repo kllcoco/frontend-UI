@@ -50,7 +50,7 @@ export function persistCloudSnapshot(input:SyncPayload){
   saveActiveId(input.activeId);
   const pref=input.preferences;
   if(["dark","light"].includes(pref?.theme))saveTheme(pref.theme);
-  if(["en","zh-CN"].includes(pref?.language))saveLanguage(pref.language);
+  if(["en","zh-CN","zh-TW"].includes(pref?.language))saveLanguage(pref.language);
   if(pref?.instructions&&typeof pref.instructions.enabled==="boolean" &&
     typeof pref.instructions.about==="string"&&typeof pref.instructions.style==="string")
     saveCustomInstructions(pref.instructions);

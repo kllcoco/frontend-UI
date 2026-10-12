@@ -1,4 +1,8 @@
-export type Language = "zh-CN" | "en";
+export type Language = "zh-CN" | "zh-TW" | "en";
+export const LANGUAGES: { id: Language; label: string }[] = [
+  { id: "zh-CN", label: "简体中文" }, { id: "zh-TW", label: "繁體中文" }, { id: "en", label: "English" }
+];
+const SUPPORTED = new Set<string>(LANGUAGES.map((l) => l.id));
 const STORAGE_KEY = "ciro.language.v1";
 export const DEFAULT_LANGUAGE: Language = "zh-CN";
 const translations: Readonly<Record<string,string>> = {
@@ -520,11 +524,161 @@ const translations: Readonly<Record<string,string>> = {
   "通知权限被拒绝，请在系统或浏览器设置中允许": "Notification permission denied — allow it in system or browser settings",
   "重启以更新": "Restart to update",
   "链接指向当前 Ciro 服务器；桌面版本地服务只能在本机访问，对外分享请使用部署在服务器上的 Ciro。": "Links point to this Ciro server. The desktop app's local server is only reachable from this computer; share from a deployed Ciro server.",
-  "（跳过重复 ": " (skipped duplicates: "
+  "（跳过重复 ": " (skipped duplicates: ",
+  "新画布": "New canvas",
+  "画布": "Canvas",
+  "当前画布「": "Current canvas “",
+  "」的内容：": "” content:",
+  "请只返回修改后的完整内容，放在一个代码块中。": "Reply with only the full revised content in one code block.",
+  "已生成图片。优化后的描述：": "Image created. Revised prompt: ",
+  "已生成图片。": "Image created.",
+  "图片生成失败：": "Image generation failed: ",
+  "团队": "Team",
+  "语音对话": "Voice chat",
+  "在对话中查找": "Find in chat",
+  "在新窗口打开": "Open in new window",
+  "跳到输入框": "Skip to message box",
+  "打开画布": "Open canvas",
+  "正在生成图片…": "Generating image…",
+  "下载图片": "Download image",
+  "在画布中打开": "Open in canvas",
+  "你可能还想问": "You might also ask",
+  "已记住": "Remembered",
+  "撤销": "Undo",
+  "记住这条信息": "Remember this",
+  "描述你想生成的图片…": "Describe the image you want…",
+  "生成图片": "Create image",
+  "用文字描述，生成一张图片": "Describe it in words to create an image",
+  "需服务端开启 CIRO_IMAGES=on": "Requires CIRO_IMAGES=on on the server",
+  "新建画布": "New canvas",
+  "在右侧编辑文档或代码，并让 Ciro 协助修改": "Edit documents or code on the right, with Ciro's help",
+  "版本": "Versions",
+  "上一个版本": "Previous version",
+  "下一个版本": "Next version",
+  "画布已更新": "Canvas updated",
+  "项目已导出": "Project exported",
+  "已撤销记忆": "Memory removed",
+  "撤销失败": "Undo failed",
+  "Ciro 会记住这条信息": "Ciro will remember this",
+  "保存记忆失败": "Couldn't save memory",
+  "翡翠绿": "Jade",
+  "湖蓝": "Lake blue",
+  "紫罗兰": "Violet",
+  "琥珀": "Amber",
+  "玫瑰": "Rose",
+  "石墨": "Graphite",
+  "强调色": "Accent color",
+  "按钮、链接与高亮使用的颜色": "Used for buttons, links and highlights",
+  "界面字体": "Interface font",
+  "记忆": "Memory",
+  "Ciro 会在对话中参考这些关于你的信息；临时对话不会使用记忆。": "Ciro uses these facts about you in chats; temporary chats never use memory.",
+  "启用记忆": "Enable memory",
+  "登录账户时记忆加密保存在服务器，否则保存在此设备": "Encrypted on the server when signed in, otherwise stored on this device",
+  "追问建议": "Follow-up suggestions",
+  "回答结束后，在下方给出可以一键继续的问题": "After a reply, suggest questions you can continue with in one click",
+  "上一个 / 下一个对话": "Previous / next chat",
+  "重命名选中的对话": "Rename selected chat",
+  "现代无衬线": "Modern sans",
+  "系统字体": "System font",
+  "衬线阅读体": "Serif reading",
+  "画布标题": "Canvas title",
+  "代码": "Code",
+  "HTML、SVG 与 Markdown 支持预览": "Preview is available for HTML, SVG and Markdown",
+  "预览": "Preview",
+  "撤销上一次修改": "Undo last change",
+  "复制": "Copy",
+  "下载": "Download",
+  "关闭画布": "Close canvas",
+  "画布内容": "Canvas content",
+  "Ciro 正在修改…": "Ciro is revising…",
+  "让 Ciro 修改画布，例如：改成深色配色": "Ask Ciro to revise the canvas, e.g. switch to a dark palette",
+  "让 Ciro 修改画布": "Ask Ciro to revise the canvas",
+  "修改": "Revise",
+  "无结果": "No results",
+  "上一个": "Previous",
+  "下一个": "Next",
+  "关闭查找": "Close find",
+  "最多保存 50 条记忆": "Up to 50 memories",
+  "记忆已关闭：已保存的内容不会随对话发送。": "Memory is off: saved items are not sent with chats.",
+  "例如：我是前端工程师，偏好 TypeScript": "e.g. I'm a frontend engineer and prefer TypeScript",
+  "添加记忆": "Add memory",
+  "添加": "Add",
+  "还没有记忆。在对话中点消息下方的「记住」即可添加。": "No memories yet. Click “Remember” under a message to add one.",
+  "删除记忆": "Delete memory",
+  "导出项目": "Export project",
+  "导出项目（可分享给团队成员）": "Export project (share with teammates)",
+  "请输入有效的邮箱": "Enter a valid email",
+  "项目已导入": "Project imported",
+  "无法导入：文件不是 Ciro 导出的项目": "Import failed: not a Ciro project file",
+  "正在读取团队信息…": "Loading team…",
+  "团队服务尚未接入": "Team service not connected",
+  "团队成员、角色权限与共享项目需要多租户团队服务。部署后在服务端设置 CIRO_TEAM_URL（及 CIRO_TEAM_TOKEN）即可启用本页的全部功能。": "Team members, roles and shared projects need a multi-tenant team service. Set CIRO_TEAM_URL (and CIRO_TEAM_TOKEN) on the server to enable everything on this page.",
+  "我的团队": "My team",
+  "邀请成员的邮箱": "Email to invite",
+  "角色": "Role",
+  "邀请": "Invite",
+  "团队成员": "Team members",
+  "移除成员": "Remove member",
+  "确定移除该成员？": "Remove this member?",
+  "待接受的邀请": "Pending invitations",
+  "复制邀请链接": "Copy invite link",
+  "撤销邀请": "Revoke invite",
+  "用文件共享项目": "Share projects as files",
+  "在项目页点「导出项目」，把文件发给同事；对方在这里导入后即可获得项目指令、参考文件和其中的对话。": "Click “Export project” on a project page and send the file; teammates import it here to get its instructions, files and chats.",
+  "导入项目": "Import project",
+  "语音对话需要支持语音识别的浏览器（Chrome / Edge），或在服务端开启 CIRO_VOICE=on": "Voice chat needs a browser with speech recognition (Chrome / Edge), or CIRO_VOICE=on on the server",
+  "正在聆听…": "Listening…",
+  "正在回答，点击可打断": "Answering — tap to interrupt",
+  "语音不可用": "Voice unavailable",
+  "点击开始说话": "Tap to start talking",
+  "结束语音对话": "End voice chat",
+  "使用浏览器语音识别": "Using browser speech recognition",
+  "使用服务端语音识别": "Using server speech recognition",
+  "未启用语音识别": "Speech recognition not enabled",
+  "服务端语音合成": "Server speech synthesis",
+  "系统语音合成": "System speech synthesis",
+  "所有者": "Owner",
+  "管理员": "Admin",
+  "成员": "Member",
+  "只读": "Viewer",
+  "邀请已发送": "Invitation sent",
+  "角色已更新": "Role updated",
+  "成员已移除": "Member removed",
+  "邀请已撤销": "Invitation revoked"
 };
+/* Traditional Chinese is converted from the Simplified source with OpenCC (loaded on demand). */
+let convertTraditional: ((text: string) => string) | null = null;
+let loadingTraditional: Promise<void> | null = null;
+const traditionalCache = new Map<string, string>();
+export function ensureTraditional(): Promise<void> {
+  if (convertTraditional) return Promise.resolve();
+  if (!loadingTraditional) {
+    loadingTraditional = import("opencc-js/cn2t").then((mod) => {
+      const factory = (mod as unknown as { Converter: (o: { from: string; to: string }) => (t: string) => string }).Converter;
+      convertTraditional = factory({ from: "cn", to: "twp" });
+      window.dispatchEvent(new Event("ciro-locale-ready"));
+    }).catch(() => { loadingTraditional = null; });
+  }
+  return loadingTraditional;
+}
+export function toTraditional(text: string): string {
+  if (!convertTraditional) { void ensureTraditional(); return text; }
+  let out = traditionalCache.get(text);
+  if (out === undefined) { out = convertTraditional(text); if (traditionalCache.size < 5000) traditionalCache.set(text, out); }
+  return out;
+}
+/** Shared lookup for every module dictionary (zh-CN source strings → target language). */
+export function localize(language: Language, text: string, english: (key: string) => string | undefined): string {
+  if (language === "zh-CN") return text;
+  if (language === "zh-TW") return toTraditional(text);
+  return english(text) ?? text;
+}
+export function localeTag(language: Language): string {
+  return language === "en" ? "en-US" : language === "zh-TW" ? "zh-TW" : "zh-CN";
+}
 /** Only UI text is translated; user messages and model replies are never rewritten. */
 export function translate(language: Language, text: string): string {
-  return language === "en" ? (translations[text] ?? text) : text;
+  return localize(language, text, (key) => translations[key]);
 }
 /** "system" follows the operating system / browser language; Simplified Chinese is the default. */
 export type LanguagePref = Language | "system";
@@ -532,6 +686,7 @@ export function systemLanguage(): Language {
   const list = typeof navigator === "undefined" ? [] : (navigator.languages?.length ? navigator.languages : [navigator.language]);
   for (const tag of list) {
     const lower = String(tag || "").toLowerCase();
+    if (/^zh-(tw|hk|mo)|^zh-hant/.test(lower)) return "zh-TW";
     if (lower.startsWith("zh")) return "zh-CN";
     if (lower.startsWith("en")) return "en";
   }
@@ -543,7 +698,7 @@ export function resolveLanguage(pref: LanguagePref): Language {
 export function loadLanguagePref(): LanguagePref {
   try {
     const value = localStorage.getItem(STORAGE_KEY);
-    return value === "en" || value === "zh-CN" || value === "system" ? value : DEFAULT_LANGUAGE;
+    return value && (SUPPORTED.has(value) || value === "system") ? value as LanguagePref : DEFAULT_LANGUAGE;
   } catch { return DEFAULT_LANGUAGE; }
 }
 export function saveLanguagePref(pref: LanguagePref): void {
@@ -556,6 +711,9 @@ export function saveLanguage(language: Language): void {
   saveLanguagePref(language);
 }
 export function previewText(language: Language): string {
+  if (language === "zh-TW") {
+    return toTraditional(previewText("zh-CN"));
+  }
   if (language === "en") {
     return "**This is a Ciro client preview, not a model response.**\n\nThe interface, chat history and interactions are ready, but no inference service is connected.\n\nConfigure `CIRO_API_BASE_URL` and `CIRO_MODEL` on the server and restart. No model replies are fabricated.";
   }

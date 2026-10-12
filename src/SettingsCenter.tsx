@@ -1,24 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Wallet, X, Monitor } from "lucide-react";
+import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
 import type { ChatPreferences } from "./lib/preferences";
+import { ACCENTS } from "./lib/preferences";
+const ACCENT_NAMES = { jade: "翡翠绿", blue: "湖蓝", violet: "紫罗兰", amber: "琥珀", rose: "玫瑰", graphite: "石墨" } as const;
 import type { ApiStatus, Conversation } from "./types";
-import { translate, systemLanguage } from "./lib/i18n";
+import { LANGUAGES, translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
+import MemoryManager from "./components/MemoryManager";
+import TeamCenter from "./components/TeamCenter";
 import type { BulkAction } from "./components/ConversationManager";
 import AccountCenter from "./AccountCenter";
 import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | WorkbenchTab;
+type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -47,6 +51,7 @@ type SettingsProps = {
   onClearHistory: () => void;
   onBulk: (action: BulkAction, ids: string[]) => void;
   onImport: (items: Conversation[]) => number;
+  onImportProject: (file: File) => Promise<void>;
 };
 const sections: { id: Section; label: string; icon: typeof Palette; group?: string }[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "偏好与配置" },
@@ -66,6 +71,7 @@ const sections: { id: Section; label: string; icon: typeof Palette; group?: stri
   { id: "apps", label: "官方应用", icon: LayoutGrid },
   { id: "skills", label: "技能中心", icon: Sparkles },
   { id: "account", label: "账户与安全", icon: UserRound, group: "账户" },
+  { id: "team", label: "团队", icon: Users },
   { id: "subscription", label: "订阅管理", icon: Wallet },
   { id: "api-keys", label: "API 密钥", icon: GitBranch },
   { id: "spending", label: "消费限额", icon: Wallet },
@@ -94,7 +100,7 @@ export default function SettingsCenter({
   onClose, initialSection, language, languagePref, onLanguagePrefChange, themePref, onThemePrefChange,
   displayName, onDisplayNameChange, appearance, onAppearanceChange, customImageUrl,
   onUploadImage, onRemoveImage, preferences, onPreferencesChange, instructions, onInstructionsChange, status, model,
-  onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory, onBulk, onImport
+  onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory, onBulk, onImport, onImportProject
 }: SettingsProps) {
   const t = (value: string) => translate(language, value);
   const [section, setSection] = useState<Section>(() =>
@@ -158,6 +164,7 @@ export default function SettingsCenter({
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
+          {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}
           {section === "appearance" && <>
             <div className="sc-section-heading"><div><h3>{t("把 Ciro 变成你的空间")}</h3><p>{t("选一处风景，或上传只属于你的背景。每次调整都会立即生效。")}</p></div>
               <span className="sc-save-status"><Check size={14}/> {t("自动保存")}</span></div>
@@ -174,6 +181,21 @@ export default function SettingsCenter({
                   <button key={id} className={themePref === id ? "sc-theme-button sc-theme-button--active" : "sc-theme-button"}
                     aria-pressed={themePref === id} onClick={() => onThemePrefChange(id)}>
                     <Icon size={18}/><span>{t(label)}</span>{themePref === id && <Check size={16}/>}</button>)}
+              </div>
+            </SettingBlock>
+            <SettingBlock title={t("强调色")} subtitle={t("按钮、链接与高亮使用的颜色")}>
+              <div className="sc-accents" role="radiogroup" aria-label={t("强调色")}>
+                {ACCENTS.map((id) => <button type="button" key={id} role="radio" aria-checked={preferences.accent === id}
+                  aria-label={t(ACCENT_NAMES[id])} title={t(ACCENT_NAMES[id])} data-swatch={id}
+                  className={preferences.accent === id ? "sc-accent sc-accent--on" : "sc-accent"}
+                  onClick={() => updatePreference("accent", id)}><span/>{preferences.accent === id && <Check size={13}/>}</button>)}
+              </div>
+            </SettingBlock>
+            <SettingBlock title={t("界面字体")}>
+              <div className="sc-segmented">
+                {([["sans", "现代无衬线"], ["system", "系统字体"], ["serif", "衬线阅读体"]] as const).map(([id, label]) =>
+                  <button key={id} className={preferences.fontFamily === id ? "sc-selected" : ""} data-font-preview={id}
+                    onClick={() => updatePreference("fontFamily", id)}>{t(label)}</button>)}
               </div>
             </SettingBlock>
             <SettingBlock title={t("背景图库")} subtitle={t("六套内置背景无需联网；自定义图片仅保存在当前设备")}>
@@ -227,11 +249,10 @@ export default function SettingsCenter({
                 <div className="sc-language-switch" role="group" aria-label={t("界面语言")}>
                   <button type="button" className={languagePref === "system" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
                     aria-pressed={languagePref === "system"} onClick={() => onLanguagePrefChange("system")}
-                    title={systemLanguage() === "en" ? "English" : "简体中文"}>{t("跟随系统")}</button>
-                  <button type="button" className={languagePref === "zh-CN" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
-                    aria-pressed={languagePref === "zh-CN"} onClick={() => onLanguagePrefChange("zh-CN")}>{t("简体中文")}</button>
-                  <button type="button" className={languagePref === "en" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
-                    aria-pressed={languagePref === "en"} onClick={() => onLanguagePrefChange("en")}>English</button>
+                    title={LANGUAGES.find((l) => l.id === systemLanguage())?.label}>{t("跟随系统")}</button>
+                  {LANGUAGES.map(({ id, label }) => <button type="button" key={id}
+                    className={languagePref === id ? "sc-language-option sc-language-option--active" : "sc-language-option"}
+                    aria-pressed={languagePref === id} onClick={() => onLanguagePrefChange(id)}>{label}</button>)}
                 </div>
               </SettingRow>
               <SettingRow title={t("Enter 发送消息")} description={t("关闭后改为 Ctrl / ⌘ + Enter 发送")}>
@@ -262,6 +283,11 @@ export default function SettingsCenter({
                   placeholder={t("例如：中文优先，重要工程结论必须附验证证据。")}/>
                 <small>{instructions.style.length}/2000</small>
               </label>
+            </SettingBlock>
+            <SettingBlock title={t("记忆")} subtitle={t("Ciro 会在对话中参考这些关于你的信息；临时对话不会使用记忆。")}>
+              <SettingRow title={t("启用记忆")} description={t("登录账户时记忆加密保存在服务器，否则保存在此设备")}>
+                <Toggle checked={preferences.memoryEnabled} title={t("启用记忆")} onChange={(v) => updatePreference("memoryEnabled", v)}/></SettingRow>
+              <MemoryManager t={t} enabled={preferences.memoryEnabled}/>
             </SettingBlock>
             <div className="sc-info-card"><ShieldCheck size={18}/><div>
               <strong>{t("本地保存，模型调用时发送")}</strong>
@@ -315,6 +341,8 @@ export default function SettingsCenter({
                     else setError(t("通知权限被拒绝，请在系统或浏览器设置中允许"));
                   });
                 }}/></SettingRow>
+              <SettingRow title={t("追问建议")} description={t("回答结束后，在下方给出可以一键继续的问题")}>
+                <Toggle checked={preferences.followUps} title={t("追问建议")} onChange={(v) => updatePreference("followUps", v)}/></SettingRow>
               <SettingRow title={t("自动生成对话标题")} description={t("第一轮回答后，由模型为对话起一个简短标题")}>
                 <Toggle checked={preferences.autoTitle} title={t("自动生成对话标题")} onChange={(v) => updatePreference("autoTitle", v)}/></SettingRow>
               {error && <p className="sc-error" role="alert">{error}</p>}
@@ -357,6 +385,10 @@ export default function SettingsCenter({
                 [t("查看快捷键"),"Ctrl / ⌘","/"],
                 [t("停止生成"),"Esc"],
                 [t("编辑上一条消息"),"↑"],
+                [t("上一个 / 下一个对话"),"Alt","↑ / ↓"],
+                [t("在对话中查找"),"Ctrl / ⌘","F"],
+                [t("导出 PDF / 打印"),"Ctrl / ⌘","P"],
+                [t("重命名选中的对话"),"F2"],
                 [t("输入换行"),"Shift","Enter"],
                 [t("发送消息"),...(preferences.sendWithEnter ? ["Enter"] : ["Ctrl / ⌘","Enter"])]
               ].map(([name,...keys]) => <div className="sc-shortcut" key={name}><span>{name}</span>
@@ -375,7 +407,7 @@ export default function SettingsCenter({
 
           {section === "about" && <>
             <div className="sc-about-hero"><CiroMark/><strong>Ciro</strong><span>Think further.</span>
-              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v0.9.1</small></div>
+              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v0.9.2</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
               <SettingRow title={t("推理能力")} description={t("实际能力以服务端正式验收为准")}><span className="sc-static-value">{t("待接入")}</span></SettingRow>

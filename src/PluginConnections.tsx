@@ -2,6 +2,7 @@ import {useCallback,useEffect,useMemo,useState} from "react";
 import {accountFetch} from "./lib/account-api";
 import "./plugin-marketplace.css";
 import type {Language} from "./lib/i18n";
+import {localize} from "./lib/i18n";
 
 type Entry={id:string;title:string;category:string;description:string;version:string;publisher:string;status?:string;tools:string[];permissions:string[];ready:boolean};
 type Installed={id:string;version:string;installedAt:string;enabled:boolean};
@@ -26,7 +27,7 @@ async function api<T>(path:string,body?:unknown):Promise<T>{
  return result as T;
 }
 export default function PluginConnections({language="zh-CN"}:{language?:Language}={}){
- const t=(text:string)=>language==="en"?(EN[text]??text):text;
+ const t=(text:string)=>localize(language,text,(k)=>EN[k]);
  const [state,setState]=useState<Snapshot|null>(null);
  const [selected,setSelected]=useState("github");
  const [query,setQuery]=useState("");

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  Bell, Check, Cloud, ChevronRight, ChevronsUpDown, CircleHelp, Download, Globe, Keyboard, LogIn, LogOut,
+  Bell, Check, Cloud, Users, ChevronRight, ChevronsUpDown, CircleHelp, Download, Globe, Keyboard, LogIn, LogOut,
   Monitor, Moon, Palette, Settings2, Sparkles, Sun, UserRound, Wallet
 } from "lucide-react";
+import { LANGUAGES } from "../lib/i18n";
 import type { LanguagePref } from "../lib/i18n";
 import type { ThemePref } from "../lib/storage";
 
@@ -65,7 +66,7 @@ export default function UserMenu(props: Props) {
   }, [open]);
 
   function run(action: UserMenuAction) { setOpen(false); onAction(action); }
-  const languages: [LanguagePref, string][] = [["system", t("跟随系统")], ["zh-CN", "简体中文"], ["en", "English"]];
+  const languages: [LanguagePref, string][] = [["system", t("跟随系统")], ...LANGUAGES.map((l): [LanguagePref, string] => [l.id, l.label])];
   const themes: [ThemePref, string, ReactNode][] = [
     ["light", t("浅色"), <Sun size={15} key="l"/>], ["dark", t("深色"), <Moon size={15} key="d"/>],
     ["system", t("跟随系统"), <Monitor size={15} key="s"/>]
@@ -111,6 +112,7 @@ export default function UserMenu(props: Props) {
         {unread > 0 && <span className="um-count">{unread > 99 ? "99+" : unread}</span>}
       </Row>
       <Row icon={<Wallet size={16}/>} label={t("账单与用量")} onClick={() => run({ type: "studio", tab: "billing" })}/>
+      <Row icon={<Users size={16}/>} label={t("团队")} onClick={() => run({ type: "settings", section: "team" })}/>
       <Row icon={<Cloud size={16}/>} label={t("跨设备同步")} onClick={() => run({ type: "studio", tab: "sync" })}/>
       <div className="um-sep"/>
       <Row icon={<Keyboard size={16}/>} label={t("键盘快捷键")} hint={mod + " /"} onClick={() => run({ type: "settings", section: "shortcuts" })}/>

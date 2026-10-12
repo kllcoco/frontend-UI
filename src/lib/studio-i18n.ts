@@ -1,3 +1,4 @@
+import { localize } from "./i18n";
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
   "模型与训练控制台": "Model & training console",
@@ -181,4 +182,4 @@ const terms:Readonly<Record<string,string>>={
   "该功能需要连接原生服务。请在服务端 .env 配置 ": "This feature needs a native service. Configure ",
   " 后重启。": " in the server .env and restart."
 };
-export function studioTranslate(language:Language,value:string){return language==="en"?(terms[value]||value):value;}
+export function studioTranslate(language:Language,value:string){return localize(language,value,(k)=>terms[k]);}

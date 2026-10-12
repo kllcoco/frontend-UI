@@ -1,3 +1,4 @@
+import { localeTag } from "./lib/i18n";
 import {useCallback,useEffect,useRef,useState} from "react";
 import type {FormEvent} from "react";
 import {
@@ -265,7 +266,7 @@ export default function AccountCenter({language,section}:Props){
         <button className="acc-secondary" onClick={()=>void action(()=>accountApi("/notifications/read-all","POST",{}))}>{t("全部已读")}</button></div>
       {!notifications.length&&<div className="acc-empty">{t("暂无通知")}</div>}
       {notifications.map(n=><div className={n.readAt?"acc-notification":"acc-notification acc-notification--unread"} key={n.id}>
-        <div><strong>{n.title}</strong><p>{n.body}</p><small>{new Date(n.createdAt).toLocaleString(language==="en"?"en-US":"zh-CN")}</small></div>
+        <div><strong>{n.title}</strong><p>{n.body}</p><small>{new Date(n.createdAt).toLocaleString(localeTag(language))}</small></div>
         {!n.readAt&&<button className="acc-secondary" onClick={()=>void action(()=>accountApi("/notifications/"+n.id+"/read","POST",{}))}><Check size={14}/>{t("标记已读")}</button>}
       </div>)}
       <p className="acc-muted">{t("通知来自真实服务端事件，无法离线接收。")}</p>

@@ -1,6 +1,6 @@
 {
   "name": "ciro-client",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "type": "module",
   "description": "Ciro conversational client",
@@ -43,6 +43,7 @@
     "electron-builder": "^26.15.3",
     "katex": "^0.16.47",
     "lucide-react": "^0.468.0",
+    "opencc-js": "^1.4.2",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

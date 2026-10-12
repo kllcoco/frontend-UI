@@ -1,4 +1,6 @@
+import { localeTag } from "./i18n";
 import { useEffect, useRef, useState } from "react";
+import type { Language } from "./i18n";
 
 /* Browser speech APIs (Chromium/Edge/Safari). Feature-detected; buttons hide when unavailable. */
 type Recognition = {
@@ -13,11 +15,13 @@ function recognitionCtor(): RecognitionCtor | null {
   const w = window as unknown as { SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor };
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
-export const speechInputSupported = () => typeof window !== "undefined" && recognitionCtor() !== null;
+// Electron and Android WebView expose the API but cannot reach the browser vendor's speech service.
+export const speechInputSupported = () => typeof window !== "undefined" && recognitionCtor() !== null &&
+  !(window as unknown as { ciroDesktop?: unknown }).ciroDesktop && !/CiroMobile\//.test(navigator.userAgent);
 export const speechOutputSupported = () => typeof window !== "undefined" && "speechSynthesis" in window;
 
 /** Dictation into the composer. `onText` receives finalized phrases. */
-export function useDictation(language: string, onText: (text: string) => void, onError: (code: string) => void) {
+export function useDictation(language: Language, onText: (text: string) => void, onError: (code: string) => void) {
   const [listening, setListening] = useState(false);
   const ref = useRef<Recognition | null>(null);
   const textRef = useRef(onText);
@@ -28,7 +32,7 @@ export function useDictation(language: string, onText: (text: string) => void, o
     const Ctor = recognitionCtor();
     if (!Ctor) { onError("unsupported"); return; }
     const rec = new Ctor();
-    rec.lang = language === "en" ? "en-US" : "zh-CN";
+    rec.lang = localeTag(language);
     rec.continuous = true;
     rec.interimResults = false;
     rec.onresult = (event) => {
@@ -45,7 +49,7 @@ export function useDictation(language: string, onText: (text: string) => void, o
 }
 
 /** Read a reply aloud; returns the id currently speaking. */
-export function useReadAloud(language: string) {
+export function useReadAloud(language: Language) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   useEffect(() => () => { if (speechOutputSupported()) window.speechSynthesis.cancel(); }, []);
   function toggle(id: string, markdown: string) {
@@ -54,7 +58,7 @@ export function useReadAloud(language: string) {
     if (speakingId === id) { setSpeakingId(null); return; }
     const plain = markdown.replace(/```[\s\S]*?```/g, " ").replace(/[#>*_`~|-]+/g, " ").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
     const utterance = new SpeechSynthesisUtterance(plain.slice(0, 6000));
-    utterance.lang = language === "en" ? "en-US" : "zh-CN";
+    utterance.lang = localeTag(language);
     utterance.onend = () => setSpeakingId((current) => current === id ? null : current);
     utterance.onerror = utterance.onend;
     setSpeakingId(id);

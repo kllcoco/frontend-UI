@@ -41,6 +41,9 @@ async function resize(src: string, max: number, quality: number, keepPng: boolea
   return keepPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", quality);
 }
 
+/** Small JPEG preview for chat history (full image stays in IndexedDB). */
+export function makeThumb(dataUrl: string): Promise<string> { return resize(dataUrl, 320, 0.78, false); }
+
 async function pdfText(file: File): Promise<string> {
   const pdfjs = await import("pdfjs-dist");
   const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");

@@ -1,3 +1,4 @@
+import { localize } from "./i18n";
 import type { Language } from "./i18n";
 const english: Readonly<Record<string,string>> = {
   "账单与用量": "Billing & usage",
@@ -167,5 +168,5 @@ const english: Readonly<Record<string,string>> = {
   "全部活动可追溯": "All activity is traceable"
 };
 export function workbenchTranslate(language:Language,text:string):string {
-  return language === "en" ? (english[text] || text) : text;
+  return localize(language, text, (k) => english[k]);
 }

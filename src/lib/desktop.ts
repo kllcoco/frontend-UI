@@ -2,7 +2,7 @@
 import type { Language } from "./i18n";
 
 export type DesktopCommand =
-  | "new-chat" | "search" | "settings" | "toggle-sidebar" | "shortcuts" | "about" | "export-chat" | "export-pdf" | "focus-composer";
+  | "new-chat" | "search" | "settings" | "toggle-sidebar" | "shortcuts" | "about" | "export-chat" | "export-pdf" | "focus-composer" | "find" | "new-window";
 export type UpdateInfo = { state: "available" | "downloading" | "ready" | "error"; version?: string; percent?: number; message?: string };
 
 type DesktopBridge = {
@@ -14,6 +14,7 @@ type DesktopBridge = {
   onUpdate?: (handler: (info: UpdateInfo) => void) => () => void;
   updateAction?: (action: "download" | "install" | "check") => void;
   exportPdf?: (name: string) => Promise<boolean>;
+  openWindow?: (chatId?: string) => void;
 };
 
 declare global {

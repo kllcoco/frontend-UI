@@ -1,3 +1,4 @@
+import { localeTag } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import CiroMark from "./CiroMark";
@@ -15,7 +16,7 @@ export default function SharedView({ id }: { id: string }) {
   const [error, setError] = useState(false);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", loadTheme());
-    document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+    document.documentElement.lang = language;
     fetch("/api/share/" + encodeURIComponent(id), { cache: "no-store" })
       .then((r) => r.ok ? r.json() : Promise.reject(new Error(String(r.status))))
       .then((d: Shared) => { setData(d); document.title = d.title + " · Ciro"; })
@@ -31,7 +32,7 @@ export default function SharedView({ id }: { id: string }) {
       {!error && !data && <div className="shv-empty"><span className="cx-row-spinner"/></div>}
       {data && <>
         <h1 className="shv-title">{data.title}</h1>
-        <p className="shv-meta">{t("分享的对话")} · {new Date(data.createdAt).toLocaleString(language === "en" ? "en-US" : "zh-CN")}</p>
+        <p className="shv-meta">{t("分享的对话")} · {new Date(data.createdAt).toLocaleString(localeTag(language))}</p>
         <div className="messages">
           {data.messages.map((m, i) => <article key={i} className={["message", m.role === "assistant" ? "message--assistant" : "message--user"].join(" ")}>
             {m.role === "assistant" && <div className="message-avatar"><CiroMark small/></div>}

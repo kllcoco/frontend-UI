@@ -1,10 +1,11 @@
+import { localeTag } from "./lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from "react";
 import {
   ArrowDownToLine, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
   GitBranch, Layers, LayoutGrid, Lightbulb, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
-  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench
+  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, AudioLines, Users
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -13,14 +14,14 @@ import {
   loadActiveId, loadConversations, loadThemePref, newId, saveActiveId, saveConversations, saveThemePref, systemTheme
 } from "./lib/storage";
 import type { ThemePref } from "./lib/storage";
-import type { ApiStatus, ChatMessage, Conversation } from "./types";
+import type { AnswerVersion, ApiStatus, ChatMessage, Conversation } from "./types";
 import WorkbenchCenter from "./WorkbenchCenter";
 import AccountCenter from "./AccountCenter";
 import StudioCenter from "./StudioCenter";
 import type { StudioTab } from "./lib/studio-api";
 import { startAutoSync, stopAutoSync, queueAutoSync } from "./lib/cloud-sync";
 import type { SyncPayload } from "./lib/cloud-sync";
-import { accountApi, getAccountSession, invalidateAccountSession } from "./lib/account-api";
+import { accountApi, accountFetch, getAccountSession, invalidateAccountSession } from "./lib/account-api";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
@@ -33,7 +34,7 @@ import SearchPalette from "./components/SearchPalette";
 import type { PaletteCommand } from "./components/SearchPalette";
 import { backgroundUrl, loadAppearance, loadCustomWallpaper, removeCustomWallpaper, saveAppearance, saveCustomWallpaper } from "./lib/appearance";
 import { loadChatPreferences, saveChatPreferences } from "./lib/preferences";
-import { loadLanguagePref, resolveLanguage, saveLanguagePref, translate, previewText } from "./lib/i18n";
+import { ensureTraditional, loadLanguagePref, resolveLanguage, saveLanguagePref, translate, previewText } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import { loadThinkingLevel, reasoningRequest, saveThinkingLevel, THINKING_LEVELS } from "./lib/thinking";
 import { loadProfile, saveProfile } from "./lib/profile";
@@ -44,8 +45,13 @@ import type { Project } from "./lib/projects";
 import ProjectView from "./components/ProjectView";
 import PromptLibrary from "./components/PromptLibrary";
 import ShareDialog from "./components/ShareDialog";
+import FindBar from "./components/FindBar";
+import CanvasPanel from "./components/CanvasPanel";
+import VoiceMode from "./components/VoiceMode";
+import { addMemory, localMemoriesForChat, removeMemory } from "./lib/memory";
+import type { CanvasDoc } from "./components/CanvasPanel";
 import Markdown from "./components/Markdown";
-import { ACCEPT, AttachmentError, LIMITS, getImage, putImage, readAttachment } from "./lib/attachments";
+import { ACCEPT, AttachmentError, LIMITS, getImage, makeThumb, putImage, readAttachment } from "./lib/attachments";
 import type { Attachment } from "./lib/attachments";
 import { speechInputSupported, speechOutputSupported, useDictation, useReadAloud } from "./lib/speech";
 
@@ -101,7 +107,7 @@ function greeting(language: Language) {
 }
 
 function exportMarkdown(chat: Conversation, language: Language) {
-  const body = ["# " + chat.title, "", translate(language, "导出自 Ciro · ") + new Date().toLocaleString(language === "en" ? "en-US" : "zh-CN"), ""];
+  const body = ["# " + chat.title, "", translate(language, "导出自 Ciro · ") + new Date().toLocaleString(localeTag(language)), ""];
   chat.messages.forEach((message) => {
     body.push("## " + (message.role === "user" ? translate(language, "你") : message.preview ? translate(language, "客户端提示（非模型输出）") : "Ciro"));
     body.push("", message.content, "");
@@ -126,7 +132,13 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
   const conversationsRef = useRef(conversations);
   const preferencesRef = useRef(loadChatPreferences());
-  const [activeId, setActiveId] = useState<string | null>(loadActiveId);
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    // A desktop "open in new window" passes ?chat=<id>; consume it once.
+    const params = new URLSearchParams(window.location.search);
+    const chat = params.get("chat");
+    if (chat) { params.delete("chat"); window.history.replaceState(null, "", window.location.pathname + (params.toString() ? "?" + params : "")); return chat; }
+    return loadActiveId();
+  });
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [readingFiles, setReadingFiles] = useState(0);
@@ -134,6 +146,10 @@ export default function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [canvasId, setCanvasId] = useState<string | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const pendingCanvasRef = useRef<{ conversationId: string; docId: string } | null>(null);
   const [webSearchOn, setWebSearchOn] = useState(() => loadFlag("ciro.web-search.v1", false));
   const [status, setStatus] = useState<ApiStatus>(PREVIEW);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -143,13 +159,14 @@ export default function App() {
     const view = new URLSearchParams(window.location.search).get("view");
     return view === "studio" ? "studio" : view === "plugins" ? "plugins" : "goals";
   });
-  const [composerMode, setComposerMode] = useState<"chat" | AgentMode>("chat");
+  const [composerMode, setComposerMode] = useState<"chat" | "image" | AgentMode>("chat");
   const [thinkingLevel, setThinkingLevel] = useState(loadThinkingLevel);
   const [themePref, setThemePref] = useState<ThemePref>(loadThemePref);
   const [systemDark, setSystemDark] = useState(() => systemTheme() === "dark");
   const theme: "light" | "dark" = themePref === "system" ? (systemDark ? "dark" : "light") : themePref;
   const [languagePref, setLanguagePref] = useState<LanguagePref>(loadLanguagePref);
   const [systemLangTick, setSystemLangTick] = useState(0);
+  const [, setLocaleTick] = useState(0);
   const language = useMemo(() => resolveLanguage(languagePref), [languagePref, systemLangTick]);
   const [appearance, setAppearance] = useState(loadAppearance);
   const [preferences, setPreferences] = useState(loadChatPreferences);
@@ -182,6 +199,8 @@ export default function App() {
   const [editValue, setEditValue] = useState("");
   const [openThoughts, setOpenThoughts] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -285,16 +304,32 @@ export default function App() {
   useEffect(() => { saveCustomInstructions(instructions); }, [instructions]);
   useEffect(() => { saveProfile(profile); }, [profile]);
   useEffect(() => { saveProjects(projects); }, [projects]);
+  // Keep several windows/tabs in sync: another window wrote chats or projects.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "ciro.chats.v1" && !busyRef.current) setConversations(loadConversations());
+      if (event.key === "ciro.projects.v1") setProjects(loadProjects());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
   useEffect(() => { saveThinkingLevel(thinkingLevel); }, [thinkingLevel]);
   useEffect(() => { saveFlag("ciro.sidebar-collapsed.v1", sidebarCollapsed); }, [sidebarCollapsed]);
   useEffect(() => { saveFlag("ciro.sidebar-more.v1", moreOpen); }, [moreOpen]);
   useEffect(() => { saveFlag("ciro.web-search.v1", webSearchOn); }, [webSearchOn]);
   useEffect(() => {
     saveLanguagePref(languagePref);
-    document.documentElement.lang = language === "en" ? "en" : "zh-CN";
-    document.title = language === "en" ? "Ciro — Let every idea go further" : "Ciro — 让每一个想法，走得更远";
+    document.documentElement.lang = language;
+    document.title = translate(language, "Ciro — 让每一个想法，走得更远");
     desktop()?.setLanguage(language);
   }, [languagePref, language]);
+  useEffect(() => {
+    if (language !== "zh-TW") return;
+    const ready = () => setLocaleTick((n) => n + 1);
+    window.addEventListener("ciro-locale-ready", ready);
+    void ensureTraditional();
+    return () => window.removeEventListener("ciro-locale-ready", ready);
+  }, [language]);
   useEffect(() => {
     const onLanguage = () => setSystemLangTick((n) => n + 1);
     window.addEventListener("languagechange", onLanguage);
@@ -308,6 +343,8 @@ export default function App() {
     preferencesRef.current = preferences;
     saveChatPreferences(preferences);
     document.documentElement.dataset.reduceMotion = preferences.reduceMotion ? "true" : "false";
+    document.documentElement.dataset.accent = preferences.accent;
+    document.documentElement.dataset.fontFamily = preferences.fontFamily;
   }, [preferences]);
   useEffect(() => {
     let active = true;
@@ -367,12 +404,22 @@ export default function App() {
       if (chat) exportMarkdown(chat, language);
     }
     else if (command === "export-pdf") exportPdfRef.current();
+    else if (command === "find") { if (activeIdRef.current) setFindOpen(true); }
     else if (command === "focus-composer") window.setTimeout(() => composerRef.current?.focus(), 50);
   }, [language]);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   useEffect(() => desktop()?.onCommand(runCommand), [runCommand]);
   // Android back button / browser-style "go back": close the top-most layer first.
+  // Alt+↑/↓: previous / next conversation in sidebar order.
+  const stepChatRef = useRef<(delta: number) => void>(() => undefined);
+  stepChatRef.current = (delta) => {
+    const order = [...pinned, ...projects.flatMap((p) => sorted.filter((c) => c.projectId === p.id && !c.archived && !c.pinned)), ...grouped.flatMap((g) => g.chats)];
+    if (!order.length) return;
+    const index = order.findIndex((c) => c.id === activeId);
+    const next = order[index < 0 ? (delta > 0 ? 0 : order.length - 1) : Math.min(order.length - 1, Math.max(0, index + delta))];
+    if (next) selectChat(next.id);
+  };
   const exportPdfRef = useRef<() => void>(() => undefined);
   exportPdfRef.current = () => {
     const chat = conversationsRef.current.find((c) => c.id === activeIdRef.current);
@@ -384,7 +431,10 @@ export default function App() {
   useEffect(() => desktop()?.onUpdate?.((info) => setUpdateInfo(info)), []);
   const backRef = useRef<() => boolean>(() => false);
   backRef.current = () => {
+    if (voiceOpen) { setVoiceOpen(false); return true; }
     if (lightbox) { setLightbox(null); return true; }
+    if (findOpen) { setFindOpen(false); return true; }
+    if (canvasId) { setCanvasId(null); return true; }
     if (paletteOpen) { setPaletteOpen(false); return true; }
     if (promptsOpen) { setPromptsOpen(false); return true; }
     if (shareId) { setShareId(null); return true; }
@@ -409,6 +459,11 @@ export default function App() {
   useEffect(() => {
     function shortcuts(event: globalThis.KeyboardEvent) {
       const mod = event.ctrlKey || event.metaKey;
+      if (event.altKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+        event.preventDefault();
+        stepChatRef.current(event.key === "ArrowUp" ? -1 : 1);
+        return;
+      }
       if (!mod) { if (event.key === "Escape" && busy) controllerRef.current?.abort(); return; }
       const key = event.key.toLowerCase();
       if (key === "k" && !event.shiftKey) { event.preventDefault(); setPaletteOpen((v) => !v); }
@@ -417,6 +472,7 @@ export default function App() {
       else if (key === ",") { event.preventDefault(); runCommand("settings"); }
       else if (key === "/") { event.preventDefault(); runCommand("shortcuts"); }
       else if (key === "p" && !event.shiftKey && !desktop()) { event.preventDefault(); runCommand("export-pdf"); }
+      else if (key === "f" && !event.shiftKey) { event.preventDefault(); runCommand("find"); }
     }
     window.addEventListener("keydown", shortcuts);
     return () => window.removeEventListener("keydown", shortcuts);
@@ -435,18 +491,24 @@ export default function App() {
     ));
   }
 
-  async function generateReply(conversationId: string, history: ChatMessage[], projectId?: string) {
-    const assistantId = newId();
+  async function generateReply(conversationId: string, history: ChatMessage[], projectId?: string, replace?: ChatMessage) {
+    const assistantId = replace?.id ?? newId();
     const level = THINKING_LEVELS[thinkingLevel];
-    const reply: ChatMessage = { id: assistantId, role: "assistant", content: "", createdAt: Date.now(),
+    const fresh: ChatMessage = { id: assistantId, role: "assistant", content: "", createdAt: Date.now(),
       preview: !status.configured, depth: level?.id };
+    const reply: ChatMessage = replace ? (() => {
+      const versions = replace.versions?.length ? [...replace.versions] : [snapshot(replace)];
+      versions.push(snapshot(fresh));
+      return { ...fresh, versions, versionIndex: versions.length - 1 };
+    })() : fresh;
     setConversations((old) => old.map((chat) =>
-      chat.id === conversationId ? { ...chat, messages: [...chat.messages, reply], updatedAt: Date.now() } : chat
+      chat.id === conversationId ? { ...chat, messages: [...history, reply], updatedAt: Date.now() } : chat
     ));
 
     if (!status.configured) {
       patchMessage(conversationId, assistantId, { content: previewText(language) });
-      return;
+      syncVersion(conversationId, assistantId);
+      return "";
     }
 
     const controller = new AbortController();
@@ -471,6 +533,8 @@ export default function App() {
           ? { ...m, imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : m)),
         signal: controller.signal,
         webSearch: useWeb,
+        memories: preferencesRef.current.memoryEnabled && !session?.authenticated &&
+          !conversationsRef.current.find((c) => c.id === conversationId)?.temporary ? localMemoriesForChat() : undefined,
         onTool: (index, name, argsDelta) => {
           const entry = tools[index] ?? (tools[index] = { name: "", args: "" });
           if (name) entry.name = name;
@@ -489,7 +553,12 @@ export default function App() {
         }
       });
       if (!answer) throw new Error(t("接口未返回任何文本"));
+      applyCanvasReply(conversationId, answer);
       if (preferencesRef.current.autoTitle && history.length === 1) void autoTitle(conversationId, history[0].content, answer);
+      if (preferencesRef.current.followUps) {
+        const question = [...history].reverse().find((m) => m.role === "user")?.content || "";
+        void suggestFollowUps(conversationId, assistantId, question, answer);
+      }
       if (preferencesRef.current.notifyOnComplete && document.hidden && "Notification" in window && Notification.permission === "granted") {
         const title = conversationsRef.current.find((c) => c.id === conversationId)?.title || "Ciro";
         const note = new Notification(t("Ciro 已回答") + " · " + title, { body: answer.replace(/[#*`>|_-]+/g, " ").slice(0, 140), icon: "/icon-192.png", tag: conversationId });
@@ -509,9 +578,32 @@ export default function App() {
       controllerRef.current = null;
       setGeneratingId(null);
       setBusy(false);
+      syncVersion(conversationId, assistantId);
     }
+    return answer;
   }
 
+  /** Small side request to the configured model (titles, follow-up suggestions). */
+  async function quickAsk(content: string): Promise<string> {
+    let out = "";
+    await streamChat({ model, signal: new AbortController().signal,
+      messages: [{ id: "aux", role: "user", createdAt: Date.now(), content }], onDelta: (text) => { out += text; } });
+    return out;
+  }
+  async function suggestFollowUps(conversationId: string, messageId: string, question: string, answer: string) {
+    let raw = "";
+    try {
+      raw = await quickAsk((language === "en"
+        ? "Suggest 3 short follow-up questions the user might ask next (max 14 words each). Reply ONLY with a JSON array of strings.\n\n"
+        : "根据下面的对话，给出用户接下来最可能追问的 3 个简短问题（每个不超过 20 字）。只输出 JSON 字符串数组。\n\n") +
+        "Q: " + question.slice(0, 1500) + "\nA: " + answer.slice(0, 2500));
+    } catch { return; }
+    let list: string[] = [];
+    try { const parsed = JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1)); if (Array.isArray(parsed)) list = parsed.map(String); }
+    catch { list = raw.split("\n").map((l) => l.replace(/^[\s\d.、)\-*•"]+|["\s]+$/g, "")).filter(Boolean); }
+    list = list.map((x) => x.trim().slice(0, 80)).filter(Boolean).slice(0, 3);
+    if (list.length) patchMessage(conversationId, messageId, { suggestions: list });
+  }
   async function autoTitle(conversationId: string, question: string, answer: string) {
     const initial = conversationsRef.current.find((c) => c.id === conversationId)?.title;
     let title = "";
@@ -531,6 +623,46 @@ export default function App() {
     setConversations((old) => old.map((c) => c.id === conversationId && c.title === initial ? { ...c, title: clean } : c));
   }
 
+  function updateCanvas(conversationId: string, doc: CanvasDoc) {
+    setConversations((old) => old.map((c) => c.id !== conversationId ? c : {
+      ...c, canvas: (c.canvas || []).some((d) => d.id === doc.id) ? (c.canvas || []).map((d) => d.id === doc.id ? doc : d) : [...(c.canvas || []), doc] }));
+  }
+  function openCanvas(language: string, content: string) {
+    let chat = current;
+    if (!chat) {
+      const now = Date.now();
+      chat = { id: newId(), title: t("新画布"), createdAt: now, updatedAt: now, messages: [],
+        ...(viewProject ? { projectId: viewProject.id } : {}) };
+      const created = chat;
+      setConversations((old) => [created, ...old]);
+      setActiveId(created.id);
+      setProjectViewId(null);
+    }
+    const doc: CanvasDoc = { id: newId(), title: (language && !["text", "markdown", "md"].includes(language) ? language + " · " : "") + t("画布"),
+      language: language || "markdown", content, updatedAt: Date.now() };
+    updateCanvas(chat.id, doc);
+    setCanvasId(doc.id);
+  }
+  function askCanvas(doc: CanvasDoc, instruction: string) {
+    if (!current) return;
+    pendingCanvasRef.current = { conversationId: current.id, docId: doc.id };
+    sendMessage(instruction + "\n\n" + t("当前画布「") + doc.title + t("」的内容：") + "\n```" + doc.language + "\n" + doc.content + "\n```\n" +
+      t("请只返回修改后的完整内容，放在一个代码块中。"));
+  }
+  /** If the reply answers a canvas request, apply its largest code block to the canvas (keeping undo history). */
+  function applyCanvasReply(conversationId: string, answer: string) {
+    const pending = pendingCanvasRef.current;
+    if (!pending || pending.conversationId !== conversationId) return;
+    pendingCanvasRef.current = null;
+    const blocks = [...answer.matchAll(/```[\w+#.-]*\n([\s\S]*?)```/g)].map((m) => m[1].replace(/\n$/, ""));
+    const best = blocks.sort((a, b) => b.length - a.length)[0];
+    if (!best) return;
+    setConversations((old) => old.map((c) => c.id !== conversationId ? c : { ...c, canvas: (c.canvas || []).map((d) => d.id !== pending.docId ? d
+      : { ...d, content: best, history: [...(d.history || []), d.content].slice(-20), updatedAt: Date.now() }) }));
+    setCanvasId(pending.docId);
+    notify("画布已更新");
+  }
+
   function focusComposer() { window.setTimeout(() => composerRef.current?.focus(), 0); }
   function purgeTemporary(keepId?: string) {
     setConversations((old) => old.some((c) => c.temporary && c.id !== keepId) ? old.filter((c) => !c.temporary || c.id === keepId) : old);
@@ -538,6 +670,7 @@ export default function App() {
 
   function createNew() {
     purgeTemporary();
+    setCanvasId(null);
     setStudioOpen(false);
     setProjectViewId(null);
     setComposerMode("chat");
@@ -553,6 +686,8 @@ export default function App() {
 
   function selectChat(id: string) {
     purgeTemporary(id);
+    setFindOpen(false);
+    if (id !== activeId) setCanvasId(null);
     setStudioOpen(false);
     setProjectViewId(null);
     setComposerMode("chat");
@@ -655,6 +790,7 @@ export default function App() {
     const text = (textOverride ?? draft).trim();
     if (!text && attachments.length === 0) return;
     if (handleSlash(text)) return;
+    if (composerMode === "image") { void generateImage(text); return; }
     if (composerMode !== "chat") {
       const extras = attachments.filter((item) => item.kind === "text")
         .map(item => "\n\nAttachment: " + item.name + "\n" + (item.kind === "text" ? item.content : "")).join("");
@@ -698,16 +834,92 @@ export default function App() {
     void generateReply(conversationId, history, projectId);
   }
 
+  /** Voice mode: post a spoken turn into the current chat and resolve with the answer text. */
+  async function askVoice(text: string): Promise<string> {
+    const now = Date.now();
+    const chat = conversationsRef.current.find((c) => c.id === activeIdRef.current);
+    const user: ChatMessage = { id: newId(), role: "user", content: text, createdAt: now };
+    const conversationId = chat?.id ?? newId();
+    const history = [...(chat?.messages || []), user];
+    if (chat) setConversations((prev) => prev.map((c) => c.id === conversationId ? { ...c, messages: history, updatedAt: now } : c));
+    else setConversations((prev) => [{ id: conversationId, title: formatTitle(text), createdAt: now, updatedAt: now, messages: [user] }, ...prev]);
+    setActiveId(conversationId);
+    activeIdRef.current = conversationId;
+    const answer = await generateReply(conversationId, history, chat?.projectId);
+    return answer || previewText(language);
+  }
+
+  /** "Create image" mode: proxied to the server's OpenAI-compatible /images/generations. */
+  async function generateImage(prompt: string) {
+    if (!prompt) return;
+    const now = Date.now();
+    const user: ChatMessage = { id: newId(), role: "user", content: prompt, createdAt: now };
+    const reply: ChatMessage = { id: newId(), role: "assistant", content: "", createdAt: now + 1, generated: [] };
+    const conversationId = current?.id ?? newId();
+    if (current) setConversations((prev) => prev.map((c) => c.id === conversationId ? { ...c, messages: [...c.messages, user, reply], updatedAt: now } : c));
+    else setConversations((prev) => [{ id: conversationId, title: formatTitle(prompt), createdAt: now, updatedAt: now, messages: [user, reply],
+      ...(viewProject ? { projectId: viewProject.id } : {}), ...(temporaryMode && !viewProject ? { temporary: true } : {}) }, ...prev]);
+    setActiveId(conversationId); setProjectViewId(null); setDraft(""); setAttachments([]);
+    setBusy(true); setGeneratingId(conversationId);
+    try {
+      const response = await accountFetch("/api/images", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, size: "1024x1024" }) });
+      const data = await response.json().catch(() => ({})) as { images?: string[]; revisedPrompt?: string; error?: string };
+      if (!response.ok || !data.images?.length) throw new Error(data.error || "HTTP " + response.status);
+      const generated = await Promise.all(data.images.map(async (url) => {
+        const id = newId();
+        await putImage(id, url);
+        return { id, thumb: await makeThumb(url).catch(() => url) };
+      }));
+      patchMessage(conversationId, reply.id, { generated, content: data.revisedPrompt ? t("已生成图片。优化后的描述：") + data.revisedPrompt : t("已生成图片。") });
+    } catch (error) {
+      patchMessage(conversationId, reply.id, { generated: undefined, content: "⚠️ " + t("图片生成失败：") + (error instanceof Error ? error.message : String(error)) });
+    } finally { setBusy(false); setGeneratingId(null); }
+  }
+  async function downloadImage(id: string, fallback: string) {
+    const url = (await getImage(id)) || fallback;
+    const a = document.createElement("a");
+    a.href = url; a.download = "ciro-image-" + id.slice(0, 8) + (url.startsWith("data:image/jpeg") ? ".jpg" : ".png"); a.click();
+  }
+
   function regenerate() {
     if (busy || !current) return;
     const lastUser = [...current.messages].reverse().findIndex((message) => message.role === "user");
     if (lastUser < 0) return;
     const end = current.messages.length - lastUser;
     const history = current.messages.slice(0, end);
-    setConversations((prev) => prev.map((chat) =>
-      chat.id === current.id ? { ...chat, messages: history, updatedAt: Date.now() } : chat
-    ));
-    void generateReply(current.id, history, current.projectId);
+    const previous = current.messages[end];
+    void generateReply(current.id, history, current.projectId, previous?.role === "assistant" ? previous : undefined);
+  }
+  function snapshot(m: ChatMessage): AnswerVersion {
+    return { content: m.content, reasoning: m.reasoning, thinkingMs: m.thinkingMs, tools: m.tools, webSearch: m.webSearch,
+      createdAt: m.createdAt, preview: m.preview, feedback: m.feedback };
+  }
+  /** Write the visible answer back into its version slot (after streaming or feedback). */
+  function syncVersion(conversationId: string, messageId: string) {
+    setConversations((old) => old.map((chat) => chat.id !== conversationId ? chat : { ...chat, messages: chat.messages.map((m) => {
+      if (m.id !== messageId || !m.versions?.length) return m;
+      const versions = [...m.versions];
+      versions[m.versionIndex ?? versions.length - 1] = snapshot(m);
+      return { ...m, versions };
+    }) }));
+  }
+  function showVersion(message: ChatMessage, index: number) {
+    if (!current || busy || !message.versions?.[index]) return;
+    const v = message.versions[index];
+    setConversations((old) => old.map((chat) => chat.id !== current.id ? chat : { ...chat, messages: chat.messages.map((m) =>
+      m.id === message.id ? { ...m, ...v, reasoning: v.reasoning, tools: v.tools, versionIndex: index, suggestions: undefined } : m) }));
+  }
+  function showEdit(message: ChatMessage, index: number) {
+    if (!current || busy || !message.edits?.[index]) return;
+    const at = current.messages.findIndex((m) => m.id === message.id);
+    if (at < 0) return;
+    const edits = message.edits.map((e) => ({ ...e }));
+    edits[message.editIndex ?? edits.length - 1].tail = current.messages.slice(at + 1);
+    const target = edits[index];
+    const updated: ChatMessage = { ...message, content: target.content, images: target.images, edits, editIndex: index };
+    setConversations((old) => old.map((chat) => chat.id !== current.id ? chat : {
+      ...chat, messages: [...chat.messages.slice(0, at), updated, ...target.tail] }));
   }
 
   function submitEdit(message: ChatMessage) {
@@ -717,7 +929,11 @@ export default function App() {
     if (!text || text === message.content) return;
     const index = current.messages.findIndex((m) => m.id === message.id);
     if (index < 0) return;
-    const edited: ChatMessage = { ...message, id: newId(), content: text, createdAt: Date.now() };
+    const edits = message.edits?.length ? message.edits.map((e) => ({ ...e }))
+      : [{ content: message.content, images: message.images, tail: [] as ChatMessage[] }];
+    edits[message.editIndex ?? edits.length - 1].tail = current.messages.slice(index + 1);
+    edits.push({ content: text, images: message.images, tail: [] });
+    const edited: ChatMessage = { ...message, content: text, createdAt: Date.now(), edits, editIndex: edits.length - 1 };
     const history = [...current.messages.slice(0, index), edited];
     setConversations((prev) => prev.map((chat) => chat.id === current.id ? { ...chat, messages: history, updatedAt: Date.now() } : chat));
     void generateReply(current.id, history, current.projectId);
@@ -814,6 +1030,29 @@ export default function App() {
     if (fresh.length) setConversations((old) => [...fresh, ...old]);
     setToast(t("已导入") + " " + fresh.length + " " + t("个对话") + (items.length > fresh.length ? t("（跳过重复 ") + (items.length - fresh.length) + t(" 个）") : ""));
     return fresh.length;
+  }
+  function exportProject(project: Project) {
+    const chats = conversations.filter((c) => c.projectId === project.id && !c.temporary);
+    const blob = new Blob([JSON.stringify({ schema: "CIRO_PROJECT_V1", exportedAt: new Date().toISOString(), project, conversations: chats }, null, 2)],
+      { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = fileSafeName(project.name) + ".ciro-project.json"; a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify("项目已导出");
+  }
+  async function importProject(file: File) {
+    const data = JSON.parse(await file.text()) as { schema?: string; project?: Project; conversations?: Conversation[] };
+    if (data.schema !== "CIRO_PROJECT_V1" || !data.project || typeof data.project.name !== "string") throw new Error("format");
+    const projectId = newId();
+    const project: Project = { ...data.project, id: projectId, files: Array.isArray(data.project.files) ? data.project.files : [],
+      instructions: typeof data.project.instructions === "string" ? data.project.instructions : "", createdAt: Date.now(), updatedAt: Date.now() };
+    const chats = (Array.isArray(data.conversations) ? data.conversations : []).filter((c) => c && typeof c.title === "string" && Array.isArray(c.messages))
+      .map((c) => ({ ...c, id: newId(), projectId, temporary: undefined, shareId: undefined }));
+    setProjects((old) => [project, ...old]);
+    setConversations((old) => [...chats, ...old]);
+    setSettingsSection(null);
+    openProject(projectId);
   }
   function exportPdfOf(chat: Conversation) {
     setRowMenuId(null);
@@ -955,6 +1194,9 @@ export default function App() {
     { id: "settings", label: t("设置"), icon: <Settings2 size={16}/>, hint: MOD + " ,", run: () => setSettingsSection("general") },
     { id: "shortcuts", label: t("键盘快捷键"), icon: <Keyboard size={16}/>, hint: MOD + " /", run: () => setSettingsSection("shortcuts") },
     { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
+    { id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") },
+    { id: "voice", label: t("语音对话"), icon: <AudioLines size={16}/>, run: () => setVoiceOpen(true) },
+    { id: "find", label: t("在对话中查找"), icon: <Search size={16}/>, hint: MOD + " F", run: () => runCommand("find") },
     { id: "sync", label: t("跨设备同步"), icon: <Cloud size={16}/>, run: () => openStudio("sync") }
   ];
 
@@ -983,7 +1225,8 @@ export default function App() {
         ? <input className="cx-rename" autoFocus value={renameValue} aria-label={t("重命名对话")}
           onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename}
           onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingId(null); }}/>
-        : <button className="cx-row-main" title={chat.title} onClick={() => selectChat(chat.id)} onDoubleClick={() => startRename(chat)}>
+        : <button className="cx-row-main" title={chat.title} onClick={() => selectChat(chat.id)} onDoubleClick={() => startRename(chat)}
+          aria-current={active ? "page" : undefined} onKeyDown={(e) => { if (e.key === "F2") { e.preventDefault(); startRename(chat); } }}>
           <span>{chat.title}</span>
           {generatingId === chat.id && <span className="cx-row-spinner" aria-label={t("正在生成")}/>}
         </button>}
@@ -1004,6 +1247,8 @@ export default function App() {
         <button role="menuitem" onClick={() => { exportMarkdown(chat, language); setRowMenuId(null); notify("已导出 Markdown"); }}>
           <ArrowDownToLine size={15}/> {t("导出对话")}</button>
         {!chat.temporary && <button role="menuitem" onClick={() => { setRowMenuId(null); setShareId(chat.id); }}><Share2 size={15}/> {t("分享")}</button>}
+        {desktop()?.openWindow && <button role="menuitem" onClick={() => { setRowMenuId(null); desktop()?.openWindow?.(chat.id); }}>
+          <AppWindow size={15}/> {t("在新窗口打开")}</button>}
         <button role="menuitem" onClick={() => { exportPdfOf(chat); }}><Printer size={15}/> {t("导出 PDF / 打印")}</button>
         <button role="menuitem" onClick={() => { setRowMenuId(null); bulk("archive", [chat.id]); }}><Archive size={15}/> {t("归档")}</button>
         <div className="cx-menu-sep"/>
@@ -1014,6 +1259,7 @@ export default function App() {
 
   return (
     <div className={["app-shell", "cx-shell", sidebarCollapsed ? "cx-shell--collapsed" : ""].join(" ")}>
+      <a href="#ciro-composer" className="cx-skip" onClick={(e) => { e.preventDefault(); composerRef.current?.focus(); }}>{t("跳到输入框")}</a>
       {sidebarOpen && <button className="mobile-scrim" onClick={() => setSidebarOpen(false)} aria-label={t("关闭侧栏")}/>}
       <aside className={["cx-sidebar", sidebarOpen ? "cx-sidebar--open" : "", sidebarCollapsed ? "cx-sidebar--collapsed" : ""].join(" ")}
         aria-label={t("侧栏")}>
@@ -1059,7 +1305,14 @@ export default function App() {
           </div>
         </nav>
 
-        <div className="cx-history">
+        <div className="cx-history" onKeyDown={(e) => {
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(".cx-row-main, .cx-project-row"));
+          const at = items.indexOf(document.activeElement as HTMLElement);
+          if (at < 0) return;
+          e.preventDefault();
+          items[Math.min(items.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
+        }}>
           <div className="cx-group cx-projects">
             <div className="cx-group-label cx-group-label--action">
               <span>{t("项目")}</span>
@@ -1170,6 +1423,8 @@ export default function App() {
               className={temporaryMode || current?.temporary ? "cx-temp cx-temp--on" : "cx-temp"} aria-pressed={temporaryMode}
               disabled={Boolean(current?.temporary)} onClick={() => { setTemporaryMode((v) => !v); notify(temporaryMode ? "已关闭临时对话" : "临时对话：不会保存到历史记录"); }}
               title={t("临时对话")} aria-label={t("临时对话")}><Ghost size={16}/><span>{t("临时")}</span></button>}
+            {current?.canvas?.length && !canvasId ? <button className="cx-share" onClick={() => setCanvasId(current.canvas!.at(-1)!.id)} title={t("打开画布")}>
+              <PanelRight size={15}/><span>{t("画布")} {current.canvas.length}</span></button> : null}
             {current && !current.temporary && <button className="cx-share" onClick={() => setShareId(current.id)} title={t("分享对话")} aria-label={t("分享对话")}>
               <Share2 size={15}/><span>{t("分享")}</span></button>}
             {current && <button className="cx-icon" title={t("导出 PDF / 打印") + " (" + MOD + " P)"} aria-label={t("导出 PDF / 打印")}
@@ -1181,13 +1436,15 @@ export default function App() {
           </div>
         </header>
 
+        {findOpen && current && <FindBar t={t} root={scrollRef.current} refreshKey={current.messages.length + ":" + (current.messages.at(-1)?.content.length ?? 0)}
+          onClose={() => { setFindOpen(false); focusComposer(); }}/>}
         <div ref={scrollRef} className={current ? "content-area content-area--chat" : viewProject ? "content-area content-area--project" : "content-area content-area--welcome"}
           onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80); }}>
           {!current && viewProject ? (
             <ProjectView t={t} language={language} project={viewProject}
               chats={sorted.filter((c) => c.projectId === viewProject.id)}
               onChange={(next) => setProjects((old) => old.map((p) => p.id === next.id ? next : p))}
-              onDelete={() => deleteProject(viewProject.id)} onOpenChat={selectChat} onNotify={notify}/>
+              onDelete={() => deleteProject(viewProject.id)} onOpenChat={selectChat} onNotify={notify} onExport={() => exportProject(viewProject)}/>
           ) : !current ? (
             <section className="cx-welcome">
               <div className="cx-hero-mark"><CiroMark/></div>
@@ -1198,7 +1455,7 @@ export default function App() {
               </> : <h1>{t("让每一个想法，")}{language === "en" ? " " : ""}<em>{t("走得更远。")}</em></h1>}
             </section>
           ) : (
-            <div className="messages" aria-live="polite">
+            <div className="messages" aria-live="polite" aria-busy={busy && generatingId === current.id}>
               {current.messages.map((message, index) => {
                 const assistant = message.role === "assistant";
                 const lastAssistant = assistant && index === current.messages.length - 1;
@@ -1227,8 +1484,17 @@ export default function App() {
                         </button>
                         {thoughtOpen && message.reasoning && <div className="cx-thought-body">{message.reasoning}</div>}
                       </div>}
+                      {message.generated && <div className="cx-gen">
+                        {message.generated.length === 0 && <div className="cx-gen-wait"><span className="cx-shimmer">{t("正在生成图片…")}</span></div>}
+                        {message.generated.map((g) => <figure key={g.id}>
+                          <button type="button" onClick={() => void getImage(g.id).then((full) => setLightbox(full || g.thumb))} aria-label={t("查看图片")}>
+                            <img src={g.thumb} alt=""/></button>
+                          <button type="button" className="cx-gen-dl" onClick={() => void downloadImage(g.id, g.thumb)} aria-label={t("下载图片")}><Download size={15}/></button>
+                        </figure>)}
+                      </div>}
                       <div className={["message-prose", message.preview ? "message-prose--preview" : ""].join(" ")}>
-                        {body ? <Markdown text={body} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/> : null}
+                        {body ? <Markdown text={body} copyLabel={t("复制代码")} copiedLabel={t("已复制")}
+                          canvasLabel={t("在画布中打开")} onCanvas={message.preview ? undefined : openCanvas}/> : null}
                         {isStreaming && message.content && <span className="typing-cursor" aria-label={t("正在生成")}/>}
                       </div>
                     </> : editingId === message.id ? (
@@ -1251,25 +1517,41 @@ export default function App() {
                       <div className="user-bubble">{message.content}</div>
                     </>}
                     {preferences.showTime && <time className="message-time" dateTime={new Date(message.createdAt).toISOString()}>
-                      {new Date(message.createdAt).toLocaleTimeString(language === "en" ? "en-US" : "zh-CN", { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(message.createdAt).toLocaleTimeString(localeTag(language), { hour: "2-digit", minute: "2-digit" })}
                     </time>}
                     {assistant && message.content && !isStreaming && <div className="message-actions">
+                      {(message.versions?.length ?? 0) > 1 && <VersionNav t={t} index={message.versionIndex ?? message.versions!.length - 1}
+                        total={message.versions!.length} disabled={busy} onGo={(i) => showVersion(message, i)}/>}
                       <button aria-label={t("复制回答")} title={t("复制回答")} onClick={() => void copyContent(body)}><Copy size={15}/></button>
                       {canSpeak && <button aria-label={readAloud.speakingId === message.id ? t("停止朗读") : t("朗读")} title={readAloud.speakingId === message.id ? t("停止朗读") : t("朗读")}
                         className={readAloud.speakingId === message.id ? "is-on" : ""} onClick={() => readAloud.toggle(message.id, body)}>
                         {readAloud.speakingId === message.id ? <VolumeX size={15}/> : <Volume2 size={15}/>}</button>}
                       {!message.preview && <>
                         <button aria-label={t("有帮助")} title={t("有帮助")} aria-pressed={message.feedback === "up"} className={message.feedback === "up" ? "is-on" : ""}
-                          onClick={() => { patchMessage(current.id, message.id, { feedback: message.feedback === "up" ? undefined : "up" }); if (message.feedback !== "up") notify("感谢反馈"); }}><ThumbsUp size={15}/></button>
+                          onClick={() => { patchMessage(current.id, message.id, { feedback: message.feedback === "up" ? undefined : "up" }); syncVersion(current.id, message.id); if (message.feedback !== "up") notify("感谢反馈"); }}><ThumbsUp size={15}/></button>
                         <button aria-label={t("没有帮助")} title={t("没有帮助")} aria-pressed={message.feedback === "down"} className={message.feedback === "down" ? "is-on" : ""}
-                          onClick={() => { patchMessage(current.id, message.id, { feedback: message.feedback === "down" ? undefined : "down" }); if (message.feedback !== "down") notify("感谢反馈，我们会改进"); }}><ThumbsDown size={15}/></button>
+                          onClick={() => { patchMessage(current.id, message.id, { feedback: message.feedback === "down" ? undefined : "down" }); syncVersion(current.id, message.id); if (message.feedback !== "down") notify("感谢反馈，我们会改进"); }}><ThumbsDown size={15}/></button>
                       </>}
                       {lastAssistant && <button aria-label={t("重新生成")} title={t("重新生成")} onClick={regenerate} disabled={busy}><RotateCcw size={15}/></button>}
                       <button aria-label={t("从这里创建分支")} title={t("从这里创建分支")} onClick={() => organizeChat("branch", current.id, index + 1)}><GitBranch size={15}/></button>
                       {message.preview && <span className="preview-tag">{t("界面提示 · 非 AI 输出")}</span>}
                     </div>}
+                    {lastAssistant && !busy && message.suggestions?.length ? <div className="cx-followups" aria-label={t("你可能还想问")}>
+                      {message.suggestions.map((q) => <button type="button" key={q} onClick={() => sendMessage(q)}>
+                        <CornerDownRight size={14}/><span>{q}</span></button>)}
+                    </div> : null}
+                    {!assistant && message.rememberedId && <div className="cx-memory-chip">
+                      <BookmarkCheck size={13}/><span>{t("已记住")}</span>
+                      <button type="button" onClick={() => void removeMemory(message.rememberedId!).then(() => {
+                        patchMessage(current.id, message.id, { rememberedId: undefined }); notify("已撤销记忆"); }).catch(() => notify("撤销失败"))}>{t("撤销")}</button>
+                    </div>}
                     {!assistant && editingId !== message.id && <div className="message-actions message-actions--user">
+                      {(message.edits?.length ?? 0) > 1 && <VersionNav t={t} index={message.editIndex ?? message.edits!.length - 1}
+                        total={message.edits!.length} disabled={busy} onGo={(i) => showEdit(message, i)}/>}
                       <button aria-label={t("复制消息")} title={t("复制消息")} onClick={() => void copyContent(message.content)}><Copy size={15}/></button>
+                      {!message.rememberedId && !current.temporary && <button aria-label={t("记住这条信息")} title={t("记住这条信息")}
+                        onClick={() => void addMemory(message.content).then((m) => { patchMessage(current.id, message.id, { rememberedId: m.id }); notify("Ciro 会记住这条信息"); })
+                          .catch(() => notify("保存记忆失败"))}><Bookmark size={15}/></button>}
                       <button aria-label={t("编辑消息")} title={t("编辑消息")} disabled={busy}
                         onClick={() => { setEditingId(message.id); setEditValue(message.content); }}><Pencil size={15}/></button>
                     </div>}
@@ -1307,7 +1589,7 @@ export default function App() {
                   }}><X size={13}/></button>
                 </span>)}
               </div>}
-              <textarea ref={composerRef} value={draft} rows={1}
+              <textarea ref={composerRef} id="ciro-composer" value={draft} rows={1}
                 onChange={(event) => {
                   setDraft(event.target.value);
                   event.target.style.height = "auto";
@@ -1315,6 +1597,7 @@ export default function App() {
                 }}
                 onKeyDown={onComposerKeyDown} onPaste={onPaste}
                 placeholder={composerMode === "goal" ? t("描述你希望 Ciro 自主完成的目标…") : composerMode === "plan" ? t("描述需要规划的任务…")
+                  : composerMode === "image" ? t("描述你想生成的图片…")
                   : !current && viewProject ? t("在此项目中开始新对话…") : t("向 Ciro 发送消息…")}
                 aria-label={t("向 Ciro 发送消息")}/>
               <div className="composer-toolbar">
@@ -1334,6 +1617,10 @@ export default function App() {
                       <button role="menuitemradio" aria-checked={composerMode === "plan"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "plan" ? "chat" : "plan"); focusComposer(); }}>
                         <ListChecks size={16}/><span><strong>{t("计划模式")}</strong><small>{t("只生成计划，不改动仓库")}</small></span>{composerMode === "plan" && <Check size={15}/>}</button>
                       <div className="cx-menu-sep"/>
+                      <button role="menuitemradio" aria-checked={composerMode === "image"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "image" ? "chat" : "image"); focusComposer(); }}>
+                        <ImagePlus size={16}/><span><strong>{t("生成图片")}</strong><small>{status.images ? t("用文字描述，生成一张图片") : t("需服务端开启 CIRO_IMAGES=on")}</small></span>{composerMode === "image" && <Check size={15}/>}</button>
+                      <button role="menuitem" onClick={() => { setPlusOpen(false); openCanvas("markdown", ""); }}>
+                        <PanelRight size={16}/><span><strong>{t("新建画布")}</strong><small>{t("在右侧编辑文档或代码，并让 Ciro 协助修改")}</small></span></button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setPromptsOpen(true); }}>
                         <BookMarked size={16}/><span><strong>{t("提示词库")}</strong><small>{t("保存并一键插入常用提示词")}</small></span></button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setDraft("/"); focusComposer(); }}>
@@ -1341,9 +1628,9 @@ export default function App() {
                     </div>}
                   </div>
                   {composerMode !== "chat" && <button type="button" className="cx-mode-pill" onClick={(e) => { e.stopPropagation(); setComposerMode("chat"); }}
-                    aria-label={t("退出") + " " + t(composerMode === "goal" ? "目标模式" : "计划模式")}>
-                    {composerMode === "goal" ? <Target size={14}/> : <ListChecks size={14}/>}
-                    <span>{t(composerMode === "goal" ? "目标模式" : "计划模式")}</span><X size={13}/>
+                    aria-label={t("退出") + " " + t(composerMode === "goal" ? "目标模式" : composerMode === "image" ? "生成图片" : "计划模式")}>
+                    {composerMode === "goal" ? <Target size={14}/> : composerMode === "image" ? <ImagePlus size={14}/> : <ListChecks size={14}/>}
+                    <span>{t(composerMode === "goal" ? "目标模式" : composerMode === "image" ? "生成图片" : "计划模式")}</span><X size={13}/>
                   </button>}
                   {composerMode === "chat" && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
                     aria-pressed={webSearchOn && Boolean(status.webSearch)} title={t("联网搜索")} aria-label={t("联网搜索")}
@@ -1356,6 +1643,8 @@ export default function App() {
                   </div>}
                 </div>
                 <div className="cx-send-group">
+                {composerMode === "chat" && <button type="button" className="cx-mic" onClick={(e) => { e.stopPropagation(); setVoiceOpen(true); }}
+                  aria-label={t("语音对话")} title={t("语音对话")}><AudioLines size={17}/></button>}
                 {canDictate && composerMode === "chat" && <button type="button" className={dictation.listening ? "cx-mic cx-mic--on" : "cx-mic"}
                   onClick={(e) => { e.stopPropagation(); dictation.toggle(); }} aria-pressed={dictation.listening}
                   aria-label={dictation.listening ? t("停止语音输入") : t("语音输入")} title={dictation.listening ? t("停止语音输入") : t("语音输入")}>
@@ -1386,6 +1675,12 @@ export default function App() {
         </div>
       </main>}
 
+      {!studioOpen && current && canvasId && current.canvas?.find((d) => d.id === canvasId) && <CanvasPanel t={t} busy={busy}
+        doc={current.canvas.find((d) => d.id === canvasId)!} onClose={() => setCanvasId(null)}
+        onChange={(doc) => updateCanvas(current.id, doc)}
+        onAsk={(instruction) => askCanvas(current.canvas!.find((d) => d.id === canvasId)!, instruction)}/>}
+      {voiceOpen && <VoiceMode t={t} language={language} serverStt={Boolean(status.stt)} serverTts={Boolean(status.tts)}
+        onAsk={askVoice} onClose={() => setVoiceOpen(false)}/>}
       {settingsSection && <SettingsCenter
         initialSection={settingsSection}
         onClose={() => setSettingsSection(null)}
@@ -1399,7 +1694,7 @@ export default function App() {
         status={status} model={model} onModelChange={setModel}
         onRefreshStatus={refreshStatus} conversations={conversations}
         onExportAll={exportAllConversations} onClearHistory={clearHistory}
-        onBulk={bulk} onImport={importConversations}
+        onBulk={bulk} onImport={importConversations} onImportProject={importProject}
       />}
       {shareId && conversations.find((c) => c.id === shareId) && <ShareDialog t={t} chat={conversations.find((c) => c.id === shareId)!}
         onClose={() => setShareId(null)}
@@ -1413,4 +1708,12 @@ export default function App() {
       {toast && <div className="toast" role="status" key={toast}><Check size={16}/> {toast}</div>}
     </div>
   );
+}
+
+function VersionNav({ t, index, total, disabled, onGo }: { t: (s: string) => string; index: number; total: number; disabled: boolean; onGo: (i: number) => void }) {
+  return <span className="cx-version" role="group" aria-label={t("版本")}>
+    <button type="button" aria-label={t("上一个版本")} disabled={disabled || index <= 0} onClick={() => onGo(index - 1)}><ChevronLeft size={14}/></button>
+    <span>{index + 1} / {total}</span>
+    <button type="button" aria-label={t("下一个版本")} disabled={disabled || index >= total - 1} onClick={() => onGo(index + 1)}><ChevronRight size={14}/></button>
+  </span>;
 }

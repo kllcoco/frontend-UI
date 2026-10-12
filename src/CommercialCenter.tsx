@@ -1,3 +1,4 @@
+import { localeTag } from "./lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
@@ -24,7 +25,7 @@ const iconMap:Record<string,typeof Wallet>={
   chat:MessageCircle,workbench:Workflow,github:GitBranch,scheduler:CalendarClock,
   skills:Blocks,research:Search,files:FolderOpen,code:Terminal
 };
-const unit= (n:number,language:Language)=>new Intl.NumberFormat(language==="en"?"en-US":"zh-CN").format(n);
+const unit= (n:number,language:Language)=>new Intl.NumberFormat(localeTag(language)).format(n);
 function statusReady(ready:boolean,t:(value:string)=>string){
   return <span className={ready?"com-status com-status--ready":"com-status"}>
     {ready?<CheckCircle2 size={13}/>:<CircleAlert size={13}/>}
@@ -36,7 +37,7 @@ function BillingPage({state,language,save,loading}:{
 }){
   const t=(value:string)=>commerceTranslate(language,value);
   const b=state.billing;
-  const locale=language==="en"?"en-US":"zh-CN";
+  const locale=localeTag(language);
   const [view,setView]=useState<"usage"|"invoices">("usage");
   const [cap,setCap]=useState(b.monthlyBudgetMicros===null?"":(b.monthlyBudgetMicros/1e6).toFixed(2));
   const [alert,setAlert]=useState(String(b.alertThresholdPct));
@@ -164,8 +165,8 @@ function AppsPage({state,language,call,onNavigate}:{
             aria-label={t(app.pinned?"取消收藏":"收藏")+": "+app.name}
             title={t(app.pinned?"取消收藏":"收藏")} onClick={()=>void call("/apps/"+app.id+"/pin",{pinned:!app.pinned},t("操作成功"))}>
             <Star size={17} fill={app.pinned?"currentColor":"none"}/></button></div>
-        <h3>{language==="en"?app.name:app.zh}</h3><small>{app.name}</small>
-        <p>{language==="en"?app.descriptionEn:app.description}</p>
+        <h3>{language==="zh-CN"||language==="zh-TW"?t(app.zh):app.name}</h3><small>{app.name}</small>
+        <p>{language==="zh-CN"||language==="zh-TW"?t(app.description):app.descriptionEn}</p>
         <div className="com-app-bottom">{statusReady(app.ready,t)}
           {app.route && onNavigate &&
             <button className="com-open" onClick={()=>onNavigate(app.route!)} type="button">
@@ -197,9 +198,9 @@ function SkillsPage({state,language,call}:{
     <div className="com-skill-list">{visible.map(skill=><article className="com-skill" key={skill.id}>
       <div className="com-skill-mark"><Blocks size={22}/></div>
       <div className="com-skill-details"><div className="com-skill-title">
-        <h3>{language==="en"?skill.name:skill.zh}</h3>
+        <h3>{language==="zh-CN"||language==="zh-TW"?t(skill.zh):skill.name}</h3>
         <span>v{skill.version}</span></div>
-        <p>{language==="en"?skill.descriptionEn:skill.description}</p>
+        <p>{language==="zh-CN"||language==="zh-TW"?t(skill.description):skill.descriptionEn}</p>
         <div className="com-skill-tags"><span>{t("所需权限")}</span>
           {skill.scope.map(scope=><code key={scope}>{scope}</code>)}</div>
         <span className="com-skill-ready">{skill.enabled && !skill.ready?t("已选择，等待执行器"):

@@ -6,7 +6,14 @@ export type ChatPreferences = {
   reduceMotion: boolean;
   notifyOnComplete: boolean;
   autoTitle: boolean;
+  followUps: boolean;
+  accent: Accent;
+  fontFamily: FontFamily;
+  memoryEnabled: boolean;
 };
+export type Accent = "jade" | "blue" | "violet" | "amber" | "rose" | "graphite";
+export type FontFamily = "sans" | "system" | "serif";
+export const ACCENTS: Accent[] = ["jade", "blue", "violet", "amber", "rose", "graphite"];
 
 const KEY = "ciro.chat-preferences.v1";
 export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
@@ -16,7 +23,11 @@ export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   fontSize: "normal",
   reduceMotion: false,
   notifyOnComplete: false,
-  autoTitle: true
+  autoTitle: true,
+  followUps: true,
+  accent: "jade",
+  fontFamily: "sans",
+  memoryEnabled: true
 };
 
 export function loadChatPreferences(): ChatPreferences {
@@ -30,7 +41,11 @@ export function loadChatPreferences(): ChatPreferences {
         value.fontSize as ChatPreferences["fontSize"] : "normal",
       reduceMotion: typeof value.reduceMotion === "boolean" ? value.reduceMotion : false,
       notifyOnComplete: typeof value.notifyOnComplete === "boolean" ? value.notifyOnComplete : false,
-      autoTitle: typeof value.autoTitle === "boolean" ? value.autoTitle : true
+      autoTitle: typeof value.autoTitle === "boolean" ? value.autoTitle : true,
+      followUps: typeof value.followUps === "boolean" ? value.followUps : true,
+      accent: ACCENTS.includes(value.accent as Accent) ? value.accent as Accent : "jade",
+      fontFamily: ["sans", "system", "serif"].includes(value.fontFamily || "") ? value.fontFamily as FontFamily : "sans",
+      memoryEnabled: typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : true
     };
   } catch {
     return { ...DEFAULT_CHAT_PREFERENCES };

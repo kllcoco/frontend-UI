@@ -143,10 +143,11 @@ function setupHotkey() {
 }
 
 function send(command) {
-  if (!mainWindow) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.show();
-  mainWindow.webContents.send("ciro:command", command);
+  const target = BrowserWindow.getFocusedWindow() || mainWindow;
+  if (!target) return;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.webContents.send("ciro:command", command);
 }
 
 function buildMenu() {
@@ -173,6 +174,7 @@ function buildMenu() {
       label: s.file,
       submenu: [
         { label: s.newChat, accelerator: "CmdOrCtrl+Shift+O", click: () => send("new-chat") },
+        { label: s.newWindow, accelerator: "CmdOrCtrl+Shift+N", click: () => createWindow("/") },
         { label: s.search, accelerator: "CmdOrCtrl+K", click: () => send("search") },
         { label: s.exportChat, accelerator: "CmdOrCtrl+Shift+E", click: () => send("export-chat") },
         { label: s.exportPdf, accelerator: "CmdOrCtrl+P", click: () => send("export-pdf") },
@@ -200,7 +202,9 @@ function buildMenu() {
         ...(isMac ? [{ role: "pasteAndMatchStyle", label: s.pasteMatch }] : []),
         { role: "delete", label: s.delete },
         { type: "separator" },
-        { role: "selectAll", label: s.selectAll }
+        { role: "selectAll", label: s.selectAll },
+        { type: "separator" },
+        { label: s.find, accelerator: "CmdOrCtrl+F", click: () => send("find") }
       ]
     },
     {
@@ -216,7 +220,9 @@ function buildMenu() {
         { role: "zoomIn", label: s.zoomIn },
         { role: "zoomOut", label: s.zoomOut },
         { type: "separator" },
-        { role: "togglefullscreen", label: s.fullscreen }
+        { role: "togglefullscreen", label: s.fullscreen },
+        { label: s.alwaysOnTop, type: "checkbox", checked: Boolean(BrowserWindow.getFocusedWindow()?.isAlwaysOnTop()),
+          click: (item) => { const w = BrowserWindow.getFocusedWindow() || mainWindow; if (w) w.setAlwaysOnTop(item.checked, "floating"); } }
       ]
     },
     {
@@ -243,8 +249,11 @@ function buildMenu() {
   if (tray) setupTray();
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+function createWindow(route = "/") {
+  const first = !mainWindow;
+  const offset = first ? 0 : 28 * (BrowserWindow.getAllWindows().length % 6);
+  const win = new BrowserWindow({
+    ...(first ? {} : { x: (mainWindow.getBounds().x || 0) + offset + 28, y: (mainWindow.getBounds().y || 0) + offset + 28 }),
     width: 1320,
     height: 860,
     minWidth: 380,
@@ -263,11 +272,11 @@ function createWindow() {
       spellcheck: true
     }
   });
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  win.once("ready-to-show", () => win.show());
   // Smoke-test hook used by CI: capture the first rendered frame and exit.
   if (process.env.CIRO_DESKTOP_SMOKE) {
-    mainWindow.webContents.once("did-finish-load", () => setTimeout(async () => {
-      const image = await mainWindow.webContents.capturePage();
+    win.webContents.once("did-finish-load", () => setTimeout(async () => {
+      const image = await win.webContents.capturePage();
       writeFileSync(process.env.CIRO_DESKTOP_SMOKE, image.toPNG());
       const menu = Menu.getApplicationMenu();
       writeFileSync(process.env.CIRO_DESKTOP_SMOKE + ".menu.json", JSON.stringify({
@@ -276,33 +285,39 @@ function createWindow() {
       app.quit();
     }, 2500));
   }
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
-  mainWindow.webContents.on("will-navigate", (event, url) => {
+  win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(serverOrigin)) {
       event.preventDefault();
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     }
   });
-  // Closing the window keeps Ciro in the tray (Windows/Linux) so the global shortcut still works.
-  mainWindow.on("close", (event) => {
-    if (isQuitting || isMac || process.env.CIRO_DESKTOP_SMOKE || !tray) return;
+  // Closing the main window keeps Ciro in the tray (Windows/Linux) so the global shortcut still works.
+  win.on("close", (event) => {
+    if (!first || isQuitting || isMac || process.env.CIRO_DESKTOP_SMOKE || !tray) return;
     event.preventDefault();
-    mainWindow.hide();
+    win.hide();
     if (!trayHintShown && tray.displayBalloon) {
       trayHintShown = true;
       tray.displayBalloon({ title: "Ciro", content: strings(language).trayHint });
     }
   });
-  mainWindow.on("closed", () => { mainWindow = null; });
-  void mainWindow.loadURL(serverOrigin + "/");
+  win.on("closed", () => { if (first) mainWindow = null; });
+  if (first) mainWindow = win;
+  void win.loadURL(serverOrigin + route);
+  return win;
 }
 
 ipcMain.on("ciro:version", (event) => { event.returnValue = app.getVersion(); });
+ipcMain.on("ciro:open-window", (_event, chatId) => {
+  const id = typeof chatId === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(chatId) ? chatId : null;
+  createWindow(id ? "/?chat=" + encodeURIComponent(id) : "/");
+});
 ipcMain.on("ciro:set-language", (_event, next) => {
-  if ((next === "zh-CN" || next === "en") && next !== language) {
+  if ((next === "zh-CN" || next === "zh-TW" || next === "en") && next !== language) {
     language = next;
     buildMenu();
   }
