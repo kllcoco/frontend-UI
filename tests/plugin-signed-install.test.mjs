@@ -67,7 +67,7 @@ test("production marketplace downloads a signed package and pins digest at user 
   assert.equal(denied.status,403);
  }finally{
   await new Promise(resolve=>server.close(resolve));
-  runtime.store.close();runtime.installs.close();
+  runtime.close();
   rmSync(dir,{recursive:true,force:true});
  }
 });

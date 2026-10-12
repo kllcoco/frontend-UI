@@ -49,11 +49,16 @@ function loadOrCreateSecrets(root){
  return {record,firstRun,path,envPath};
 }
 function childEnvironment(base,root,record){
- return {...base,ELECTRON_RUN_AS_NODE:"1",HOST:"127.0.0.1",PORT:"0",
+ // A desktop session is configured only by its owner-local .env, never by
+ // unrelated inherited CIRO configuration or injected Node startup hooks.
+ const safeBase=Object.fromEntries(Object.entries(base).filter(([key])=>
+  !/^(CIRO_|NODE_OPTIONS$|NODE_PATH$|DOTENV_CONFIG_)/i.test(key)));
+ return {...safeBase,ELECTRON_RUN_AS_NODE:"1",HOST:"127.0.0.1",PORT:"0",
   CIRO_DEPLOYMENT_MODE:"single-owner",CIRO_PUBLIC_MULTI_TENANT:"false",
   CIRO_ACCOUNTS_ENABLED:"true",CIRO_PUBLIC_ORIGIN:"",
   CIRO_WORKSPACE_DATA_DIR:root,CIRO_ACCOUNT_DATA_KEY:record.accountDataKey,
   CIRO_API_KEY_PEPPER:record.apiPepper,CIRO_BOOTSTRAP_TOKEN:record.bootstrapToken,
+  CIRO_DESKTOP_AUTO_PROVISION:"true",
   CIRO_GITHUB_FINE_GRAINED_PAT_ENABLED:"true"};
 }
 module.exports={trustedLocalUrl,loadOrCreateSecrets,childEnvironment};

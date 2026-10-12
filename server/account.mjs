@@ -60,7 +60,8 @@ function parseCookies(req){
 }
 function publicOwner(owner){
   return owner?{id:owner.id,email:owner.email,displayName:owner.displayName,
-    createdAt:owner.createdAt,memoryEnabled:owner.memoryEnabled===true}:null;
+    desktopLocal:owner.desktopLocal===true,createdAt:owner.createdAt,
+    memoryEnabled:owner.memoryEnabled===true}:null;
 }
 function publicSubscription(store,env){
   const data=store.get().subscription;
@@ -190,14 +191,45 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   const enabled=env.CIRO_ACCOUNTS_ENABLED==="true";
   const store=createAccountStore(dir||env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime");
   const router=express.Router();
-  function issueSession(res,owner){
+  function createSession(event="account.session.created"){
     const raw=token(),csrf=token(),id=randomUUID(),expiresAt=Date.now()+COOKIE_MAX_AGE;
-    store.change("account.session.created",s=>{
-      s.sessions=s.sessions.filter(x=>x.expiresAt>Date.now()).slice(-60);
-      s.sessions.push({id,hash:hash(raw),csrf,expiresAt,createdAt:new Date().toISOString()});
+    store.change(event,s=>{
+      // Revoke previous *native* desktop sessions each time Electron restarts.
+      // Preserve regular web sessions for existing owners on upgrade.
+      s.sessions=s.sessions.filter(x=>x.expiresAt>Date.now()&&
+        (event!=="account.desktop.session"||x.nativeDesktop!==true)).slice(-60);
+      s.sessions.push({id,hash:hash(raw),csrf,expiresAt,
+        ...(event==="account.desktop.session"?{nativeDesktop:true}:{}),
+        createdAt:new Date().toISOString()});
     });
-    res.setHeader("Set-Cookie",sessionCookie(null,env,raw));
-    return {csrf,id};
+    return {raw,csrf,id};
+  }
+  function issueSession(res){
+    const session=createSession();
+    res.setHeader("Set-Cookie",sessionCookie(null,env,session.raw));
+    return {csrf:session.csrf,id:session.id};
+  }
+  // Never mount as an HTTP route. The trusted Electron child invokes this
+  // before exposing its UI; the random session token returns over process IPC.
+  // Existing owners and their encryption keys are preserved without migration.
+  async function provisionDesktopSession(){
+    if(!enabled||env.CIRO_DESKTOP_AUTO_PROVISION!=="true"||
+       env.CIRO_DEPLOYMENT_MODE!=="single-owner"||env.HOST!=="127.0.0.1"||
+       env.PORT!=="0")throw bad("Desktop auto-provisioning requires the native loopback profile",403);
+    if(!store.get().owner){
+      const salt=randomBytes(16).toString("base64");
+      const password=token()+token();
+      const passwordHashValue=await passwordHash(password,salt);
+      store.change("account.desktop.provisioned",s=>{
+        if(s.owner)throw bad("Owner already initialized",409);
+        s.owner={id:randomUUID(),email:"local-"+randomUUID()+"@desktop.ciro.invalid",
+          displayName:"我的 Ciro",desktopLocal:true,
+          passwordHash:passwordHashValue,salt,memoryEnabled:false,
+          createdAt:new Date().toISOString()};
+      });
+    }
+    const session=createSession("account.desktop.session");
+    return {raw:session.raw,ownerIsDesktopLocal:store.get().owner.desktopLocal===true};
   }
   function principal(req){
     if(!enabled)return {mode:"local",id:"local",scopes:["*"]};
@@ -291,7 +323,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       s.owner={id:randomUUID(),email,displayName,passwordHash:passwordHashValue,salt,
         memoryEnabled:false,createdAt:new Date().toISOString()};
     });
-    const session=issueSession(res,store.get().owner);
+    const session=issueSession(res);
     res.status(201).json({authenticated:true,user:publicOwner(store.get().owner),csrf:session.csrf});
   }));
   router.post("/login",wrapped(async(req,res)=>{
@@ -302,7 +334,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       !owner||!equal(req.body.email.toLowerCase(),owner.email)||
       !(await passwordMatches(req.body.password,owner)))throw bad("Invalid credentials",401);
     clear();
-    const session=issueSession(res,owner);
+    const session=issueSession(res);
     res.json({authenticated:true,user:publicOwner(owner),csrf:session.csrf});
   }));
   router.post("/logout",protectedSession((_req,res,p)=>{
@@ -495,5 +527,5 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     if(subscription)notify({type:"info",title:"Stripe subscription updated",body:"Verified subscription status: "+payload.status});
     res.json({received:true,applied:Boolean(checkout||subscription)});
   }));
-  return {router,guard,store,principal,memoryContext,notify,enabled};
+  return {router,guard,store,principal,memoryContext,notify,enabled,provisionDesktopSession};
 }

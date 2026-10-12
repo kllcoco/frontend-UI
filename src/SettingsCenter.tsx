@@ -252,11 +252,19 @@ export default function SettingsCenter({
                 <CiroMark small/><span><strong>{item === "ciro" ? "Ciro" : item}</strong>
                   <small>{status.configured ? t("由已配置后端提供") : t("占位模型 · 暂无推理")}</small></span>{item === model && <Check size={17}/>}</button>)}</div>
             </SettingBlock>
-            <SettingBlock title={t("连接方法")}>
+            {window.ciroNativeBridge?<SettingBlock title={language==="en"?"Automatic desktop setup":"本机自动配置"}>
+              <div className="sc-info-card"><ShieldCheck size={19}/><div>
+                <strong>{language==="en"?"Local account and services: ready":"本机账户与本地服务：已自动配置"}</strong>
+                <p>{language==="en"?"Ciro creates the local account, encryption keys and server automatically. No terminal, config file or bootstrap code needed.":"Ciro 会自动创建本机账户、加密密钥并启动本地服务。无需终端命令、配置文件或初始化口令。"}</p>
+                <p>{status.configured
+                  ?language==="en"?"Model endpoint configured; native NCPA provenance is not yet verified.":"模型接口已配置，但尚未完成原生 NCPA 身份验证。"
+                  :language==="en"?"No verified native model is connected yet. No fabricated inference responses.":"尚未连接经过验证的原生模型，Ciro 不会伪造推理结果。"}</p>
+              </div></div>
+            </SettingBlock>:<SettingBlock title={t("连接方法")}>
               <p className="sc-help-text">{t("在服务端项目根目录")} <code>.env</code> {t("配置 CIRO 推理服务。浏览器不会保存你的 API Key。")}</p>
               <pre className="sc-code">CIRO_API_BASE_URL=http://127.0.0.1:8000/v1{"\n"}CIRO_MODEL=ciro{"\n"}CIRO_API_PATH=/chat/completions</pre>
               <p className="sc-help-text">{t("当前代理使用兼容 Chat Completions 的协议。如果 CIRO 正式 API 不同，需要适配后端。")}</p>
-            </SettingBlock>
+            </SettingBlock>}
           </>}
 
           {section === "chat" && <>

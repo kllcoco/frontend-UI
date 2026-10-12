@@ -1,5 +1,5 @@
 "use strict";
-const {app,BrowserWindow,dialog,ipcMain,Notification,shell}=require("electron");
+const {app,BrowserWindow,dialog,ipcMain,Notification}=require("electron");
 const {fork}=require("node:child_process");
 const {join}=require("node:path");
 const {existsSync}=require("node:fs");
@@ -38,7 +38,7 @@ else{
   const entry=join(app.getAppPath(),"server","index.mjs");
   if(!existsSync(entry)||!existsSync(join(app.getAppPath(),"dist","index.html")))
    throw Error("Bundled CIRO server or frontend missing");
-  const port=await new Promise((resolve,reject)=>{
+  const ready=await new Promise((resolve,reject)=>{
    let done=false;
    const timer=setTimeout(()=>fail(Error("Local server start timeout")),20000);
    function fail(error){if(done)return;done=true;clearTimeout(timer);reject(error);}
@@ -54,9 +54,14 @@ else{
    backend.on("message",message=>{
     if(done||message?.type!=="ciro-server-ready"||
       !Number.isInteger(message.port)||message.port<1||message.port>65535)return;
-    done=true;clearTimeout(timer);resolve(message.port);
+    if(typeof message.desktopSessionToken!=="string"||
+       !/^[A-Za-z0-9_-]{40,}$/.test(message.desktopSessionToken))
+      return fail(Error("Desktop login session missing from native child"));
+    done=true;clearTimeout(timer);
+    resolve({port:message.port,desktopSessionToken:message.desktopSessionToken});
    });
   });
+  const {port,desktopSessionToken}=ready;
   origin="http://127.0.0.1:"+port;
   const health=await fetch(origin+"/api/status",{signal:AbortSignal.timeout(6000)});
   if(!health.ok)throw Error("Local API healthcheck failed");
@@ -64,6 +69,12 @@ else{
    show:false,backgroundColor:"#101015",
    webPreferences:{preload:join(__dirname,"preload.cjs"),nodeIntegration:false,
     contextIsolation:true,sandbox:true,webSecurity:true,webviewTag:false}});
+  // A native-only IPC token becomes an HttpOnly cookie before the first page
+  // is loaded. No bootstrap token, password, or API key enters renderer JS.
+  await win.webContents.session.cookies.set({
+   url:origin+"/",name:"ciro_sid",value:desktopSessionToken,
+   httpOnly:true,sameSite:"strict",path:"/",secure:false
+  });
   win.webContents.setWindowOpenHandler(()=>({action:"deny"}));
   win.webContents.on("will-navigate",(event,target)=>{
    if(!trustedLocalUrl(target,port))event.preventDefault();
@@ -73,14 +84,7 @@ else{
   });
   win.once("ready-to-show",()=>win.show());
   await win.loadURL(origin);
-  if(setup.firstRun){
-   const prompt=await dialog.showMessageBox(win,{
-    type:"info",title:"CIRO 首次初始化",message:"请先创建本机管理员账户。",
-    detail:"打开以下本机目录，查看 desktop-secrets.json 中的 bootstrapToken，然后只在 CIRO 账户中心填写。请勿将文件或口令发到聊天或上传至 GitHub。\n\n"+root,
-    buttons:["打开本机配置文件夹","稍后设置"],defaultId:0,noLink:true
-   });
-   if(prompt.response===0)await shell.openPath(root);
-  }
+  // Native desktop account and session are provisioned automatically.
  }
  app.whenReady().then(boot).catch(e=>{
   dialog.showErrorBox("CIRO 桌面版无法启动",String(e.message||e).slice(0,500));

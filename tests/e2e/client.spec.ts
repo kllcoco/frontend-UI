@@ -332,11 +332,23 @@ test("first-party application directory supports search, persistent pinning and 
   await page.screenshot({path:imageDir+"/26-official-apps.png",fullPage:true,animations:"disabled"});
   await page.getByRole("button",{name:"收藏: Ciro GitHub"}).click();
   await expect(page.getByRole("button",{name:"取消收藏: Ciro GitHub"})).toBeVisible();
+  await expect.poll(async()=>{
+    const reply=await page.request.get("/api/workbench/commercial/state");
+    if(!reply.ok())return "HTTP "+reply.status();
+    const state=await reply.json();
+    return state.apps?.find((app:{id:string;pinned:boolean})=>app.id==="github")?.pinned;
+  },{message:"GitHub pin must be persisted in the backend before reload"}).toBe(true);
   await page.getByRole("textbox",{name:"搜索应用"}).fill("GitHub");
   await expect(page.locator(".com-app-card")).toHaveCount(1);
   await page.getByRole("textbox",{name:"搜索应用"}).fill("");
   await page.reload({waitUntil:"domcontentloaded"});
   await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await expect.poll(async()=>{
+    const reply=await page.request.get("/api/workbench/commercial/state");
+    if(!reply.ok())return "HTTP "+reply.status();
+    const state=await reply.json();
+    return state.apps?.find((app:{id:string;pinned:boolean})=>app.id==="github")?.pinned;
+  },{message:"GitHub pin was lost at the backend after page reload"}).toBe(true);
   await expect(page.getByRole("button",{name:"取消收藏: Ciro GitHub"})).toBeVisible();
   await page.locator(".com-app-card").filter({hasText:"Ciro GitHub"}).getByRole("button",{name:/打开/}).click();
   await expect(page.getByRole("heading",{name:"GitHub 集成"})).toBeVisible();
@@ -350,6 +362,7 @@ test("skills catalog enables reviewed manifests without pretending a runner exis
   await expect(page.getByText("技能尚不能执行").first()).toBeVisible();
   await page.screenshot({path:imageDir+"/27-skill-library.png",fullPage:true,animations:"disabled"});
   const review=page.locator(".com-skill").filter({hasText:"代码审查"});
+  await expect(review.getByRole("button",{name:"选择技能"}),"Fresh acceptance backend must begin with an unselected code-review skill").toBeVisible();
   await review.getByRole("button",{name:"选择技能"}).click();
   await expect(review.getByRole("button",{name:"取消技能"})).toHaveAttribute("aria-pressed","true");
   await expect(review.getByText("已选择，等待执行器")).toBeVisible();

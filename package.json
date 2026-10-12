@@ -12,14 +12,17 @@
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/index.mjs",
     "test": "node --test tests/*.test.mjs",
+    "test:desktop-core": "node --test tests/desktop-runtime.test.mjs tests/desktop-shell-contract.test.mjs tests/github-read-ref.test.mjs tests/github-self-repair-policy.test.mjs tests/plugin-approval-preview.test.mjs tests/desktop-package-preflight.test.mjs tests/verify-ciro-desktop-live.test.mjs",
     "test:e2e": "playwright test",
     "test:ci": "npm run test && npm run build && npm run test:e2e",
     "worker:plugins": "node server/plugin-worker.mjs",
     "verify:single-tenant": "node scripts/verify-ciro-single-tenant.mjs",
-    "desktop:dev": "npm run build && electron .",
-    "desktop:pack": "npm run build && electron-builder --dir --publish never",
-    "desktop:win": "npm run build && electron-builder --win nsis --x64 --publish never",
-    "desktop:portable": "npm run build && electron-builder --win portable --x64 --publish never"
+    "desktop:dev": "node scripts/desktop-package-preflight.mjs source && npm run build && node scripts/desktop-package-preflight.mjs built && electron .",
+    "desktop:pack": "node scripts/desktop-package-preflight.mjs source && npm run build && node scripts/desktop-package-preflight.mjs built && electron-builder --dir --publish never",
+    "desktop:win": "node scripts/desktop-package-preflight.mjs win-source && npm run build && node scripts/desktop-package-preflight.mjs built && electron-builder --win nsis --x64 --publish never",
+    "desktop:portable": "node scripts/desktop-package-preflight.mjs win-source && npm run build && node scripts/desktop-package-preflight.mjs built && electron-builder --win portable --x64 --publish never",
+    "verify:desktop-live": "node scripts/verify-ciro-desktop-live.mjs",
+    "accept:desktop-windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/accept-ciro-windows.ps1"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

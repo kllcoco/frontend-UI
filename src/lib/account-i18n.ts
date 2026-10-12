@@ -112,6 +112,16 @@ const terms:Readonly<Record<string,string>>={
   "账号初始化已被关闭": "Account initialization is locked",
   "高安全模式": "Security controls",
   "本机服务器只允许一个拥有者账户。": "The server allows a single owner account.",
-  "更改密码后所有 API 密钥都将作废。": "All API keys are revoked when the password changes."
+  "更改密码后所有 API 密钥都将作废。": "All API keys are revoked when the password changes.",
+  "桌面版已自动完成本机初始化": "Your desktop workspace is automatically configured",
+  "本机登录暂不可用": "Desktop session unavailable",
+  "请重新启动 Ciro 桌面版，无需手动输入初始化口令。": "Please restart the Ciro desktop app. No manual bootstrap code is needed.",
+  "你的本机空间已经就绪": "Your local workspace is ready",
+  "账户、加密密钥和本机服务已自动创建。GitHub 等第三方服务只在你主动安装和授权时连接。": "Your local account, encryption key and server are ready. Third-party services such as GitHub connect only after you install and authorize them.",
+  "本机专属账户 · 无需邮箱或密码": "Local account · no email or password required",
+  "本机账户安全": "Local account security",
+  "桌面版使用随机凭据和受保护的登录会话，普通使用无需设置密码。": "The desktop app uses random credentials and a protected login session. No password setup is needed.",
+  "云端同步和第三方插件仍需你单独授权，自动初始化不会开放这些权限。": "Cloud sync and third-party plugins still require your explicit authorization.",
+  "当前只连接本机服务，尚未验证跨设备云同步，请勿把本机备份当作云端备份。": "Connected only to this device. Cross-device cloud sync is not verified; local backup is not a cloud backup."
 };
 export function accountTranslate(language:Language,value:string):string {return language==="en"?(terms[value]||value):value;}

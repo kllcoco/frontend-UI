@@ -77,7 +77,11 @@ test("durable plugin HTTP jobs isolate users, survive worker restarts and reject
   assert.equal(write.status,202);
   assert.equal(write.body.approvalRequired,true);
   assert.equal(outbound.length,1);
-  const approved=await request("/approvals/"+write.body.id,{decision:"approve"});
+  const preview=await request("/approvals/"+write.body.id+"/preview");
+  assert.equal(preview.status,200);
+  assert.equal(preview.body.content,"authorized");
+  assert.equal((await request("/approvals/"+write.body.id,{decision:"approve"})).status,403);
+  const approved=await request("/approvals/"+write.body.id,{decision:"approve",reviewSha256:preview.body.requestSha256});
   assert.equal(approved.status,200,JSON.stringify(approved.body));
   assert.equal(approved.body.status,"approved");
   assert.equal(outbound.length,2);

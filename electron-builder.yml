@@ -14,6 +14,7 @@ files:
   - "!**/node_modules/**/{test,tests,docs,example,examples}/**"
   - "!**/*.map"
 win:
+  icon: build/icon.svg
   target:
     - target: nsis
       arch: [x64]

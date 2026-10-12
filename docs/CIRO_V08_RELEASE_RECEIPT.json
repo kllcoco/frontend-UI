@@ -99,6 +99,24 @@
       "description": "Electron native wrapper, local bootstrap and encrypted state, Windows NSIS per-user installer configuration",
       "status": "SOURCE_CANDIDATE_AND_ISOLATED_BOOTSTRAP_TESTS_PASS",
       "limit": "No real Windows installer produced, signed, installed or independently accepted"
+    },
+    {
+      "id": "CIRO-V08-DESKTOP-ZERO-CONFIG",
+      "description": "No manual .env/bootstrap token/password on first native Windows launch; one auto local owner and IPC HttpOnly session",
+      "status": "SOURCE_IMPLEMENTED_TESTS_ADDED_NOT_EXECUTED",
+      "evidence": [
+        "docs/CIRO_DESKTOP_ZERO_CONFIG_AND_UI_GATE_V1.md"
+      ],
+      "limits": "Current code candidate not rebuilt or independently qualified on Windows"
+    },
+    {
+      "id": "CIRO-V08-ALL-PAGE-UI",
+      "description": "Studio style import, cross-page layout/dark/mobile consistency and screenshot regression coverage",
+      "status": "SOURCE_IMPLEMENTED_TESTS_ADDED_NOT_EXECUTED",
+      "evidence": [
+        "docs/CIRO_DESKTOP_ZERO_CONFIG_AND_UI_GATE_V1.md"
+      ],
+      "limits": "Current code candidate not rebuilt or independently qualified on Windows"
     }
   ],
   "graduation": {
@@ -180,7 +198,7 @@
   "candidate_development": {
     "as_of": "2026-10-12",
     "branch": "feat/ciro-v08-github-desktop-release",
-    "latest_scope": "GitHub internal fine-grained PAT + approval-only draft PR; Electron Windows desktop shell + NSIS build recipe",
+    "latest_scope": "GitHub internal fine-grained PAT and human-reviewed draft PR; Electron Windows wrapper, inherited configuration isolation, and fail-fast NSIS packaging source preflight",
     "self_repair": {
       "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
       "tools": [
@@ -198,27 +216,223 @@
       "read_scope": "Read allowed repo with safe explicit main/feat/* ref; build new repair branch only under ciro/feature/repair; all writes approvals required"
     },
     "desktop": {
-      "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
+      "source_status": "IMPLEMENTED_CANDIDATE_OFFLINE_CORE_TESTING",
       "electron": "44.7.0",
       "electron_builder": "26.17.0",
       "nsis_config": "electron-builder.yml",
-      "built_windows_exe": "NOT_RUN",
+      "built_windows_exe": "PASS_PREVIOUS_5137892_ONLY_NEW_SOURCE_NOT_BUILT",
       "windows_install_update_uninstall": "NOT_RUN",
-      "code_signing": "NOT_RUN",
-      "native_model_inference": "NOT_RUN"
+      "code_signing": "NOT_SIGNED_PREVIOUS_PACKAGE",
+      "native_model_inference": "NOT_RUN",
+      "preflight": "SOURCE_AND_BUILT_PRECHECKS_IMPLEMENTED; WINDOWS_NSIS_INSTALL_NOT_RUN",
+      "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration",
+      "windows_local_acceptance": {
+        "script": "scripts/accept-ciro-windows.ps1",
+        "runs_on": "actual Windows host using disposable user for installation",
+        "node_full_regression": "PASS_120_TESTS_3_LINUX_ONLY_SKIPPED",
+        "frontend_build": "PASS_TYPESCRIPT_VITE",
+        "browser_e2e": "PASS_29_OF_29",
+        "windows_nsis_exe": "PASS_BUILT_UNSIGNED_NOT_INSTALLED",
+        "clean_install_boot_uninstall": "NOT_RUN",
+        "external_paid_runner_dispatches": 0,
+        "script_windows_execution": "PASS_THROUGH_INSTALLER_PACKAGING_NO_DISPOSABLE_INSTALL",
+        "first_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "tests": 122,
+          "pass": 106,
+          "fail": 16,
+          "skipped": 0,
+          "issue_clusters": [
+            {
+              "count": 13,
+              "error": "Windows EPERM on SQLite-backed scratch directory rmSync; incomplete test-side DB disposal and possibly F drive TEMP ACL"
+            },
+            {
+              "count": 3,
+              "error": "Linux-host-only tests called unavailable process.getuid() on Windows"
+            }
+          ],
+          "tests_after_patch": "NOT_RUN",
+          "typescript_vite": "NOT_RUN",
+          "playwright_e2e": "NOT_RUN",
+          "nsis": "NOT_RUN"
+        },
+        "platform_remediation": "PR #5: close all SQLite owners before rmSync, reserve Linux-only checks for actual Linux, add Windows negative check. Rerun on owner Windows required.",
+        "second_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "source_commit": "cbf14d3a6b6ea90fcdb214c89194163928c4040e",
+          "node_tests": {
+            "total": 123,
+            "passed": 120,
+            "failed": 0,
+            "skipped": 3,
+            "status": "PASS_ON_WINDOWS_SCOPE"
+          },
+          "typescript_vite": {
+            "status": "PASS",
+            "transformed_modules": 1866,
+            "build_seconds": 7.81,
+            "warning": "main JS bundle 634.86 kB exceeds Vite 500 kB warning threshold"
+          },
+          "playwright_e2e": {
+            "total": 29,
+            "passed": 27,
+            "failed": 2,
+            "status": "FAIL",
+            "failure1": "owner bootstrap POST /api/account/bootstrap returned HTTP 400 (expected 201); actual API response error body not captured",
+            "failure2": "subsequent Github plugin test login POST /api/account/login returned 401 (likely cascade; not yet proven)"
+          },
+          "nsis": "NOT_RUN_BECAUSE_BROWSER_E2E_FAILED",
+          "notes": "Actual Windows host used and 526 npm packages installed; Playwright browser binaries downloaded; no paid CI. Request diagnostic error-context.md or bootstrap JSON body before changing authentication logic."
+        },
+        "isolated_bootstrap_diagnosis": {
+          "observed_at": "2026-10-12",
+          "candidate_commit": "ddc9ec6313c7b80c70298c1f23c44cb1263aa912",
+          "method": "scripts/diagnose-ciro-bootstrap.mjs: disposable account state and Playwright real Chromium against local child server",
+          "browser_bootstrap_status": 201,
+          "required_payload_fields": {
+            "email": true,
+            "displayName": true,
+            "password": true,
+            "bootstrapToken": true
+          },
+          "credentials_printed": false,
+          "original_full_suite_failure": "NOT_RETESTED",
+          "explanation": "Independent browser bootstrap works; original Playwright e2e bootstrap 400/second login 401 is not yet resolved. Compare os.tmpdir, inherited process settings, free port, and concurrent webServer."
+        },
+        "third_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "node_tests": {
+            "total": 123,
+            "passed": 120,
+            "failed": 0,
+            "skipped_linux_only": 3,
+            "status": "PASS"
+          },
+          "frontend_build": {
+            "status": "PASS",
+            "vite_modules": 1866,
+            "warning": "634.86 kB bundle size warning, no build failure"
+          },
+          "playwright_e2e": {
+            "total": 29,
+            "passed": 27,
+            "failed": 2,
+            "status": "FAIL",
+            "failures": [
+              "App pin button becomes unavailable after page reload despite having been available before reload; persisted backend state not proven at reload",
+              "Code review skill selection button is not found after catalog loads; possible pre-existing enabled server state or presentation mismatch"
+            ]
+          },
+          "nsis": "NOT_RUN_due_to_failing_browser_gate"
+        },
+        "e2e_isolation_patch": {
+          "code_commit": "4916ca8b8ba5ccfef0d843d1ef22779788b96862",
+          "status": "PASS_WINDOWS_E2E_29_OF_29_AT_TESTED_CODE_COMMIT",
+          "implementation": "In release acceptance CIRO_E2E_STRICT=true; Playwright creates isolated ignored backend workbench directory, prevents reuse of previous HTTP server; app pin and skill state regressions are still asserted without weakening expectations",
+          "known_limit": "Potential port 8787/5173 conflict now correctly fails closed; manual local developer e2e still supports server reuse"
+        },
+        "fourth_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "tested_source_commit": "51378925ec9fe885563073070845890654593d4c",
+          "original_strict_acceptance_script": "scripts/accept-ciro-windows.ps1",
+          "node_tests": {
+            "passed": 120,
+            "failed": 0,
+            "skipped_linux_only": 3,
+            "source": "previous full Windows node test and current acceptance running past this gate"
+          },
+          "typescript_and_vite": "PASS: 1866 modules transformed, production bundle emitted; 634.86 KB minified chunk warning",
+          "playwright_e2e": "PASS_29_OF_29",
+          "windows_nsis": "PASS_INSTALLED_PACKAGING_NOT_TESTED",
+          "artifact_relative_path": "release/Ciro-Desktop-0.8.0-dev-x64-Setup.exe",
+          "electron_version": "44.7.0",
+          "nsis_arch": "x64",
+          "app_icon": "DEFAULT_ELECTRON_ICON_NEEDS_BRANDING",
+          "code_signing": "SKIPPED_NO_CERT_CONFIGURED",
+          "installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+          "authenticode_status": "NotSigned",
+          "first_run_install_uninstall": "NOT_RUN",
+          "live_github_approved_write": "NOT_RUN",
+          "native_ncpa_verified_inference": "NOT_RUN",
+          "source": "User provided genuine Windows acceptance local JSON receipt, cross-matched to previous PowerShell build/E2E log; original local EXE is not independently accessible via GitHub connector.",
+          "claim": "Windows local Node/build/browser/NSIS packaging PASS at exact 5137892; Authenticode NotSigned; disposable first install/live GitHub/native NCPA NOT RUN; desktop full graduation false.",
+          "observed_at_utc": "2026-10-12T13:45:45.0596092Z",
+          "windows_receipt_reported_by_operator": {
+            "schema": "ciro.v08.windows-local-acceptance.v1",
+            "observedAt": "2026-10-12T13:45:45.0596092Z",
+            "commit": "51378925ec9fe885563073070845890654593d4c",
+            "nodeTests": "PASS",
+            "frontendBuild": "PASS",
+            "browserE2E": "PASS",
+            "windowsNsisBuild": "PASS",
+            "installerSHA256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+            "signatureStatus": "NotSigned",
+            "cleanInstallBootUninstall": "NOT_RUN",
+            "githubLiveRead": "NOT_RUN",
+            "nativeModelStream": "NOT_RUN",
+            "nativeNcpaAuthority": "NOT_VERIFIED",
+            "graduated": false
+          }
+        },
+        "installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+        "installer_signature_status": "NotSigned",
+        "windows_receipt_observed_at_utc": "2026-10-12T13:45:45.0596092Z"
+      },
+      "current_source_additions": {
+        "directive_as_of": "2026-10-12",
+        "zero_config_status": "SOURCE_IMPLEMENTED_UNVERIFIED",
+        "first_launch": "Electron auto-creates local owner, uses private native IPC and HttpOnly local session, no manual bootstrap; preserve old owner.",
+        "ui_state": "Studio stylesheet import fixed and shared responsive/dark/page layout design added; screenshot audit test not executed.",
+        "test_entries": [
+          "tests/desktop-auto-provision.test.mjs",
+          "tests/desktop-shell-contract.test.mjs",
+          "tests/e2e/ui-coverage.spec.ts"
+        ],
+        "source_qa": "NOT_RUN_IN_CURRENT_ASSISTANT_RUNTIME",
+        "windows_installer_for_new_source": "NOT_BUILT",
+        "previous_installation_provenance_commit": "51378925ec9fe885563073070845890654593d4c",
+        "previous_installer_sha256": "121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a",
+        "user_must_not_run_new_build_until": "Source review and acceptance prerequisites confirmed; no inference or paid cloud needed for UI code checks",
+        "unresolved": [
+          "UI visual inspection on real Windows across 36+ captured routes",
+          "Packaged Electron auto-provision and cookie flow need native Windows smoke test",
+          "NCPA model integration not verified",
+          "Windows package icon remains default; code signing not configured"
+        ]
+      }
     },
     "isolated_verified_tests": {
-      "status": "PASS",
-      "passed": 6,
+      "status": "PASS_SCOPED_OFFLINE",
+      "passed": 20,
       "failed": 0,
-      "method": "Node v22.16.0 local exact-source isolated tests: desktop/runtime.cjs, server/github-self-repair.mjs, server/agent-policy.mjs, including main/preload JS syntax checks",
-      "note": "Not full npm test, React TypeScript build, app bootstrap, real provider login, or Windows installer"
+      "method": "Node v22.16.0 Linux container, exact-source 16 desktop/GitHub/preflight tests plus 4 live-probe MOCK contract tests. Not full npm test.",
+      "last_local_recheck": "2026-10-12",
+      "limitations": "Windows host, real Electron installer, full source/dependencies, authenticated CIRO backend/GitHub PAT and native model provenance not available",
+      "evidence": "docs/CIRO_V08_DESKTOP_CORE_LOCAL_RECEIPT_2026-10-12.json (earlier 16 tests); 4 additional contract tests exercised for scripts/verify-ciro-desktop-live.mjs"
     },
     "constraints": [
       "No paid resources or Windows CI workflow execution without owner cost approval",
       "Do not claim signed installer / model / full commercial graduation from source code alone"
     ],
     "independent_acceptance": "NOT_GRADUATED",
-    "last_source_review": "2026-10-12"
+    "last_source_review": "2026-10-12",
+    "review_branch": "ciro/approval-preview-gate-20261012",
+    "review_pr": "https://github.com/kllcoco/frontend-UI/pull/5",
+    "review_source_commit": "792084b84fcdce0cbc927943e3b6d79664a890d9",
+    "live_probe": {
+      "path": "scripts/verify-ciro-desktop-live.mjs",
+      "contract_tests": {
+        "passed": 4,
+        "failed": 0,
+        "source_sha1": "5ea5261bd24b8073ce42d4491b4128dc8690c340",
+        "test_sha1": "d94d15591e4febdc19475dd4565d361df78a2f09"
+      },
+      "real_ciro_account_login": "NOT_RUN",
+      "actual_github_pat_read_inside_ciro": "NOT_RUN",
+      "actual_native_ncpa_stream": "NOT_RUN",
+      "native_ncpa_identity_attestation": "NOT_RUN",
+      "constraint": "PASS_HTTP_STREAM alone never qualifies native NCPA or self-repair write approval"
+    }
   }
 }

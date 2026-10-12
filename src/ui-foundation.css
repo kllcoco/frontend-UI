@@ -1,0 +1,173 @@
+/* CIRO V0.8 desktop UI consolidation.
+ * Applied last, after Studio/Workbench/Settings/Account/Commerce modules.
+ * Tokens are shared. No functional controls or security states are hidden.
+ */
+:root {
+  --ciro-ui-radius: 15px;
+  --ciro-ui-space: 16px;
+  --ciro-ui-focus: var(--accent);
+  --ciro-ui-outline: rgba(39, 143, 87, .23);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ciro-ui-outline: rgba(119, 207, 149, .30);
+}
+html, body, #root { width: 100%; min-width: 0; min-height: 100%; }
+#root { height: 100%; }
+button, input, select, textarea { font-family: inherit; }
+:where(button, a, input, select, textarea, [role="switch"]):focus-visible {
+  outline: 2px solid var(--ciro-ui-focus);
+  outline-offset: 2px;
+}
+:where(.workspace, .workspace--studio, .stu-workspace, .acc-workspace,
+       .wb-root, .wb-body, .sc-scroll, .com-root, .acc-root,
+       .stu-root, .ciro-market, .ciro-market-store) {
+  min-width: 0;
+  max-width: 100%;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .ciro-market) {
+  overflow-wrap: anywhere;
+}
+:where(.acc-card, .com-card, .com-metric, .com-app-card, .com-skill,
+       .stu-card, .stu-module, .stu-metric, .wb-card, .ciro-market-tile) {
+  min-width: 0;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .ciro-market, .sc-root) :is(img, video, canvas) {
+  max-width: 100%;
+  height: auto;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .ciro-market, .sc-root) :is(pre, table, .sc-code) {
+  max-width: 100%;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .ciro-market, .sc-root) pre {
+  overflow-x: auto;
+}
+:where(.stu-primary, .stu-light-button, .stu-hero-secondary, .acc-primary,
+       .acc-secondary, .com-primary, .com-secondary, .wb-primary, .wb-secondary,
+       .ciro-market-categories button, .sc-action-secondary) {
+  min-height: 36px;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .sc-root, .ciro-market) :is(input, select, textarea) {
+  max-width: 100%;
+  color: var(--text);
+}
+:where(.stu-header, .acc-head, .com-page-head, .wb-header, .ciro-market-head) {
+  min-width: 0;
+}
+:where(.stu-header, .acc-head, .com-page-head, .wb-header, .ciro-market-head) :is(h1, h2, p) {
+  overflow-wrap: anywhere;
+}
+.ciro-market-layout, .ciro-market-grid, .com-app-grid,
+.com-metric-grid, .stu-module-grid, .stu-feature-grid {
+  min-width: 0;
+}
+.ciro-market-layout > *, .com-app-grid > *, .stu-module-grid > * {
+  min-width: 0;
+}
+.ciro-market-detail-header, .com-section-head, .stu-section-head {
+  flex-wrap: wrap;
+}
+.acc-local-ready {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  background: var(--accent-light);
+  border-color: var(--line);
+  color: var(--text);
+}
+.acc-local-ready > svg { flex: none; color: var(--accent); margin-top: 3px; }
+.acc-local-ready > div { min-width: 0; }
+.acc-local-ready h3 { margin: 0 0 8px; color: var(--text); }
+.acc-local-ready p { margin: 0; color: var(--text); line-height: 1.7; font-size: 12px; }
+.acc-local-security { border-style: dashed; }
+:root[data-theme="dark"] .ciro-market-layout {
+  background: var(--surface);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .ciro-market-installed,
+:root[data-theme="dark"] .ciro-market-tile,
+:root[data-theme="dark"] .ciro-market-scope {
+  background: var(--sidebar);
+  color: var(--text);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .ciro-market-toolbar input,
+:root[data-theme="dark"] .ciro-market-test input,
+:root[data-theme="dark"] .ciro-market-scope-picker select {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] :where(.stu-card, .stu-module, .com-card, .com-app-card,
+                                .com-skill, .acc-card, .wb-card) :is(input, select, textarea) {
+  color: var(--text);
+}
+:root[data-theme="dark"] .acc-local-ready {
+  background: var(--accent-light);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .acc-local-ready :is(h3, p) { color: var(--text); }
+@media (max-width: 1050px) {
+  :where(.wb-body, .stu-root, .acc-workspace) { min-width: 0; }
+  .ciro-market-layout { grid-template-columns: minmax(160px, 210px) minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .ciro-market-layout { grid-template-columns: minmax(0, 1fr); }
+  .ciro-market-installed { border-right: 0; border-bottom: 1px solid var(--line); }
+  .ciro-market-store { padding: 14px; }
+  .ciro-market-toolbar { flex-direction: column; align-items: stretch; }
+  .ciro-market-toolbar input { width: 100%; }
+  .com-page-head, .stu-header { flex-wrap: wrap; }
+  .acc-local-ready { gap: 10px; padding: 16px; }
+  .acc-local-ready p { font-size: 12px; }
+}
+@media (max-width: 520px) {
+  .com-app-grid, .com-metric-grid, .stu-module-grid { grid-template-columns: minmax(0, 1fr); }
+  .ciro-market-grid { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); }
+  .ciro-market-detail-header > div { flex-wrap: wrap; }
+  .stu-root, .acc-root, .com-root { max-width: 100%; }
+  .acc-actions { gap: 8px; }
+  .acc-actions > button { white-space: normal; min-height: 40px; }
+  .acc-sync-grid, .acc-spend-cards { grid-template-columns: minmax(0, 1fr); }
+  .stu-inline-form, .stu-ide-toolbar { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.app-shell, .stu-root, .acc-root, .com-root, .wb-root) *,
+  :where(.app-shell, .stu-root, .acc-root, .com-root, .wb-root) *::before,
+  :where(.app-shell, .stu-root, .acc-root, .com-root, .wb-root) *::after {
+    scroll-behavior: auto;
+    animation-duration: .01ms;
+    transition-duration: .01ms;
+  }
+}
+
+
+/* Typography and interaction targets are consistent across all page families. */
+:where(.stu-header, .com-page-head, .acc-head, .wb-header, .ciro-market-head) p {
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+:where(.stu-card, .acc-card, .com-card, .com-app-card, .com-skill, .wb-card,
+       .ciro-market-detail) p {
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+:where(.stu-header, .com-page-head, .acc-head, .wb-header, .ciro-market-head) h1,
+:where(.stu-header, .com-page-head, .acc-head, .wb-header, .ciro-market-head) h2 {
+  line-height: 1.28;
+  letter-spacing: -.025em;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .ciro-market) :is(
+  .stu-primary, .stu-light-button, .acc-primary, .acc-secondary, .com-primary,
+  .com-secondary, .wb-primary, .wb-secondary, .ciro-market-nav
+) {
+  font-size: 12px;
+  line-height: 1.35;
+}
+@media (max-width: 760px) {
+  :where(.stu-primary, .stu-light-button, .acc-primary, .acc-secondary,
+         .com-primary, .com-secondary, .wb-primary, .wb-secondary,
+         .ciro-market-nav) { min-height: 40px; }
+}

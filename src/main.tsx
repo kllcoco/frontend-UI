@@ -9,6 +9,9 @@ import "./workbench.css";
 import "./workbench-entry.css";
 import "./commercial.css";
 import "./account.css";
+// Shared Studio styles were previously missing from the production entrypoint.
+import "./studio.css";
+import "./ui-foundation.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -16,7 +19,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
-// Install only in production: no service worker intercepts developer HTTP or API tests.
-if(import.meta.env.PROD && "serviceWorker" in navigator){
+// Install the PWA worker only in ordinary production web browsers. Native Electron\n// uses a fresh per-launch loopback port and must not accumulate stale PWA caches.
+if(import.meta.env.PROD && !window.ciroNativeBridge && "serviceWorker" in navigator){
   window.addEventListener("load",()=>{void navigator.serviceWorker.register("/sw.js").catch(()=>{});});
 }

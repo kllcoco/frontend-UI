@@ -1,6 +1,6 @@
 export type SessionSnapshot={
   enabled:boolean;authenticated:boolean;user:{
-    id:string;email:string;displayName:string;memoryEnabled:boolean;createdAt:string
+    id:string;email:string;displayName:string;desktopLocal?:boolean;memoryEnabled:boolean;createdAt:string
   }|null;csrf:string|null;mode:string|null;bootstrapAvailable:boolean;
 };
 export type AccountTab="account"|"subscription"|"api-keys"|"spending"|"notifications"|"memory"|"sync";
