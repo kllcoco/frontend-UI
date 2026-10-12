@@ -194,8 +194,13 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   function createSession(event="account.session.created"){
     const raw=token(),csrf=token(),id=randomUUID(),expiresAt=Date.now()+COOKIE_MAX_AGE;
     store.change(event,s=>{
-      s.sessions=s.sessions.filter(x=>x.expiresAt>Date.now()).slice(-60);
-      s.sessions.push({id,hash:hash(raw),csrf,expiresAt,createdAt:new Date().toISOString()});
+      // Revoke previous *native* desktop sessions each time Electron restarts.
+      // Preserve regular web sessions for existing owners on upgrade.
+      s.sessions=s.sessions.filter(x=>x.expiresAt>Date.now()&&
+        (event!=="account.desktop.session"||x.nativeDesktop!==true)).slice(-60);
+      s.sessions.push({id,hash:hash(raw),csrf,expiresAt,
+        ...(event==="account.desktop.session"?{nativeDesktop:true}:{}),
+        createdAt:new Date().toISOString()});
     });
     return {raw,csrf,id};
   }
