@@ -1,4 +1,4 @@
-# Ciro v0.9.0
+# Ciro v0.9.1
 
 全新设计的 Ciro 客户端：更清爽的界面、完整的个人菜单、项目、思考深度滑杆，以及 Windows / macOS / Linux 桌面端和 Android 移动端安装包。
 
@@ -6,10 +6,10 @@
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows 10/11 (x64) | `Ciro-0.9.0-win-x64.exe`（安装版）· `Ciro-0.9.0-win-x64.zip`（免安装） |
-| macOS (Apple 芯片 / Intel) | `Ciro-0.9.0-mac-arm64.dmg` · `Ciro-0.9.0-mac-x64.dmg` |
-| Linux | `Ciro-0.9.0-linux-x86_64.AppImage` · `Ciro-0.9.0-linux-amd64.deb` · `.tar.gz` |
-| Android 7.0+ | `Ciro-0.9.0-android.apk` |
+| Windows 10/11 (x64) | `Ciro-0.9.1-win-x64.exe`（安装版）· `Ciro-0.9.1-win-x64.zip`（免安装） |
+| macOS (Apple 芯片 / Intel) | `Ciro-0.9.1-mac-arm64.dmg` · `Ciro-0.9.1-mac-x64.dmg` |
+| Linux | `Ciro-0.9.1-linux-x86_64.AppImage` · `Ciro-0.9.1-linux-amd64.deb` · `.tar.gz` |
+| Android 7.0+ | `Ciro-0.9.1-android.apk` |
 | iOS / iPadOS | 用 Safari 打开部署好的 Ciro 网址 → 分享 → “添加到主屏幕”（PWA） |
 
 > 安装包未做商业代码签名：Windows 首次运行若出现 SmartScreen，点“更多信息 → 仍要运行”；macOS 请在“系统设置 → 隐私与安全性”中允许打开；Android 需允许“安装未知应用”。所有文件的 SHA-256 见 `SHA256SUMS.txt`。
@@ -23,6 +23,11 @@
 - **对话体验**：⌘/Ctrl+K 搜索面板、斜杠命令菜单、“+”菜单（附件 / 目标模式 / 计划模式）、拖拽与粘贴附件、编辑并重发、从任意回答创建分支、置顶、行内重命名、思考过程展示、代码块一键复制、朗读、语音输入（浏览器支持时）、回答反馈、临时对话、回到底部。
 - **桌面客户端**：内置本地服务，开箱即用；菜单栏“文件 / 编辑 / 视图 / 窗口 / 帮助”随应用语言切换；在“文件 → 编辑模型连接配置”中填写模型地址。
 - **Android 客户端**：内置离线界面；在“设置 → 模型设置 → 连接 Ciro 服务器”填写你的服务器地址即可使用真实模型与账户。
+- **附件**：图片（自动压缩，按多模态格式发送，可点开查看大图）、PDF（本机提取文字）、文本与代码，每次最多 5 个。
+- **更好的回答展示**：代码语法高亮（随主题配色）、LaTeX 数学公式、工具调用与联网搜索状态展示。
+- **分享与管理**：只读分享链接、提示词库、归档与批量导出/删除、导入对话 JSON、自动生成对话标题、导出 PDF / 打印、回答完成系统通知、联网搜索开关（需服务端 `CIRO_WEB_SEARCH=on`）。
+- **桌面端增强**：应用内自动更新、系统托盘、全局快捷键 Alt+Space 唤出。
+- **Android 返回键**：先关闭弹窗/菜单/侧栏，再回到首页，最后退到后台，不再直接退出。
 - **软件包**：Docker 镜像 `ghcr.io/kllcoco/ciro-client`，npm 包 `@kllcoco/ciro-client`（GitHub Packages）。
 
 ## 尚待接入（后续版本）

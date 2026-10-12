@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **v0.9.0**：全新界面与个人菜单、项目、思考深度滑杆、⌘K 搜索、桌面与移动端安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **v0.9.1**：全新界面与个人菜单、项目、思考深度滑杆、⌘K 搜索、图片/PDF 附件、公式与代码高亮、分享链接、提示词库，以及桌面（自动更新）与 Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 安装与运行
 

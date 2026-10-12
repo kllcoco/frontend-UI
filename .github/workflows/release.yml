@@ -137,17 +137,30 @@ jobs:
       - name: Decode signing key (optional)
         env:
           KEYSTORE_B64: ${{ secrets.CIRO_ANDROID_KEYSTORE_BASE64 }}
+          RAW_STORE_PW: ${{ secrets.CIRO_ANDROID_KEYSTORE_PASSWORD }}
+          RAW_KEY_PW: ${{ secrets.CIRO_ANDROID_KEY_PASSWORD }}
+          RAW_ALIAS: ${{ secrets.CIRO_ANDROID_KEY_ALIAS }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ciro.jks"
-            echo "CIRO_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/ciro.jks" >> "$GITHUB_ENV"
+            printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/ciro.jks"
+            echo "Decoded keystore SHA-256: $(sha256sum "$RUNNER_TEMP/ciro.jks" | cut -c1-64)"
+            # Secrets pasted with a trailing space/newline are a common mistake: trim them.
+            trim() { printf '%s' "$1" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+            STORE_PW=$(trim "$RAW_STORE_PW"); KEY_PW=$(trim "$RAW_KEY_PW"); ALIAS=$(trim "$RAW_ALIAS")
+            echo "::add-mask::$STORE_PW"; echo "::add-mask::$KEY_PW"
+            if ! keytool -list -keystore "$RUNNER_TEMP/ciro.jks" -storepass "$STORE_PW" -alias "$ALIAS" > /dev/null 2>&1; then
+              echo "::error::Android keystore check failed: CIRO_ANDROID_KEYSTORE_PASSWORD or CIRO_ANDROID_KEY_ALIAS does not match CIRO_ANDROID_KEYSTORE_BASE64"
+              exit 1
+            fi
+            {
+              echo "CIRO_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/ciro.jks"
+              echo "CIRO_ANDROID_KEYSTORE_PASSWORD=$STORE_PW"
+              echo "CIRO_ANDROID_KEY_PASSWORD=$KEY_PW"
+              echo "CIRO_ANDROID_KEY_ALIAS=$ALIAS"
+            } >> "$GITHUB_ENV"
           fi
       - name: Build APK
         working-directory: android
-        env:
-          CIRO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.CIRO_ANDROID_KEYSTORE_PASSWORD }}
-          CIRO_ANDROID_KEY_ALIAS: ${{ secrets.CIRO_ANDROID_KEY_ALIAS }}
-          CIRO_ANDROID_KEY_PASSWORD: ${{ secrets.CIRO_ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           if [ -n "${CIRO_ANDROID_KEYSTORE_FILE:-}" ]; then echo "Android: release keystore"; else echo "::warning::Android APK is debug-signed (add CIRO_ANDROID_* secrets)"; fi
@@ -203,7 +216,13 @@ jobs:
       - run: npm run build && npm run pack:npm
       - name: Publish @kllcoco/ciro-client to GitHub Packages
         working-directory: build/npm
-        run: npm publish
+        run: |
+          if npm publish 2>&1 | tee publish.log; then exit 0; fi
+          if grep -qiE "cannot publish over|EPUBLISHCONFLICT|409 Conflict" publish.log; then
+            echo "::notice::This npm version is already published; skipping."
+          else
+            exit 1
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm pack
