@@ -24,7 +24,12 @@ export function loadConversations(): Conversation[] {
   }
 }
 
+let savesSuspended = false;
+/** Stop writing chats (used right before reloading after a restore, so stale in-memory state can't win). */
+export function suspendSaves(): void { savesSuspended = true; }
+
 export function saveConversations(conversations: Conversation[]): boolean {
+  if (savesSuspended) return false;
   try {
     localStorage.setItem(CHAT_KEY, JSON.stringify(conversations.filter((c) => !c.temporary).slice(0, 500)));
     return true;

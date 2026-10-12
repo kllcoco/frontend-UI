@@ -14,6 +14,7 @@ import type { ThemePref } from "./lib/storage";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
+import BackupPanel from "./components/BackupPanel";
 import MemoryManager from "./components/MemoryManager";
 import TeamCenter from "./components/TeamCenter";
 import type { BulkAction } from "./components/ConversationManager";
@@ -365,6 +366,9 @@ export default function SettingsCenter({
                 <button className="sc-action-secondary" disabled={conversations.length === 0} onClick={onExportAll}><ArrowDownToLine size={17}/> {t("导出全部对话 JSON")}</button>
                 <button className="sc-action-danger" disabled={conversations.length === 0} onClick={onClearHistory}><Trash2 size={17}/> {t("删除全部本地对话")}</button>
               </div></SettingBlock>
+            <SettingBlock title={t("完整备份")} subtitle={t("一个文件保存此设备上的全部数据")}>
+              <BackupPanel t={t}/>
+            </SettingBlock>
             <SettingBlock title={t("管理对话")} subtitle={t("导入、归档、批量导出或删除本地对话")}>
               <ConversationManager t={t} conversations={conversations} onBulk={onBulk}
                 onImport={onImport} onError={(text) => setError(text)}/>
@@ -407,7 +411,7 @@ export default function SettingsCenter({
 
           {section === "about" && <>
             <div className="sc-about-hero"><CiroMark/><strong>Ciro</strong><span>Think further.</span>
-              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v0.9.3</small></div>
+              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v{__APP_VERSION__}</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
               <SettingRow title={t("推理能力")} description={t("实际能力以服务端正式验收为准")}><span className="sc-static-value">{t("待接入")}</span></SettingRow>

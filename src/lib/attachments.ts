@@ -105,3 +105,20 @@ export async function getImage(id: string): Promise<string | null> {
     return await new Promise((resolve) => { const r = store.get(id); r.onsuccess = () => resolve(typeof r.result === "string" ? r.result : null); r.onerror = () => resolve(null); });
   } catch { return null; }
 }
+/** Every stored full-size image (for backups). */
+export async function allImages(): Promise<Record<string, string>> {
+  try {
+    const store = (await db()).transaction("images", "readonly").objectStore("images");
+    return await new Promise((resolve) => {
+      const out: Record<string, string> = {};
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (!cursor) { resolve(out); return; }
+        if (typeof cursor.value === "string") out[String(cursor.key)] = cursor.value;
+        cursor.continue();
+      };
+      req.onerror = () => resolve(out);
+    });
+  } catch { return {}; }
+}
