@@ -4,6 +4,8 @@ import { mkdtempSync, readFileSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startCiro, startMockModel } from "./mock-upstream";
+import { PNG } from "pngjs";
+import jsQR from "jsqr";
 
 // Work mode end to end: a "phone" signed in to the cloud server drives a "home computer" (its own local Ciro)
 // that was paired with a one-time code and only allows one project folder.
@@ -39,34 +41,44 @@ test("phone pairs a home computer and runs commands and an approved AI task in i
   const phone = await phoneContext.newPage();
   await phone.goto("/");
   await openWorkMode(phone);
-  await expect(phone.getByText("还没有连接电脑")).toBeVisible();
-  await phone.getByRole("button", { name: "添加电脑" }).click();
-  const code = (await phone.locator(".rw-code strong").innerText()).trim();
-  await shot(phone, "code");
-  expect(code).toMatch(/^[A-Z0-9]{8}$/);
+  await expect(phone.getByText("还没有电脑")).toBeVisible();
   // The phone (a remote browser of the cloud) never sees the cloud host's own "this computer" card.
   await expect(phone.locator(".rw-card--local")).toHaveCount(0);
 
+  // The home computer signs in with the same account once (the password is not kept).
   const pc = await (await browser.newContext()).newPage();
   await pc.goto(home.url + "/");
   await openWorkMode(pc);
   const card = pc.locator(".rw-card--local");
   await card.getByLabel("服务器地址").fill(cloud.url);
-  await card.getByLabel("配对码").fill(code);
+  await card.getByLabel("邮箱").fill(ACCOUNT.email);
+  await card.getByLabel("密码").fill(ACCOUNT.password);
   await card.getByLabel("电脑名称").fill("家里的台式机");
-  await card.getByRole("button", { name: "连接" }).click();
+  await card.getByRole("button", { name: "登录并添加这台电脑" }).click();
   await card.getByLabel("文件夹路径").fill(project);
   await card.getByRole("button", { name: "添加", exact: true }).click();
-  await expect(card.locator(".rw-folder")).toContainText(project);
-  await expect(card.locator(".rw-pill")).toHaveText("已连接，可被远程控制", { timeout: 20_000 });
+  await expect(card.locator(".rw-folder").filter({ hasText: project })).toHaveCount(1);
+  await expect(card.locator(".rw-pill")).toHaveText("在线，等待手机连接", { timeout: 20_000 });
+  const code = (await card.locator(".rw-qr-code").innerText()).trim();
+  expect(code).toMatch(/^[A-Z2-9]{8}$/);
+  // The QR image on the computer encodes the connect link.
+  const png = PNG.sync.read(Buffer.from((await card.getByAltText("连接二维码").getAttribute("src"))!.split(",")[1], "base64"));
+  const qrUrl = jsQR(new Uint8ClampedArray(png.data), png.width, png.height)!.data;
+  expect(qrUrl).toMatch(new RegExp("^" + cloud.url + "/remote/connect\\?device=.+&nonce=.+"));
   await shot(pc, "pc");
 
-  // Phone: the computer shows up online with its folder.
-  await phone.getByRole("button", { name: "完成" }).click();
+  // Same account: the phone sees the computer, but cannot command it before connecting.
   await expect(phone.locator(".rw-device")).toContainText("家里的台式机", { timeout: 20_000 });
-  await expect(phone.locator(".rw-device")).toContainText("在线", { timeout: 20_000 });
-
+  await expect(phone.locator(".rw-device")).toContainText("未连接");
+  await expect(phone.getByText("还没有连接这台电脑")).toBeVisible();
+  await expect(phone.getByLabel("要执行的内容")).toHaveCount(0);
   await shot(phone, "devices");
+  await phone.locator(".rw-connect").getByRole("button", { name: "输入配对码" }).click();
+  await phone.getByLabel("电脑上显示的配对码").fill(code);
+  await phone.locator(".rw-typecode").getByRole("button", { name: "连接" }).click();
+  await expect(phone.locator(".rw-ok")).toContainText("已连接到 家里的台式机");
+  await expect(card.locator(".rw-grants")).toContainText("已连接的手机", { timeout: 10_000 });
+
   // Command mode.
   await phone.getByRole("radio", { name: "命令" }).click();
   await phone.getByLabel("要执行的内容").fill("node -e \"console.log('来自家里电脑的输出', process.cwd())\"");
@@ -93,4 +105,15 @@ test("phone pairs a home computer and runs commands and an approved AI task in i
   await expect(phone.locator(".rw-sv-head")).toContainText("150 CWU");
   await shot(phone, "done");
   expect(readFileSync(join(project, "hello.txt"), "utf8")).toBe("你好，来自手机");
+
+  // Disconnect, then come back the way a phone camera app does: opening the QR link.
+  await phone.getByRole("button", { name: "返回" }).click();
+  await phone.getByRole("button", { name: "断开与这台电脑的连接" }).click();
+  await expect(phone.getByText("还没有连接这台电脑")).toBeVisible();
+  await card.getByRole("button", { name: "刷新" }).click();
+  await expect(card.getByAltText("连接二维码")).toBeVisible();
+  const fresh = PNG.sync.read(Buffer.from((await card.getByAltText("连接二维码").getAttribute("src"))!.split(",")[1], "base64"));
+  await phone.goto(jsQR(new Uint8ClampedArray(fresh.data), fresh.width, fresh.height)!.data);
+  await expect(phone.locator(".rw-ok")).toContainText("已连接到 家里的台式机", { timeout: 15_000 });
+  await expect(phone.getByLabel("要执行的内容")).toBeVisible();
 });

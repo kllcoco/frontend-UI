@@ -1,6 +1,7 @@
-// Work mode relay: lets a signed-in phone/browser drive a paired computer (Ciro desktop or ciro-client)
-// that keeps an outbound long-poll connection to this server. The server only queues commands and
-// stores the event log; the computer decides what it may run (allowed folders, approvals).
+// Work mode relay. A Ciro on a computer (desktop app / ciro-client) signs in to the account and keeps an
+// outbound long-poll connection here. Every signed-in device of the same account can SEE it, but a phone
+// may only CONTROL it after scanning the QR code shown on that computer (a grant for the phone's session).
+// The server queues commands and keeps the event log; the computer decides what it may run.
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
@@ -22,12 +23,15 @@ export function createRemoteStore(dir) {
     CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, device_id TEXT, kind TEXT, folder TEXT, title TEXT, status TEXT,
       auto_approve INTEGER, created_at INTEGER, updated_at INTEGER, last_seq INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS events(session_id TEXT, seq INTEGER, at INTEGER, type TEXT, data TEXT, PRIMARY KEY(session_id, seq));
-    CREATE TABLE IF NOT EXISTS inbox(id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT, session_id TEXT, type TEXT, payload TEXT, delivered INTEGER DEFAULT 0);`);
+    CREATE TABLE IF NOT EXISTS inbox(id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT, session_id TEXT, type TEXT, payload TEXT, delivered INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS grants(device_id TEXT, controller TEXT, label TEXT, created_at INTEGER, PRIMARY KEY(device_id, controller));`);
+  // Rows belong to an account so the same relay can serve many users.
+  for (const table of ["devices", "sessions"]) { try { db.exec("ALTER TABLE " + table + " ADD COLUMN user_id TEXT"); } catch { /* already there */ } }
   return db;
 }
 
-function rowDevice(r, now = Date.now()) {
-  return { id: r.id, name: r.name, platform: r.platform, createdAt: r.created_at, lastSeen: r.last_seen,
+function rowDevice(r, now = Date.now(), connected = false) {
+  return { id: r.id, connected, name: r.name, platform: r.platform, createdAt: r.created_at, lastSeen: r.last_seen,
     online: Boolean(r.enabled) && now - Number(r.last_seen || 0) < ONLINE_MS, folders: JSON.parse(r.folders || "[]"), version: r.version || "",
     enabled: Boolean(r.enabled) };
 }
@@ -42,7 +46,10 @@ function rowSession(r) {
 export function createRemoteRouter({ dir, enabled, complete }) {
   const db = createRemoteStore(dir);
   const router = express.Router();
-  const pairing = new Map(); // code -> expiresAt (single-owner server: codes belong to the owner)
+  const nonces = new Map(); // QR nonce or 8-character code shown on a computer -> { deviceId, exp }
+  const pairing = new Map(); // 8-character code made on a phone -> { userId, controller, label, exp }
+  const newCode = () => Array.from(randomBytes(8), (b) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+  const grant = (deviceId, controller, who) => db.prepare("INSERT OR REPLACE INTO grants(device_id,controller,label,created_at) VALUES(?,?,?,?)").run(deviceId, controller, who, Date.now());
   const waiters = new Map();
   const wake = (key) => { const set = waiters.get(key); if (!set) return; waiters.delete(key); set.forEach((fn) => fn()); };
   const waitFor = (key, ms, req) => new Promise((resolve) => {
@@ -91,54 +98,109 @@ export function createRemoteRouter({ dir, enabled, complete }) {
     db.prepare("INSERT INTO inbox(device_id,session_id,type,payload) VALUES(?,?,?,?)").run(deviceId, sessionId, type, JSON.stringify(payload ?? {}));
     wake("dev:" + deviceId);
   };
-  const ownSession = (id) => {
+  const ownSession = (id, userId) => {
     const s = db.prepare("SELECT * FROM sessions WHERE id=?").get(id);
-    if (!s) throw bad("Unknown session", 404);
+    if (!s || (userId !== undefined && s.user_id !== userId)) throw bad("Unknown session", 404);
     return s;
+  };
+  const ownDevice = (req, id) => {
+    const d = db.prepare("SELECT * FROM devices WHERE id=? AND user_id=?").get(String(id || ""), req.principal.id);
+    if (!d) throw bad("Unknown computer", 404);
+    return d;
+  };
+  // Seeing a computer needs only the same account; controlling it needs this phone's QR authorization.
+  const isConnected = (req, deviceId) => Boolean(db.prepare("SELECT 1 FROM grants WHERE device_id=? AND controller=?").get(deviceId, req.principal.sessionId));
+  const requireConnected = (req, deviceId) => { if (!isConnected(req, deviceId)) throw bad("请先扫码连接这台电脑", 403); };
+  const label = (req) => {
+    const ua = req.get("user-agent") || "";
+    const os = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Mac OS/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "设备";
+    return (/CiroMobile/.test(ua) ? "Ciro App · " : "") + os;
   };
 
   /* ── User side (signed-in phone / browser) ── */
-  router.post("/pairing-code", wrap((req, res) => {
+  // A signed-in Ciro (desktop app / ciro-client) adds itself to the account and gets a device token.
+  router.post("/devices/register", wrap((req, res) => {
     requireUser(req);
-    if (db.prepare("SELECT COUNT(*) n FROM devices").get().n >= LIMITS.devices) throw bad("最多连接 20 台电脑", 409);
-    const now = Date.now();
-    for (const [c, exp] of pairing) if (exp < now) pairing.delete(c);
-    const code = Array.from(randomBytes(8), (b) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
-    pairing.set(code, now + 10 * 60_000);
-    res.status(201).json({ code, expiresAt: now + 10 * 60_000 });
+    if (db.prepare("SELECT COUNT(*) n FROM devices WHERE user_id=?").get(req.principal.id).n >= LIMITS.devices) throw bad("最多添加 20 台电脑", 409);
+    const id = randomUUID(), token = "ciro_dev_" + randomBytes(32).toString("base64url"), now = Date.now();
+    db.prepare("INSERT INTO devices(id,user_id,name,platform,token_hash,created_at,last_seen,folders,version) VALUES(?,?,?,?,?,?,?,?,?)")
+      .run(id, req.principal.id, String(req.body?.name || "电脑").slice(0, 60), String(req.body?.platform || "").slice(0, 20), hash(token), now, now, "[]", String(req.body?.version || "").slice(0, 20));
+    res.status(201).json({ deviceId: id, token });
   }));
   router.get("/devices", wrap((req, res) => {
     requireUser(req);
-    res.json({ devices: db.prepare("SELECT * FROM devices ORDER BY created_at").all().map((r) => rowDevice(r)) });
+    res.json({ devices: db.prepare("SELECT * FROM devices WHERE user_id=? ORDER BY created_at").all(req.principal.id).map((r) => rowDevice(r, Date.now(), isConnected(req, r.id))) });
   }));
   router.delete("/devices/:id", wrap((req, res) => {
     requireUser(req);
-    db.prepare("DELETE FROM devices WHERE id=?").run(req.params.id);
-    db.prepare("DELETE FROM inbox WHERE device_id=?").run(req.params.id);
-    wake("dev:" + req.params.id);
+    const d = ownDevice(req, req.params.id);
+    db.prepare("DELETE FROM devices WHERE id=?").run(d.id);
+    db.prepare("DELETE FROM inbox WHERE device_id=?").run(d.id);
+    db.prepare("DELETE FROM grants WHERE device_id=?").run(d.id);
+    wake("dev:" + d.id);
     res.json({ deleted: true });
+  }));
+  // Scanning the computer's QR code authorizes THIS phone (its signed-in session) to control the computer.
+  router.post("/devices/:id/connect", wrap((req, res) => {
+    requireUser(req);
+    const d = ownDevice(req, req.params.id);
+    const key = String(req.body?.nonce || req.body?.code || "").trim();
+    const entry = nonces.get(key) ?? nonces.get(key.toUpperCase());
+    if (!entry || entry.deviceId !== d.id || entry.exp < Date.now()) throw bad("二维码或配对码已过期，请在电脑上刷新后重试", 403);
+    for (const [k, e] of nonces) if (e === entry) nonces.delete(k);
+    grant(d.id, req.principal.sessionId, label(req));
+    wake("dev:" + d.id);
+    res.json({ device: rowDevice(db.prepare("SELECT * FROM devices WHERE id=?").get(d.id), Date.now(), true) });
+  }));
+  // Typing the 8-character code shown under the computer's QR code works like scanning it.
+  router.post("/connect", wrap((req, res) => {
+    requireUser(req);
+    const code = String(req.body?.code || "").trim().toUpperCase();
+    const entry = nonces.get(code);
+    const d = entry && entry.exp >= Date.now() ? db.prepare("SELECT * FROM devices WHERE id=? AND user_id=?").get(entry.deviceId, req.principal.id) : null;
+    if (!d) throw bad("配对码无效或已过期，请在电脑上刷新后重试", 403);
+    for (const [k, e] of nonces) if (e === entry) nonces.delete(k);
+    grant(d.id, req.principal.sessionId, label(req));
+    wake("dev:" + d.id);
+    res.json({ device: rowDevice(d, Date.now(), true) });
+  }));
+  // Other direction: a phone makes a code, the computer types it in (no password needed on the computer).
+  router.post("/pairing-code", wrap((req, res) => {
+    requireUser(req);
+    if (db.prepare("SELECT COUNT(*) n FROM devices WHERE user_id=?").get(req.principal.id).n >= LIMITS.devices) throw bad("最多添加 20 台电脑", 409);
+    const now = Date.now();
+    for (const [c, e] of pairing) if (e.exp < now) pairing.delete(c);
+    const code = newCode();
+    pairing.set(code, { userId: req.principal.id, controller: req.principal.sessionId, label: label(req), exp: now + 10 * 60_000 });
+    res.status(201).json({ code, expiresAt: now + 10 * 60_000 });
+  }));
+  router.post("/devices/:id/disconnect", wrap((req, res) => {
+    requireUser(req);
+    const d = ownDevice(req, req.params.id);
+    db.prepare("DELETE FROM grants WHERE device_id=? AND controller=?").run(d.id, req.principal.sessionId);
+    res.json({ connected: false });
   }));
   router.get("/sessions", wrap((req, res) => {
     requireUser(req);
     const rows = req.query.deviceId
-      ? db.prepare("SELECT * FROM sessions WHERE device_id=? ORDER BY updated_at DESC LIMIT 50").all(String(req.query.deviceId))
-      : db.prepare("SELECT * FROM sessions ORDER BY updated_at DESC LIMIT 50").all();
+      ? db.prepare("SELECT * FROM sessions WHERE device_id=? AND user_id=? ORDER BY updated_at DESC LIMIT 50").all(String(req.query.deviceId), req.principal.id)
+      : db.prepare("SELECT * FROM sessions WHERE user_id=? ORDER BY updated_at DESC LIMIT 50").all(req.principal.id);
     res.json({ sessions: rows.map(rowSession) });
   }));
   router.post("/sessions", wrap((req, res) => {
     requireUser(req);
     const { deviceId, folder, kind, text, autoApprove } = req.body || {};
-    const device = db.prepare("SELECT * FROM devices WHERE id=?").get(String(deviceId || ""));
-    if (!device) throw bad("Unknown computer", 404);
+    const device = ownDevice(req, deviceId);
+    requireConnected(req, device.id);
     if (!["shell", "agent"].includes(kind)) throw bad("Invalid mode");
     if (typeof text !== "string" || !text.trim() || text.length > LIMITS.text) throw bad("Command must contain 1-20000 characters");
     if (typeof folder !== "string" || !JSON.parse(device.folders || "[]").includes(folder)) throw bad("这个文件夹没有在电脑上被允许");
     const id = randomUUID(), now = Date.now();
-    db.prepare("INSERT INTO sessions(id,device_id,kind,folder,title,status,auto_approve,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
-      .run(id, device.id, kind, folder, text.trim().split("\n")[0].slice(0, 120), "queued", autoApprove ? 1 : 0, now, now);
+    db.prepare("INSERT INTO sessions(id,user_id,device_id,kind,folder,title,status,auto_approve,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+      .run(id, req.principal.id, device.id, kind, folder, text.trim().split("\n")[0].slice(0, 120), "queued", autoApprove ? 1 : 0, now, now);
     appendEvents(id, [{ type: "user", data: { text: text.trim() } }, { type: "status", data: { status: "queued" } }]);
     queue(device.id, id, "start", { kind, folder, text: text.trim(), autoApprove: Boolean(autoApprove) });
-    const old = db.prepare("SELECT id FROM sessions ORDER BY updated_at DESC LIMIT -1 OFFSET ?").all(LIMITS.sessions);
+    const old = db.prepare("SELECT id FROM sessions WHERE user_id=? ORDER BY updated_at DESC LIMIT -1 OFFSET ?").all(req.principal.id, LIMITS.sessions);
     for (const o of old) { db.prepare("DELETE FROM events WHERE session_id=?").run(o.id); db.prepare("DELETE FROM sessions WHERE id=?").run(o.id); }
     res.status(201).json({ session: rowSession(db.prepare("SELECT * FROM sessions WHERE id=?").get(id)) });
   }));
@@ -146,15 +208,16 @@ export function createRemoteRouter({ dir, enabled, complete }) {
     requireUser(req);
     const after = Number(req.query.after || 0);
     const read = () => db.prepare("SELECT seq,at,type,data FROM events WHERE session_id=? AND seq>? ORDER BY seq LIMIT 500").all(req.params.id, after);
-    let session = ownSession(req.params.id);
+    let session = ownSession(req.params.id, req.principal.id);
     let rows = read();
-    if (!rows.length && req.query.wait) { await waitFor("ses:" + req.params.id, WAIT_MS, req); rows = read(); session = ownSession(req.params.id); }
+    if (!rows.length && req.query.wait) { await waitFor("ses:" + req.params.id, WAIT_MS, req); rows = read(); session = ownSession(req.params.id, req.principal.id); }
     res.json({ session: rowSession(session), events: rows.map((r) => ({ seq: Number(r.seq), at: Number(r.at), type: r.type, data: JSON.parse(r.data) })) });
   }));
   for (const [path, type] of [["input", "input"], ["approve", "approve"], ["stop", "stop"]]) {
     router.post("/sessions/:id/" + path, wrap((req, res) => {
       requireUser(req);
-      const s = ownSession(req.params.id);
+      const s = ownSession(req.params.id, req.principal.id);
+      requireConnected(req, s.device_id);
       const body = req.body || {};
       if (type === "input" && (typeof body.text !== "string" || body.text.length > LIMITS.text)) throw bad("Invalid input");
       if (type === "approve" && (typeof body.requestId !== "string" || typeof body.approve !== "boolean")) throw bad("Invalid approval");
@@ -166,16 +229,40 @@ export function createRemoteRouter({ dir, enabled, complete }) {
   }
 
   /* ── Computer side (device token) ── */
+  // QR code payload for the computer's screen: a single-use nonce, valid for two minutes.
+  router.get("/device/connect-code", wrap((req, res) => {
+    const d = deviceFrom(req);
+    const now = Date.now();
+    for (const [n, e] of nonces) if (e.exp < now || e.deviceId === d.id) nonces.delete(n);
+    const nonce = randomBytes(18).toString("base64url"), code = newCode();
+    const entry = { deviceId: d.id, exp: now + 120_000 };
+    nonces.set(nonce, entry); nonces.set(code, entry);
+    res.json({ deviceId: d.id, nonce, code, expiresAt: entry.exp });
+  }));
   router.post("/pair", wrap((req, res) => {
     if (!enabled()) throw bad("工作模式需要服务器开启账户", 503);
     const code = String(req.body?.code || "").trim().toUpperCase();
-    const exp = pairing.get(code);
-    if (!exp || exp < Date.now()) throw bad("配对码无效或已过期", 403);
+    const entry = pairing.get(code);
+    if (!entry || entry.exp < Date.now()) throw bad("配对码无效或已过期", 403);
     pairing.delete(code);
     const id = randomUUID(), token = "ciro_dev_" + randomBytes(32).toString("base64url"), now = Date.now();
-    db.prepare("INSERT INTO devices(id,name,platform,token_hash,created_at,last_seen,folders,version) VALUES(?,?,?,?,?,?,?,?)")
-      .run(id, String(req.body?.name || "电脑").slice(0, 60), String(req.body?.platform || "").slice(0, 20), hash(token), now, now, "[]", String(req.body?.version || "").slice(0, 20));
+    db.prepare("INSERT INTO devices(id,user_id,name,platform,token_hash,created_at,last_seen,folders,version) VALUES(?,?,?,?,?,?,?,?,?)")
+      .run(id, entry.userId, String(req.body?.name || "电脑").slice(0, 60), String(req.body?.platform || "").slice(0, 20), hash(token), now, now, "[]", String(req.body?.version || "").slice(0, 20));
+    grant(id, entry.controller, entry.label); // the phone that made the code is connected right away
     res.status(201).json({ deviceId: id, token });
+  }));
+  router.get("/device/grants", wrap((req, res) => {
+    const d = deviceFrom(req);
+    res.json({ grants: db.prepare("SELECT controller,label,created_at FROM grants WHERE device_id=? ORDER BY created_at").all(d.id)
+      .map((g) => ({ id: hash(g.controller).slice(0, 16), label: g.label, createdAt: Number(g.created_at) })) });
+  }));
+  router.post("/device/grants/revoke", wrap((req, res) => {
+    const d = deviceFrom(req);
+    const target = String(req.body?.id || "");
+    for (const g of db.prepare("SELECT controller FROM grants WHERE device_id=?").all(d.id)) {
+      if (target === "all" || hash(g.controller).slice(0, 16) === target) db.prepare("DELETE FROM grants WHERE device_id=? AND controller=?").run(d.id, g.controller);
+    }
+    res.json({ ok: true });
   }));
   router.post("/device/hello", wrap((req, res) => {
     const d = deviceFrom(req);

@@ -544,6 +544,12 @@ export default function App() {
       if (payload) void shareRef.current(payload);
     };
     const params = new URLSearchParams(window.location.search);
+    // Phone camera scanned a computer's work-mode QR code: open 工作模式 and connect there.
+    if (window.location.pathname === "/remote/connect") {
+      try { sessionStorage.setItem("ciro.remote.connect", window.location.search); } catch { /* private mode */ }
+      window.history.replaceState(null, "", "/");
+      openStudio("remote");
+    }
     if (params.get("share") === "1") {
       w.ciroReceiveShare({ subject: params.get("title") || "", text: [params.get("text"), params.get("url")].filter(Boolean).join("\n") });
       window.history.replaceState(null, "", window.location.pathname);

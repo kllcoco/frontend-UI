@@ -1,5 +1,5 @@
-// Work mode, computer side. Runs inside this Ciro server (desktop app or ciro-client) once paired with the
-// user's Ciro server. It long-polls for commands, runs them only inside folders allowed on THIS computer,
+// Work mode, computer side. Runs inside this Ciro server (desktop app or ciro-client) once it has signed in to
+// the user's Ciro account. It long-polls for commands, runs them only inside folders allowed on THIS computer,
 // asks the phone for approval before an AI task writes files or runs commands (unless auto-approve is on),
 // and streams output back. Local control endpoints accept requests from this machine only.
 import express from "express";
@@ -272,22 +272,57 @@ export function createRemoteAgent({ dir, version = "", fetchFn = fetch, localAll
     if (req.method !== "GET" && req.get("x-ciro-local") !== "1") return res.status(403).json({ error: "Missing local header" });
     next();
   });
-  const view = () => ({ paired: Boolean(config?.token), serverUrl: config?.serverUrl || "", name: config?.name || hostname(), folders: config?.folders || [],
+  const view = () => ({ paired: Boolean(config?.token), serverUrl: config?.serverUrl || "", name: config?.name || hostname(), account: config?.account || "", folders: config?.folders || [],
     enabled: Boolean(config?.enabled), online: status.online, lastError: status.lastError, lastContact: status.lastContact,
     active: [...sessions.values()].filter((s) => s.child || s.busy || s.approvals.size).map((s) => ({ id: s.id, kind: s.kind, folder: s.folder, title: s.title, startedAt: s.startedAt })) });
   const wrap = (fn) => (req, res) => Promise.resolve().then(() => fn(req, res)).catch((e) => res.status(e.statusCode || 400).json({ error: e.message }));
   router.get("/status", (_req, res) => res.json(view()));
+  // Or: enter the 8-character code a phone made under 协作空间 → 工作模式 → 添加电脑 (no password on this computer).
   router.post("/pair", wrap(async (req, res) => {
     const serverUrl = String(req.body?.serverUrl || "").trim().replace(/\/+$/, "");
     if (!/^https?:\/\/[^\s/]+/.test(serverUrl)) throw new Error("请输入服务器地址，例如 https://ciro.example.com");
     const name = String(req.body?.name || hostname()).trim().slice(0, 60) || hostname();
-    const res2 = await fetchFn(serverUrl + "/api/remote/pair", { method: "POST", headers: { "Content-Type": "application/json" },
+    const reply = await fetchFn(serverUrl + "/api/remote/pair", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: String(req.body?.code || "").trim(), name, platform: process.platform, version }) });
-    const data = await res2.json().catch(() => ({}));
-    if (!res2.ok) throw new Error(data.error || "配对失败（HTTP " + res2.status + "）");
-    config = { serverUrl, deviceId: data.deviceId, token: data.token, name, folders: config?.folders || [], enabled: true };
+    const data = await reply.json().catch(() => ({}));
+    if (!reply.ok) throw new Error(data.error || "配对失败（HTTP " + reply.status + "）");
+    config = { serverUrl, deviceId: data.deviceId, token: data.token, name, account: "", folders: config?.folders || [], enabled: true };
     save(); restart();
     res.json(view());
+  }));
+  // Sign in once with the Ciro account to add this computer; only the device token is kept, never the password.
+  router.post("/login", wrap(async (req, res) => {
+    const serverUrl = String(req.body?.serverUrl || "").trim().replace(/\/+$/, "");
+    if (!/^https?:\/\/[^\s/]+/.test(serverUrl)) throw new Error("请输入服务器地址，例如 https://ciro.example.com");
+    const name = String(req.body?.name || hostname()).trim().slice(0, 60) || hostname();
+    const email = String(req.body?.email || "").trim();
+    const login = await fetchFn(serverUrl + "/api/account/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: String(req.body?.password || "") }) });
+    const auth = await login.json().catch(() => ({}));
+    if (!login.ok) throw new Error(login.status === 401 ? "邮箱或密码不正确" : auth.error || "登录失败（HTTP " + login.status + "）");
+    const setCookie = (login.headers.getSetCookie?.() || [login.headers.get("set-cookie") || ""]).find(Boolean) || "";
+    const headers = { "Content-Type": "application/json", Cookie: setCookie.split(";")[0], "X-Ciro-Csrf": String(auth.csrf || "") };
+    const reg = await fetchFn(serverUrl + "/api/remote/devices/register", { method: "POST", headers, body: JSON.stringify({ name, platform: process.platform, version }) });
+    const data = await reg.json().catch(() => ({}));
+    await fetchFn(serverUrl + "/api/account/logout", { method: "POST", headers, body: "{}" }).catch(() => undefined);
+    if (!reg.ok) throw new Error(data.error || "无法添加这台电脑（HTTP " + reg.status + "）");
+    config = { serverUrl, deviceId: data.deviceId, token: data.token, name, account: email, folders: config?.folders || [], enabled: true };
+    save(); restart();
+    res.json(view());
+  }));
+  // QR code for phones of the same account: scanning it authorizes that phone to control this computer.
+  router.get("/qr", wrap(async (_req, res) => {
+    if (!config?.token) throw new Error("请先登录");
+    const code = await api("/device/connect-code");
+    res.json({ ...code, url: config.serverUrl + "/remote/connect?device=" + encodeURIComponent(code.deviceId) + "&nonce=" + encodeURIComponent(code.nonce) });
+  }));
+  router.get("/grants", wrap(async (_req, res) => {
+    if (!config?.token) throw new Error("请先登录");
+    res.json(await api("/device/grants"));
+  }));
+  router.post("/grants/revoke", wrap(async (req, res) => {
+    if (!config?.token) throw new Error("请先登录");
+    res.json(await api("/device/grants/revoke", { id: String(req.body?.id || "") }));
   }));
   router.post("/folders", wrap((req, res) => {
     if (!config) throw new Error("请先配对");

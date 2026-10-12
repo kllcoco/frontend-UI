@@ -45,20 +45,31 @@ test("work mode: pair a computer, run commands, AI task with approvals, folder s
   const local = (path, body) => fetch("http://127.0.0.1:" + pcServer.address().port + "/api/remote/local" + path, { method: body ? "POST" : "GET",
     headers: { "Content-Type": "application/json", "X-Ciro-Local": "1" }, ...(body ? { body: JSON.stringify(body) } : {}) }).then(async (r) => ({ status: r.status, json: await r.json() }));
   try {
-    // Signed-out callers and wrong codes are rejected; the phone creates a one-time code.
+    // Signed-out callers are rejected. The computer signs in once with the account and appears in the list.
     assert.equal((await fetch(url + "/api/remote/devices")).status, 401);
-    const { json: { code } } = await call("/api/remote/pairing-code", "POST", {});
-    assert.equal((await local("/pair", { serverUrl: url, code: "WRONG123" })).status, 400);
-    const paired = await local("/pair", { serverUrl: url, code, name: "家里的电脑" });
+    assert.equal((await local("/login", { serverUrl: url, email: "o@example.com", password: "wrong-password-123456" })).status, 400);
+    const paired = await local("/login", { serverUrl: url, email: "o@example.com", password: "a-very-secure-long-password", name: "家里的电脑" });
     assert.equal(paired.json.paired, true);
-    assert.equal((await local("/pair", { serverUrl: url, code })).status, 400, "codes are single use");
+    assert.ok(!readFileSync(join(pcDir, "remote-agent.json"), "utf8").includes("a-very-secure-long-password"), "the password is never stored");
     // Cross-site requests to the local API are refused.
     assert.equal((await fetch("http://127.0.0.1:" + pcServer.address().port + "/api/remote/local/enabled", { method: "POST", headers: { Origin: "https://evil.example", "Content-Type": "application/json", "X-Ciro-Local": "1" }, body: "{}" })).status, 403);
+    assert.equal((await fetch("http://127.0.0.1:" + pcServer.address().port + "/api/remote/local/status", { headers: { "X-Forwarded-For": "203.0.113.9" } })).status, 403, "proxied requests are never local");
     assert.equal((await local("/folders", { folders: ["relative/path"] })).status, 400);
     await local("/folders", { folders: [project] });
     const device = await until(async () => (await call("/api/remote/devices")).json.devices.find((d) => d.online && d.folders.length));
     assert.equal(device.name, "家里的电脑");
+    assert.equal(device.connected, false, "visible to the account, but not yet connected");
     const folder = device.folders[0];
+
+    // Without scanning the QR code this phone may look but not command.
+    const denied = await call("/api/remote/sessions", "POST", { deviceId: device.id, folder, kind: "shell", text: "ls" });
+    assert.equal(denied.status, 403);
+    const qr = (await fetch("http://127.0.0.1:" + pcServer.address().port + "/api/remote/local/qr").then((r) => r.json()));
+    assert.match(qr.url, /\/remote\/connect\?device=.+&nonce=.+/);
+    assert.equal((await call("/api/remote/devices/" + device.id + "/connect", "POST", { nonce: "forged" })).status, 403);
+    assert.equal((await call("/api/remote/devices/" + device.id + "/connect", "POST", { nonce: qr.nonce })).json.device.connected, true);
+    assert.equal((await call("/api/remote/devices/" + device.id + "/connect", "POST", { nonce: qr.nonce })).status, 403, "a QR code works once");
+    assert.equal((await call("/api/remote/devices")).json.devices.find((d) => d.id === device.id).connected, true);
 
     // Command mode: output streams back; a follow-up command runs in the same folder.
     const bad = await call("/api/remote/sessions", "POST", { deviceId: device.id, folder: "/etc", kind: "shell", text: "ls" });
@@ -90,7 +101,38 @@ test("work mode: pair a computer, run commands, AI task with approvals, folder s
     assert.throws(() => insideFolder(project, "link/secret.txt"));
     assert.equal(insideFolder(project, "inner"), join(realpath(project), "inner"));
 
-    // Revoking the computer cuts it off.
+    // The 8-character code under the QR works as well (single use).
+    const qr2 = (await fetch("http://127.0.0.1:" + pcServer.address().port + "/api/remote/local/qr").then((r) => r.json()));
+    assert.match(qr2.code, /^[A-Z2-9]{8}$/);
+    await call("/api/remote/devices/" + device.id + "/disconnect", "POST", {});
+    assert.equal((await call("/api/remote/devices")).json.devices.find((d) => d.id === device.id).connected, false);
+    assert.equal((await call("/api/remote/connect", "POST", { code: qr2.code.toLowerCase() })).json.device.connected, true);
+    assert.equal((await call("/api/remote/connect", "POST", { code: qr2.code })).status, 403);
+
+    // Other direction: a phone makes a pairing code and a second computer types it in — no password there,
+    // and that phone is connected to it immediately.
+    const { json: { code: pairCode } } = await call("/api/remote/pairing-code", "POST", {});
+    const agent2 = createRemoteAgent({ dir: mkdtempSync(join(tmpdir(), "ciro-pc2-")), version: "test" });
+    const pc2 = express(); pc2.use(express.json()); pc2.use("/api/remote/local", agent2.router);
+    const pc2Server = await listen(pc2);
+    const r2 = await fetch("http://127.0.0.1:" + pc2Server.address().port + "/api/remote/local/pair", { method: "POST", headers: { "Content-Type": "application/json", "X-Ciro-Local": "1" }, body: JSON.stringify({ serverUrl: url, code: pairCode, name: "公司电脑" }) });
+    assert.equal(r2.status, 200);
+    const office = await until(async () => (await call("/api/remote/devices")).json.devices.find((d) => d.name === "公司电脑"));
+    assert.equal(office.connected, true);
+    agent2.stop(); await new Promise((r) => pc2Server.close(r));
+
+    // A second phone of the same account must scan on its own; the computer can disconnect phones.
+    const login2 = await fetch(url + "/api/account/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "o@example.com", password: "a-very-secure-long-password" }) });
+    const phone2 = { cookie: login2.headers.get("set-cookie").split(";")[0], csrf: (await login2.json()).csrf };
+    const asPhone2 = (path, body) => fetch(url + path, { method: body ? "POST" : "GET", headers: { Cookie: phone2.cookie, "X-Ciro-Csrf": phone2.csrf, "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    assert.equal((await (await asPhone2("/api/remote/devices")).json()).devices.find((d) => d.id === device.id).connected, false);
+    assert.equal((await asPhone2("/api/remote/sessions", { deviceId: device.id, folder, kind: "shell", text: "ls" })).status, 403);
+    const grants = (await fetch("http://127.0.0.1:" + pcServer.address().port + "/api/remote/local/grants").then((r) => r.json())).grants;
+    assert.equal(grants.length, 1);
+    await local("/grants/revoke", { id: grants[0].id });
+    assert.equal((await call("/api/remote/sessions", "POST", { deviceId: device.id, folder, kind: "shell", text: "ls" })).status, 403, "disconnected from the computer");
+
+    // Removing the computer cuts it off.
     await call("/api/remote/devices/" + device.id, "DELETE");
     await until(async () => (await local("/status")).json.lastError.includes("移除"), 35000);
   } finally {
