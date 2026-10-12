@@ -51,6 +51,24 @@ Source contract notes:
 - `server/plugin-gateway.mjs`: local-only, authenticated fine-grained GitHub PAT connection and one-shot draft-PR approval path.
 - The backend still uses one-owner durable SQLite and account JSON; **not** public multitenant-ready.
 
+## Pending GitHub approval preview — additional candidate patch
+
+Branch: `ciro/approval-preview-gate-20261012` (kept separate for review).
+An authenticated owner-session can request `GET /api/plugins/approvals/:id/preview`.
+For file replacements this returns the whole proposed file, repository, branch,
+path, prior file SHA (when provided), and a SHA256 binding of the immutable queued request.
+Draft PR previews return full title, body, head and base.
+Approval of write-file or draft-PR effects now requires the matching `reviewSha256`;
+missing or mismatched values fail before claiming the one-shot approval.
+The UI requires the operator to open the preview and explicitly acknowledge it.
+This preview is **not** a diff or test evidence: it does not replace independent
+tests, Windows installer verification, or live CIRO model acceptance.
+
+Pure-Node logic preview tests were exercised locally: 3/3 PASS on an equivalent
+local helper before pushing the patch. Exact branch-wide `npm test`,
+`npm run build`, Electron installation, live CIRO GitHub PAT authentication and
+NCPA inference **remain unverified**. No GitHub Actions run has been requested.
+
 ## Qualification state
 
 | Gate | State |
