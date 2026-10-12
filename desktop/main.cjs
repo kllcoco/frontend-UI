@@ -1,5 +1,5 @@
 "use strict";
-const {app,BrowserWindow,dialog,ipcMain,Notification}=require("electron");
+const {app,BrowserWindow,dialog,ipcMain,Notification,shell}=require("electron");
 const {fork}=require("node:child_process");
 const {join}=require("node:path");
 const {existsSync}=require("node:fs");
@@ -74,11 +74,12 @@ else{
   win.once("ready-to-show",()=>win.show());
   await win.loadURL(origin);
   if(setup.firstRun){
-   await dialog.showMessageBox(win,{
+   const prompt=await dialog.showMessageBox(win,{
     type:"info",title:"CIRO 首次初始化",message:"请先创建本机管理员账户。",
-    detail:"一次性初始化口令保存在本机 Ciro 用户数据目录的 desktop-secrets.json 中。仅在 CIRO 账户中心填写，不要复制到聊天或代码仓库。",
-    buttons:["知道了"],noLink:true
+    detail:"打开以下本机目录，查看 desktop-secrets.json 中的 bootstrapToken，然后只在 CIRO 账户中心填写。请勿将文件或口令发到聊天或上传至 GitHub。\n\n"+root,
+    buttons:["打开本机配置文件夹","稍后设置"],defaultId:0,noLink:true
    });
+   if(prompt.response===0)await shell.openPath(root);
   }
  }
  app.whenReady().then(boot).catch(e=>{
