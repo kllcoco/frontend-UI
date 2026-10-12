@@ -76,13 +76,37 @@ Full `npm test`, `npm run build`, browser E2E, Electron installation,
 live CIRO GitHub PAT authentication and NCPA inference **remain unverified**.
 No GitHub Actions run has been requested.
 
+## 2026-10-12 follow-up: desktop launch/config isolation + fail-fast packaging
+
+**Additional candidate patch in PR #5 (not merged):**
+
+- `desktop/runtime.cjs` now removes inherited `CIRO_*`, `NODE_OPTIONS`,
+  `NODE_PATH`, and `DOTENV_CONFIG_*` before launching CIRO's local backend.
+  Security-fixed child flags remain explicitly set; optional application settings
+  must come from the owner's desktop-local `.env`, not the parent shell.
+- New `scripts/desktop-package-preflight.mjs` blocks an incomplete Electron package:
+  it checks Electron startup resources, required bundled directories, ASAR,
+  per-user NSIS scope, and (after build) `dist/index.html` plus production
+  `express`/`dotenv` dependencies. Windows installer commands also require a
+  Windows build host before starting compilation.
+- `npm run test:desktop-core` now includes packaging preflight tests and the
+  environment inheritance-denial test. **16/16 isolated tests PASS locally on
+  Node 22.16.0, 0 failures.** Exact GitHub blob SHA verified for the four
+  new/changed module/test files before recording the result.
+- This is **not** a Windows exe or Electron integration test. No real GitHub
+  CI, PAT-in-CIRO account login, complete npm test/build, or native NCPA model
+  inference acceptance has been run for this branch.
+
+Updated offline acceptance receipt:
+`docs/CIRO_V08_DESKTOP_CORE_LOCAL_RECEIPT_2026-10-12.json`.
+
 ## Qualification state
 
 | Gate | State |
 | --- | --- |
 | GitHub connector via ChatGPT operator account | Real GitHub repo read/write via connected connector has occurred, **not** CIRO in-app OAuth acceptance |
 | CIRO GitHub repo read/branch/write source | Existing source and mocked integration tests were previously qualified |
-| CIRO local fine-grained PAT + GitHub v0.8.1 read/PR source | Implemented on candidate branch; **6/6 isolated policy/desktop tests pass**, full Node suite/live CIRO login not yet verified |
+| CIRO local fine-grained PAT + GitHub v0.8.1 read/PR source | Implemented on candidate branch; **16/16 scoped offline security/preflight tests PASS**, full Node suite/live CIRO login not yet verified |
 | Electron shell / bootstrap / packaging configuration | Implemented in source, Windows-built installer **NOT RUN** |
 | Native client signed installer / Windows E2E | **NOT RUN**, do not call graduated |
 | CIRO inference backed by actual NCPA GEN1 runtime | **NOT VERIFIED**; preview UI isn't model inference |
