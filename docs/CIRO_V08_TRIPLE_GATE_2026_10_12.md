@@ -62,3 +62,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/accept-ciro-windows.
 ## 商业交付红线
 
 没有完整全仓测试 + Windows 安装器真机证据 + 原生 NCPA/自修复真实联动，不得标记 desktop、模型整机或商业版 graduated。可在这个候选分支继续测试，不触碰 NCPA 模型主线。
+
+## Windows 浏览器验收第三轮与严格隔离（2026-10-12）
+
+Windows 用户第三轮全流程：Node 123 tests = 120 PASS / 0 FAIL / 3 Linux-only SKIP，TypeScript + Vite build PASS，Playwright 29 tests = **27 PASS / 2 FAIL**。此前账号注册及插件仓库选择在这一轮已真实 PASS。剩余失败：官方应用 GitHub 收藏经 reload 后的按钮未发现，技能中心代码审查选择按钮未发现。安装包仍 NOT RUN，不能毕业。
+
+测试源码核对：`server/workbench-store.mjs` 把 `pinnedApps` / `skills` 存入 `state.json`，`server/commercial.mjs` 的 API 修改后持久化。另一方面，Playwright 默认允许复用旧开发服务器，且非 CI 的本地后端默认依赖既有 `.ciro-runtime`。因此以前多轮测试的状态会影响“未选择技能”的预期；但收藏刷新后失效的唯一根因尚未确证。
+
+候选修复：`playwright.config.ts` 在 CI 或 `CIRO_E2E_STRICT=true` 时为本轮独立创建被 Git 忽略的 Workbench 数据目录，清空与测试有关的连接配置并拒绝复用旧 5173/8787 服务；`scripts/accept-ciro-windows.ps1` 强制启用该严格模式。浏览器 E2E 保留原有行为断言，并增加 GitHub pin 操作前后对真实服务端状态的独立检验，不使用 skip/mock 代替功能验证。当前该提交的 Windows 复验 **NOT RUN**。新目录只由 QA 使用，不删除 F/G/B 盘已有源码或用户工作数据。
+
+局部复验：`$env:CIRO_E2E_STRICT='true'; npx.cmd playwright test tests/e2e/client.spec.ts -g 'first-party application directory|skills catalog'`；成功后再重新执行原始 `npm.cmd run accept:desktop-windows` 全仓验收。若端口已被其他开发服务器占用，严格模式应明确失败而非误连旧服务。
