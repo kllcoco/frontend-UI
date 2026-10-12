@@ -1,7 +1,7 @@
 # CIRO V0.8 — Live acceptance and release runbook
 
-Release scope: frontend-UI branch feat/ciro-v08-plugin-marketplace, PR #2.
-Status: developer candidate, NOT certified for public multi-tenant operation.
+Release scope: CIRO V0.8 plugin PR #2 (merged into `feat/ciro-chat-client-v1` on 2026-10-11).
+Status: plugin source and automated UI/Node tests qualified; live user OAuth and public multitenant commercial release NOT certified.
 
 ## User-facing invariant
 
