@@ -85,6 +85,7 @@ else{
   win.once("ready-to-show",()=>win.show());
   await win.loadURL(origin);
   // Native desktop account and session are provisioned automatically.
+ }
  app.whenReady().then(boot).catch(e=>{
   dialog.showErrorBox("CIRO 桌面版无法启动",String(e.message||e).slice(0,500));
   app.quit();
