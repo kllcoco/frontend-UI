@@ -7,7 +7,8 @@ type Installed={id:string;version:string;installedAt:string;enabled:boolean};
 type Connection={provider:string;account?:{login?:string;email?:string;id?:string|number};connectedAt:string};
 type Approval={id:string;provider:string;summary:string;createdAt:string};
 type GitHubScope={allowedRepositories:string[];selectedRepository:string;mode:string;
- custom:Record<string,boolean>;writesEnabled:boolean;oauthConfigured:boolean};
+ custom:Record<string,boolean>;writesEnabled:boolean;oauthConfigured:boolean;
+ tokenConnectionEnabled?:boolean;selfRepairEnabled?:boolean};
 type DiscoveredTool={name:string;description:string};
 type Prepared={nonce:string;fingerprint:string;plugin:Entry;expiresInSeconds:number};
 type PluginJob={id:string;provider:string;tool:string;status:string;effect:boolean;attempts:number;createdAt:number;code?:string|null};
@@ -36,6 +37,7 @@ export default function PluginConnections(){
  const [path,setPath]=useState("README.md");
  const [result,setResult]=useState("");
  const [repoChoice,setRepoChoice]=useState("");
+ const [githubToken,setGithubToken]=useState("");
  const [discoveredTools,setDiscoveredTools]=useState<DiscoveredTool[]>([]);
  const refresh=useCallback(async()=>{
   try{
@@ -138,8 +140,24 @@ export default function PluginConnections(){
          </div>
          <p className="ciro-market-muted">当前范围：{githubScope?.selectedRepository||"尚未选择"} · {githubScope?.writesEnabled?"允许请求写入，执行前仍要批准":"服务器禁止写入"}</p>
         </>:<p className="ciro-market-error">服务器还没有设置 GitHub 仓库白名单（CIRO_GITHUB_REPOS）。请联系部署管理员；不用输入个人 Token。</p>}
-        <p className="ciro-market-muted">注意：GitHub OAuth 的 repo 授权本身可能覆盖多个仓库；CIRO 工具网关只允许使用这里选中的仓库。请在 GitHub 授权页核对权限。</p>
-        {!githubScope?.oauthConfigured&&<p className="ciro-market-muted">GitHub OAuth 尚未由服务器管理员配置。你可以安装插件、选择仓库，但暂时不能连接账户；不需要把密钥发给 CIRO。</p>}
+        <p className="ciro-market-muted">GitHub 操作只针对选中的仓库；修改、建分支和创建草稿 PR 均需逐次人工审批，不会自动合入。</p>
+        {!!githubScope?.selfRepairEnabled&&<p className="ciro-market-notice">当前仓库已开启提议自修复草稿 PR（仍需用户逐次批准）。</p>}
+        {!githubScope?.oauthConfigured&&!githubScope?.tokenConnectionEnabled&&
+         <p className="ciro-market-muted">GitHub OAuth 和本机连接尚未配置。可先安装插件、选择仓库。</p>}
+        {githubScope?.tokenConnectionEnabled&&!connected&&
+         <div className="ciro-market-test">
+          <h4>使用自己的 GitHub 账号 · 本机连接</h4>
+          <p className="ciro-market-muted">在 GitHub 官网生成仅授权所选仓库的 Fine-grained PAT，并只在本机 CIRO 输入。加密保存在本机，切勿发到聊天或代码仓库。</p>
+          <input aria-label="GitHub 本机精细权限 Token" type="password" autoComplete="off"
+           placeholder="github_pat_…" value={githubToken} onChange={e=>setGithubToken(e.target.value)}/>
+          <button className="wb-primary" disabled={busy||!githubScope?.selectedRepository||githubToken.length<50}
+           onClick={()=>void action(async()=>{
+            try{
+             await api("/github/connect-token",{token:githubToken});
+             setNotice("本机 GitHub 已连接；后续写操作仍需逐次审批。");
+            }finally{setGithubToken("");}
+           })}>连接本机 GitHub</button>
+         </div>}
        </div>}
        <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
         await api("/installed/"+current.id+"/enabled",{enabled:!active.enabled});
@@ -155,7 +173,7 @@ export default function PluginConnections(){
           !(target.protocol==="https:"&&target.hostname.endsWith(".supabase.co")))
           throw new Error("授权地址不可信");
         window.location.assign(target.href);
-       })}>连接 {current.title} 账户</button>)}
+       })}>{current.id==="github"&&!githubScope?.oauthConfigured?"OAuth 尚未配置":"OAuth 连接 "+current.title}</button>)}
        {current.id==="supabase"&&connected&&active.enabled&&<div className="ciro-market-scope">
         <h4>Supabase 已授权 MCP 工具</h4>
         <p className="ciro-market-muted">只读取工具目录，不执行数据修改。数据写入仍需单独批准。</p>
