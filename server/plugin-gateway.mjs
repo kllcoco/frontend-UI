@@ -13,7 +13,7 @@ import {createPluginJobQueue} from "./plugin-job-queue.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
- {id:"github",title:"GitHub",status:"oauth_supported",tools:["github.read_file","github.create_branch","github.write_file"]},
+ {id:"github",title:"GitHub",status:"oauth_supported",tools:["github.read_file","github.create_branch","github.write_file","github.open_pull_request"]},
  {id:"supabase",title:"Supabase",status:"requires_user_delegated_connector",tools:["supabase.list_tools","supabase.call_tool"]}
 ]);
 const sha=value=>createHash("sha256").update(value).digest("hex");
@@ -75,6 +75,22 @@ async function runGithub(env,credential,tool,args,fetchFn,signal){
    const base=await githubCall(env,credential,"GET",prefix+"/git/ref/heads/"+encodeURIComponent(meta.default_branch),undefined,fetchFn,signal);
    return githubCall(env,credential,"POST",prefix+"/git/refs",{ref:"refs/heads/"+branch,sha:base.object.sha},fetchFn,signal);
  }
+ if(tool==="github.open_pull_request"){
+   if(env.CIRO_GITHUB_SELF_REPAIR_ENABLED!=="true"||env.CIRO_GITHUB_SELF_REPO!==repo)
+     throw fail("Self-repair PR creation is disabled for this repository",403);
+   const branch=safeBranch(args.branch);
+   const base=bounded(args.base,130,"pull request base");
+   if(!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,128}$/.test(base)||base.includes("..")||
+      base.includes("//")||base.endsWith("/")||base===branch)
+     throw fail("Invalid PR base or head",400);
+   const title=bounded(args.title,120,"PR title");
+   const body=typeof args.body==="string"&&args.body.length<=3000?args.body:"";
+   const result=await githubCall(env,credential,"POST",prefix+"/pulls",
+     {title,body,base,head:branch,draft:true,maintainer_can_modify:false},fetchFn,signal);
+   if(!Number.isInteger(result.number)||typeof result.html_url!=="string")
+     throw fail("GitHub PR creation response invalid",502);
+   return {repo,number:result.number,url:result.html_url,draft:true,base,head:branch};
+ }
  if(tool==="github.write_file"){
    const branch=safeBranch(args.branch),path=safeFilePath(args.path),message=bounded(args.message,150,"commit message");
    if(typeof args.content!=="string"||Buffer.byteLength(args.content)>180000)throw fail("Invalid file contents");
@@ -89,7 +105,7 @@ function checkToolPolicy(policy,provider,tool,args,source){
  if(source!=="chat"&&source!=="agent"&&source!=="manual")throw fail("Unknown tool source");
  if(provider==="github"){
    const action=tool==="github.read_file"?"github.read":tool==="github.create_branch"?"github.branch":
-     tool==="github.write_file"?"github.write":null;
+     tool==="github.write_file"?"github.write":tool==="github.open_pull_request"?"github.write":null;
    if(!action)throw fail("Unregistered GitHub tool",404);
    if(policy.repo!==args.repo)throw fail("Repository is outside selected scope",403);
    const verdict=decision(policy,action,{repo:args.repo});
@@ -118,6 +134,9 @@ function reviewedAction(provider,tool,args){
  }
  if(provider==="github"&&tool==="github.create_branch")
   return "GitHub 创建分支 "+bounded(args.repo,210,"repository")+" @ "+safeBranch(args.branch);
+ if(provider==="github"&&tool==="github.open_pull_request")
+  return "GitHub 创建草稿 PR · "+bounded(args.repo,210,"repository")+" · "+safeBranch(args.branch)+
+   " -> "+bounded(args.base,130,"base")+" · "+bounded(args.title,120,"title");
  if(provider==="supabase"&&tool==="supabase.call_tool")
   return "Supabase MCP 调用 "+bounded(args.name,100,"tool name")+
    " · 参数 SHA256 "+sha(JSON.stringify(args.arguments??{})).slice(0,16);
@@ -147,6 +166,8 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   if(!record)return {upstreamRevoked:false,reason:"no_active_connection"};
   if(provider!=="github")return {upstreamRevoked:false,reason:"provider_revoke_manual"};
   const client=env.CIRO_GITHUB_OAUTH_CLIENT_ID,secret=env.CIRO_GITHUB_OAUTH_CLIENT_SECRET;
+  if(record.secret?.authMethod==="fine_grained_pat")
+    return {upstreamRevoked:false,reason:"fine_grained_pat_removed_locally_revoke_it_in_github_settings"};
   if(!client||!secret||!record.secret?.accessToken)
     return {upstreamRevoked:false,reason:"oauth_configuration_missing"};
   try {
@@ -279,10 +300,14 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     properties:{repo:{type:"string"},path:{type:"string"},branch:{type:"string"}},required:["repo","path"]},
   ciro_github_create_branch:{name:"github.create_branch",description:"在已授权仓库创建功能分支（可能需要用户审批）。",
     properties:{repo:{type:"string"},branch:{type:"string"}},required:["repo","branch"]},
-  ciro_github_write_file:{name:"github.write_file",description:"写入已授权功能分支的仓库文件（可能需要用户审批）。",
+  ciro_github_write_file:{name:"github.write_file",description:"写入已授权功能分支的仓库文件，必须经用户审批；不得直接写入主分支。",
     properties:{repo:{type:"string"},branch:{type:"string"},path:{type:"string"},
       content:{type:"string"},message:{type:"string"},expectedSha:{type:"string"}},
-    required:["repo","branch","path","content","message"]}
+    required:["repo","branch","path","content","message"]},
+  ciro_github_open_pull_request:{name:"github.open_pull_request",description:"仅在指定自研仓库创建草稿 PR，不会自动合并；操作必须由用户审批。",
+    properties:{repo:{type:"string"},branch:{type:"string"},base:{type:"string"},
+      title:{type:"string"},body:{type:"string"}},
+    required:["repo","branch","base","title"]}
  });
  function listModelTools(user) {
   const result=[];
@@ -295,6 +320,8 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     for(const [functionName,item] of Object.entries(MODEL_TOOLS)){
      const action=item.name==="github.read_file"?"github.read":
       item.name==="github.create_branch"?"github.branch":"github.write";
+     if(item.name==="github.open_pull_request"&&
+        (env.CIRO_GITHUB_SELF_REPAIR_ENABLED!=="true"||env.CIRO_GITHUB_SELF_REPO!==repo))continue;
      if(action!=="github.read"&&env.CIRO_GITHUB_WRITES!=="true")continue;
      if(decision(permission,action,{repo}).result==="deny")continue;
      result.push({type:"function",function:{name:functionName,description:item.description,
@@ -384,7 +411,11 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
     custom:policy().custom,
     writesEnabled:env.CIRO_GITHUB_WRITES==="true",
     oauthConfigured:env.CIRO_ACCOUNTS_ENABLED==="true"&&
-     Boolean(env.CIRO_GITHUB_OAUTH_CLIENT_ID&&env.CIRO_GITHUB_OAUTH_CLIENT_SECRET&&env.CIRO_PUBLIC_ORIGIN)
+     Boolean(env.CIRO_GITHUB_OAUTH_CLIENT_ID&&env.CIRO_GITHUB_OAUTH_CLIENT_SECRET&&env.CIRO_PUBLIC_ORIGIN),
+    tokenConnectionEnabled:env.CIRO_ACCOUNTS_ENABLED==="true"&&
+     env.CIRO_GITHUB_FINE_GRAINED_PAT_ENABLED==="true"&&env.CIRO_DEPLOYMENT_MODE!=="production",
+    selfRepairEnabled:env.CIRO_GITHUB_SELF_REPAIR_ENABLED==="true"&&
+     env.CIRO_GITHUB_SELF_REPO===policy().repo&&env.CIRO_GITHUB_WRITES==="true"
    },
    installed:installs.list(owner(req)),installAudit:installs.audit(owner(req)),
    jobs:jobs.list(owner(req)),
@@ -449,6 +480,47 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   if(req.principal?.mode!=="session")throw fail("Browser session required",403);
   if(req.body?.enabled===false)abortOperations(owner(req),req.params.id);
   res.json(installs.setEnabled(owner(req),req.params.id,req.body?.enabled));
+ }));
+ // Internal / desktop single-owner mode only. An independently issued fine-grained
+ // GitHub PAT is provided directly by the user inside the local CIRO app (never in chat).
+ // Never use this alternative for a public/multi-tenant deployment or a remote browser.
+ router.post("/github/connect-token",wrap(async(req,res)=>{
+  if(env.CIRO_GITHUB_FINE_GRAINED_PAT_ENABLED!=="true"||
+     env.CIRO_ACCOUNTS_ENABLED!=="true"||env.CIRO_DEPLOYMENT_MODE==="production"||
+     req.principal?.mode!=="session")
+    throw fail("Local authenticated GitHub token connection is disabled",403);
+  const remote=req.socket.remoteAddress||"";
+  const originHeader=req.get("origin")||"";
+  const host=req.get("host")||"";
+  let origin;
+  try{origin=new URL(originHeader);}catch{throw fail("Same-origin desktop session required",403);}
+  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(remote)||
+     !["127.0.0.1","localhost","[::1]"].includes(origin.hostname)||
+     origin.protocol!=="http:"||origin.host!==host||
+     (req.get("sec-fetch-site")&&!["same-origin","none"].includes(req.get("sec-fetch-site"))))
+    throw fail("GitHub personal token may only be connected from the local app",403);
+  const installation=assertInstalled(owner(req),"github");
+  if(!installation.installationId)throw fail("Plugin must be reinstalled",409);
+  const repo=repoAllowed(env,policy().repo);
+  const token=req.body?.token;
+  if(typeof token!=="string"||!/^github_pat_[A-Za-z0-9_]{40,300}$/.test(token))
+    throw fail("Use a repository-restricted GitHub fine-grained PAT",400);
+  const identity=await jsonRequest("https://api.github.com/user",{
+    token,fetchFn,accept:"application/vnd.github+json"});
+  if(!Number.isInteger(identity.id)||typeof identity.login!=="string"||
+     identity.login.length>100)
+    throw fail("GitHub identity could not be verified",502);
+  await jsonRequest("https://api.github.com/repos/"+repo,{
+    token,fetchFn,accept:"application/vnd.github+json"});
+  assertInstalled(owner(req),"github");
+  if(policy().repo!==repo)throw fail("Repository scope changed during connection",403);
+  store.putConnection({ownerId:owner(req),provider:"github",
+    installationId:installation.installationId,
+    account:{id:identity.id,login:identity.login},
+    secret:{accessToken:token,authMethod:"fine_grained_pat"},
+    scopes:["selected_repo_only","provider_token_permissions_unverified"]});
+  res.json({connected:true,provider:"github",login:identity.login,repo,
+    note:"Token encrypted locally. Revoke the fine-grained PAT in GitHub settings when finished."});
  }));
  router.post("/github/connect",wrap((req,res)=>{
   const installation=assertInstalled(owner(req),"github");
