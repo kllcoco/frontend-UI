@@ -164,28 +164,28 @@
 .wb-root--embedded .wb-approval{flex-wrap:wrap}
 .wb-root--embedded .wb-plugin{padding:12px}
 :root[data-theme="dark"] .wb-root{
-  --wb-ink:#ddf6e3;--wb-muted:#87a694;--wb-line:#254737;--wb-card:#10251d;--wb-soft:#112c20;--wb-accent:#81d8a0;--wb-bg:#0b1b15;
+  --wb-ink:#e3f0e6;--wb-muted:#8e9f95;--wb-line:#3b3a36;--wb-card:#1d1c1b;--wb-soft:#21211f;--wb-accent:#95c4a6;--wb-bg:#151413;
 }
 :root[data-theme="dark"] .wb-root, :root[data-theme="dark"] .wb-hero,
 :root[data-theme="dark"] .wb-goal-card,:root[data-theme="dark"] .wb-phase,
 :root[data-theme="dark"] .wb-card,:root[data-theme="dark"] .wb-plugin,
 :root[data-theme="dark"] .wb-schedule,:root[data-theme="dark"] .wb-mode,
-:root[data-theme="dark"] .wb-approval{background:#10251d;border-color:#294837;color:#c2dcc9}
+:root[data-theme="dark"] .wb-approval{background:#1d1c1b;border-color:#3e3c39;color:#c8d6cc}
 :root[data-theme="dark"] .wb-header h1,:root[data-theme="dark"] .wb-block-title h2,
 :root[data-theme="dark"] .wb-goal-info>strong,:root[data-theme="dark"] .wb-phase strong,
 :root[data-theme="dark"] .wb-hero-top h2,:root[data-theme="dark"] .wb-mode strong,
 :root[data-theme="dark"] .wb-card h3,:root[data-theme="dark"] .wb-plugin h3,
-:root[data-theme="dark"] .wb-schedule strong{color:#d1f1db}
+:root[data-theme="dark"] .wb-schedule strong{color:#d8eade}
 :root[data-theme="dark"] .wb-label input,:root[data-theme="dark"] .wb-label textarea,
 :root[data-theme="dark"] .wb-label select,:root[data-theme="dark"] .wb-field-row input,
-:root[data-theme="dark"] .wb-editor textarea{background:#081d14;color:#d7eee0;border-color:#335842}
+:root[data-theme="dark"] .wb-editor textarea{background:#141413;color:#dce9e1;border-color:#4c4a46}
 :root[data-theme="dark"] .wb-nav-item--active,:root[data-theme="dark"] .wb-mode--selected,
-:root[data-theme="dark"] .wb-switcher,.wb-switcher .wb-selected{border-color:#376848}
+:root[data-theme="dark"] .wb-switcher,.wb-switcher .wb-selected{border-color:#575550}
 :root[data-theme="dark"] .wb-empty,:root[data-theme="dark"] .wb-footnote,
 :root[data-theme="dark"] .wb-secondary,:root[data-theme="dark"] .wb-refresh,
-:root[data-theme="dark"] .wb-scope{background:#132e20;border-color:#30543b;color:#aed8bc}
+:root[data-theme="dark"] .wb-scope{background:#232321;border-color:#484743;color:#b7cfbf}
 :root[data-theme="dark"] .wb-hero p,:root[data-theme="dark"] .wb-mode small,
-:root[data-theme="dark"] .wb-goal-info p,:root[data-theme="dark"] .wb-plugin p{color:#8fac98}
+:root[data-theme="dark"] .wb-goal-info p,:root[data-theme="dark"] .wb-plugin p{color:#96a59a}
 @media(max-width:1050px){.wb-body{padding:20px 22px 28px}.wb-header{padding:21px 22px 14px}.wb-nav{padding:0 22px 13px}
   .wb-pipeline{gap:4px}.wb-phase{padding:15px 4px 10px}
 }

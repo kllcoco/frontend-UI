@@ -305,3 +305,26 @@ test("model training dashboard only returns native metadata, sanitized runs and 
   try{assert.equal((await empty.request("/model-control")).status,503);}
   finally{await empty.close();}
 });
+
+test("thinking depth slider forwards OpenAI-compatible reasoning_effort and rejects unknown levels",()=>{
+  const input={model:"ciro",messages:[{role:"user",content:"hi"}]};
+  const fast=validateChat({...input,reasoning:{mode:"fast",effort:"high"}},["ciro"]);
+  assert.equal(fast.reasoning_effort,"high");
+  assert.equal(fast.ciro_reasoning,undefined);
+  const deep=validateChat({...input,reasoning:{mode:"deep",effort:"medium",maxSeconds:180,priority:1}},["ciro"],["fast","deep"]);
+  assert.equal(deep.reasoning_effort,"medium");
+  assert.deepEqual(deep.ciro_reasoning,{mode:"deep",maxSeconds:180,priority:1});
+  assert.equal(validateChat({...input,reasoning:{mode:"fast",effort:"low"}},["ciro"],["fast"],false).reasoning_effort,undefined);
+  assert.throws(()=>validateChat({...input,reasoning:{mode:"fast",effort:"ultra"}},["ciro"]),ValidationError);
+});
+
+test("project context becomes a bounded system message and oversized projects are rejected",()=>{
+  const input={model:"ciro",messages:[{role:"user",content:"hi"}]};
+  const ok=validateChat({...input,project:{name:"Thesis",instructions:"Cite sources",files:[{name:"notes.md",content:"alpha"}]}},["ciro"]);
+  assert.equal(ok.messages[0].role,"system");
+  assert.match(ok.messages[0].content,/Thesis/);
+  assert.match(ok.messages[0].content,/notes\.md[\s\S]*alpha/);
+  assert.equal(validateChat({...input,project:{name:"Empty",instructions:"",files:[]}},["ciro"]).messages[0].role,"user");
+  assert.throws(()=>validateChat({...input,project:{name:"X",instructions:"y".repeat(4001)}},["ciro"]),ValidationError);
+  assert.throws(()=>validateChat({...input,project:{name:"X",files:Array.from({length:3},()=>({name:"a",content:"b".repeat(79_000)}))}},["ciro"]),ValidationError);
+});

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import "./lib/desktop";
 import "./styles.css";
 import "./cinematic.css";
 import "./settings.css";
@@ -9,6 +10,10 @@ import "./workbench.css";
 import "./workbench-entry.css";
 import "./commercial.css";
 import "./account.css";
+import "./studio.css";
+import "./shell.css";
+
+if (window.ciroDesktop) document.documentElement.dataset.desktop = window.ciroDesktop.platform;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

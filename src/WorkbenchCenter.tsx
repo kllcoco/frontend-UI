@@ -306,7 +306,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
       </div>}
 
       {state&&currentTab==="plugins"&&<div className="wb-admin">
-        <PluginConnections/>
+        <PluginConnections language={language}/>
 
       </div>}
 

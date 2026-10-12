@@ -184,22 +184,22 @@
 .stu-feature-launch:hover{background:#f3fbf5}
 .stu-root .stu-card .stu-status{margin-bottom:12px}
 .stu-card>.stu-primary,.stu-card>.stu-light-button{margin-top:10px}
-:root[data-theme="dark"] .stu-root{color:#d7e9d9}
+:root[data-theme="dark"] .stu-root{color:#dbe5dc}
 :root[data-theme="dark"] .stu-header h1,:root[data-theme="dark"] .stu-card h3,
-:root[data-theme="dark"] .stu-section-head h3,:root[data-theme="dark"] .stu-module strong{color:#d1eed9}
+:root[data-theme="dark"] .stu-section-head h3,:root[data-theme="dark"] .stu-module strong{color:#d8e7dc}
 :root[data-theme="dark"] .stu-module,:root[data-theme="dark"] .stu-card,
 :root[data-theme="dark"] .stu-feature-launch,:root[data-theme="dark"] .stu-metric,
-:root[data-theme="dark"] .stu-editor-pane,:root[data-theme="dark"] .stu-search-bar{background:#11271c;border-color:#2b4b36}
-:root[data-theme="dark"] .stu-hero{background:linear-gradient(110deg,#183422,#234930);border-color:#386246}
-:root[data-theme="dark"] .stu-hero h2{color:#b6e9c7}
+:root[data-theme="dark"] .stu-editor-pane,:root[data-theme="dark"] .stu-search-bar{background:#1f1e1c;border-color:#403f3b}
+:root[data-theme="dark"] .stu-hero{background:linear-gradient(110deg,#292926,#3b3a36);border-color:#54524e}
+:root[data-theme="dark"] .stu-hero h2{color:#c1decb}
 :root[data-theme="dark"] .stu-mode-list>div,:root[data-theme="dark"] .stu-file-tree,
-:root[data-theme="dark"] .stu-library-list{background:#182e21;border-color:#2c4938}
+:root[data-theme="dark"] .stu-library-list{background:#262523;border-color:#403f3b}
 :root[data-theme="dark"] .stu-root input,:root[data-theme="dark"] .stu-root textarea,
-:root[data-theme="dark"] .stu-root select{background:#0c2116;color:#e2efe4;border-color:#355442}
+:root[data-theme="dark"] .stu-root select{background:#191817;color:#e5ece6;border-color:#4b4945}
 :root[data-theme="dark"] .stu-empty,:root[data-theme="dark"] .stu-banner,
-:root[data-theme="dark"] .stu-diff-grid pre{background:#182b1f;border-color:#30513c}
-:root[data-theme="dark"] .stu-module--accent{background:#1c3b29}
-:root[data-theme="dark"] .stu-metric strong{color:#a4e3b8}
+:root[data-theme="dark"] .stu-diff-grid pre{background:#252422;border-color:#464541}
+:root[data-theme="dark"] .stu-module--accent{background:#302e2c}
+:root[data-theme="dark"] .stu-metric strong{color:#b2d5bd}
 @media(max-width:1050px){
   .stu-root{padding:21px 21px 50px}
   .stu-module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}

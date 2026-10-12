@@ -176,6 +176,9 @@ const terms:Readonly<Record<string,string>>={
   "等待中": "Waiting",
   "保留证据": "Evidence retained",
   "关联协作空间": "Open project workbench",
-  "开始聊天": "Start chat"
+  "开始聊天": "Start chat",
+  "需要先在服务端配置：": "Requires server configuration: ",
+  "该功能需要连接原生服务。请在服务端 .env 配置 ": "This feature needs a native service. Configure ",
+  " 后重启。": " in the server .env and restart."
 };
 export function studioTranslate(language:Language,value:string){return language==="en"?(terms[value]||value):value;}

@@ -1,3 +1,4 @@
+import { go, setLanguage } from "./helpers";
 import { test, expect, type Locator } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
@@ -24,13 +25,13 @@ async function openSettings(page: import("@playwright/test").Page) {
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
-test("default first visit is Chinese with white background and the approved moon logo", async ({ page }) => {
+test("default first visit is Chinese with the ivory theme and orbit logo", async ({ page }) => {
   await waitForPreview(page);
   await expect(page).toHaveTitle(/Ciro/);
   await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-  await expect(page.locator(".workspace")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(page.locator(".workspace")).toHaveCSS("background-color", "rgb(250, 249, 246)");
   await expect(page.locator(".wallpaper-image")).toHaveCount(0);
   await expect(page.locator(".suggestion-card")).toHaveCount(4);
   await page.screenshot({ path: imageDir + "/01-welcome-desktop.png", fullPage: true, animations: "disabled" });
@@ -136,7 +137,7 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
   await page.screenshot({ path: imageDir + "/13-settings-privacy.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "关于 Ciro", exact: true }).click();
-  await expect(page.getByText("CIRO CLIENT · PREVIEW v0.7")).toBeVisible();
+  await expect(page.getByText("CIRO CLIENT · v0.9")).toBeVisible();
   await page.screenshot({ path: imageDir + "/14-settings-about.png", fullPage: true, animations: "disabled" });
 });
 
@@ -167,10 +168,8 @@ test("English interface is complete, persists across reloads, and returns to Chi
   await page.getByRole("button", { name: "完成" }).click();
   await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-  await page.getByRole("button", { name: "切换语言" }).click();
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await page.getByRole("button", { name: "Switch language" }).click();
-  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await setLanguage(page, "en");
+  await setLanguage(page, "zh");
 });
 
 test("mobile navigation and settings stay inside the viewport", async ({ page }) => {
@@ -179,16 +178,14 @@ test("mobile navigation and settings stay inside the viewport", async ({ page })
   await expect(page.getByRole("button", { name: "打开侧栏" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/08-mobile-welcome.png", fullPage: true, animations: "disabled" });
   await page.getByRole("button", { name: "打开侧栏" }).click();
-  await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await go(page, "设置");
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "外观与背景" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "通用设置" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/09-mobile-settings.png", fullPage: true, animations: "disabled" });
-  const mobileStatus = await page.locator(".connection-label").evaluate((element) => ({
-    width: element.clientWidth,
-    fontSize: getComputedStyle(element).fontSize
-  }));
-  expect(mobileStatus.width).toBeLessThanOrEqual(30);
-  expect(mobileStatus.fontSize).toBe("0px");
+  await page.getByRole("button", { name: "完成" }).click();
+  await expect(page.locator(".connection-text")).toBeHidden();
+  const mobileStatus = await page.locator(".connection-label").evaluate((element) => element.clientWidth);
+  expect(mobileStatus).toBeLessThanOrEqual(32);
   const width = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth }));
   expect(width.doc).toBeLessThanOrEqual(width.win + 1);
 });
@@ -196,7 +193,7 @@ test("mobile navigation and settings stay inside the viewport", async ({ page })
 
 test("workbench is accessible and unmet runtime requirements stay explicit", async ({page}) => {
   await waitForPreview(page);
-  await page.locator(".studio-launch").click();
+  await go(page,"协作空间");
   await expect(page.getByRole("heading",{name:"自主协作工作台"})).toBeVisible();
   await expect(page.getByText("执行引擎未连接").first()).toBeVisible();
   await expect(page.getByText("独立验证器未连接").first()).toBeVisible();
@@ -209,7 +206,7 @@ test("workbench is accessible and unmet runtime requirements stay explicit", asy
 
 test("four sandbox permission modes require scoped consent", async ({page})=>{
   await waitForPreview(page);
-  await page.locator(".studio-launch").click();
+  await go(page,"协作空间");
   await page.getByRole("button",{name:"权限与沙盒"}).click();
   await page.getByRole("button",{name:/完全访问/}).click();
   const save=page.getByRole("button",{name:"保存权限"});
@@ -225,7 +222,7 @@ test("four sandbox permission modes require scoped consent", async ({page})=>{
 
 test("scheduled tasks and manually installed marketplace render without fake plugin readiness", async ({page},testInfo)=>{
   await waitForPreview(page);
-  await page.locator(".studio-launch").click();
+  await go(page,"协作空间");
   await page.getByRole("button",{name:"定时任务"}).click();
   // Retry-safe: a previous attempt may already have persisted another schedule.
   const name="Hourly report - attempt "+testInfo.retry+" - "+Date.now();
@@ -250,13 +247,13 @@ test("scheduled tasks and manually installed marketplace render without fake plu
 
 test("GitHub settings require server authorization rather than browser tokens", async ({page})=>{
   await waitForPreview(page);
-  await page.locator(".studio-launch").click();
+  await go(page,"协作空间");
   await page.getByRole("button",{name:"GitHub 仓库"}).click();
   await expect(page.getByText("服务端未配置 GitHub 凭据")).toBeVisible();
   await expect(page.getByText("CIRO_GITHUB_TOKEN / CIRO_GITHUB_REPOS")).toBeVisible();
   await expect(page.getByRole("button",{name:"验证并连接"})).toBeDisabled();
   await page.screenshot({path:imageDir+"/21-workbench-github.png",fullPage:true,animations:"disabled"});
-  await page.getByRole("button",{name:"设置与连接"}).click();
+  await go(page,"设置");
   await page.getByRole("button",{name:"GitHub 连接",exact:true}).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.locator(".sc-scroll .wb-block-title").getByText("GitHub 集成")).toBeVisible();
@@ -264,7 +261,9 @@ test("GitHub settings require server authorization rather than browser tokens", 
 
 test("plan composer sends a plan job to the workbench", async ({page})=>{
   await waitForPreview(page);
-  await page.getByRole("button",{name:"计划模式"}).click();
+  await page.getByRole("button",{name:"添加附件与模式"}).click();
+  await page.getByRole("menuitemradio",{name:/计划模式/}).click();
+  await expect(page.getByRole("button",{name:/退出 计划模式/})).toBeVisible();
   await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("设计一套模块化任务计划");
   await page.getByRole("button",{name:"发送消息"}).click();
   await expect(page.getByRole("heading",{name:"自主协作工作台"})).toBeVisible();
@@ -274,9 +273,9 @@ test("plan composer sends a plan job to the workbench", async ({page})=>{
 test("English multi-agent workbench remains translated and mobile width-safe", async ({page})=>{
   await page.setViewportSize({width:390,height:844});
   await waitForPreview(page);
-  await page.getByRole("button",{name:"切换语言"}).click();
+  await setLanguage(page,"en");
   await page.getByRole("button",{name:"Open sidebar"}).click();
-  await page.locator(".studio-launch").click();
+  await go(page,"协作空间");
   await expect(page.getByRole("heading",{name:"Autonomous Workbench"})).toBeVisible();
   await page.getByRole("button",{name:"Permissions & sandbox"}).click();
   await expect(page.getByRole("heading",{name:"Execution permissions"})).toBeVisible();
@@ -305,7 +304,7 @@ test("custom instructions save in browser and can be enabled independently of ag
 
 test("billing dashboard shows honest unconfigured usage and saves budget preferences", async ({page})=>{
   await waitForPreview(page);
-  await page.getByRole("button",{name:"账单与用量",exact:true}).click();
+  await go(page,"账单与用量");
   await expect(page.locator(".com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
   await expect(page.getByText("暂无真实用量记录")).toBeVisible();
   await expect(page.getByText("无收费服务接入")).toBeVisible();
@@ -320,13 +319,13 @@ test("billing dashboard shows honest unconfigured usage and saves budget prefere
   await expect(page.getByRole("heading",{name:"支付方式"})).toBeVisible();
   await page.screenshot({path:imageDir+"/25-billing-invoices.png",fullPage:true,animations:"disabled"});
   await page.reload({waitUntil:"domcontentloaded"});
-  await page.getByRole("button",{name:"账单与用量",exact:true}).click();
+  await go(page,"账单与用量");
   await expect(page.locator(".com-budget-numbers")).toContainText("$10.50");
 });
 
 test("first-party application directory supports search, persistent pinning and real navigation",async ({page})=>{
   await waitForPreview(page);
-  await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await go(page,"官方应用");
   await expect(page.locator(".com-page-head").getByRole("heading",{name:"官方应用"})).toBeVisible();
   await expect(page.locator(".com-app-card")).toHaveCount(8);
   await page.screenshot({path:imageDir+"/26-official-apps.png",fullPage:true,animations:"disabled"});
@@ -336,7 +335,7 @@ test("first-party application directory supports search, persistent pinning and 
   await expect(page.locator(".com-app-card")).toHaveCount(1);
   await page.getByRole("textbox",{name:"搜索应用"}).fill("");
   await page.reload({waitUntil:"domcontentloaded"});
-  await page.getByRole("button",{name:"官方应用",exact:true}).click();
+  await go(page,"官方应用");
   await expect(page.getByRole("button",{name:"取消收藏: Ciro GitHub"})).toBeVisible();
   await page.locator(".com-app-card").filter({hasText:"Ciro GitHub"}).getByRole("button",{name:/打开/}).click();
   await expect(page.getByRole("heading",{name:"GitHub 集成"})).toBeVisible();
@@ -344,7 +343,7 @@ test("first-party application directory supports search, persistent pinning and 
 
 test("skills catalog enables reviewed manifests without pretending a runner exists",async ({page})=>{
   await waitForPreview(page);
-  await page.getByRole("button",{name:"技能中心",exact:true}).click();
+  await go(page,"技能中心");
   await expect(page.locator(".com-page-head").getByRole("heading",{name:"技能中心"})).toBeVisible();
   await expect(page.locator(".com-skill")).toHaveCount(7);
   await expect(page.getByText("技能尚不能执行").first()).toBeVisible();
@@ -355,7 +354,7 @@ test("skills catalog enables reviewed manifests without pretending a runner exis
   await expect(review.getByText("已选择，等待执行器")).toBeVisible();
   await page.screenshot({path:imageDir+"/28-skill-enabled.png",fullPage:true,animations:"disabled"});
   await page.reload({waitUntil:"domcontentloaded"});
-  await page.getByRole("button",{name:"技能中心",exact:true}).click();
+  await go(page,"技能中心");
   await expect(page.locator(".com-skill").filter({hasText:"代码审查"}).getByRole("button",{name:"取消技能"})).toBeVisible();
 });
 
@@ -377,9 +376,9 @@ test("billing, apps and skills also appear in settings and slash navigation",asy
 test("billing and app catalog translate into English without mobile viewport overflow",async ({page})=>{
   await page.setViewportSize({width:390,height:844});
   await waitForPreview(page);
-  await page.getByRole("button",{name:"切换语言"}).click();
+  await setLanguage(page,"en");
   await page.getByRole("button",{name:"Open sidebar"}).click();
-  await page.getByRole("button",{name:"Billing & usage",exact:true}).click();
+  await go(page,"Billing & usage");
   await expect(page.locator(".com-page-head").getByRole("heading",{name:"Billing & usage"})).toBeVisible();
   await page.screenshot({path:imageDir+"/29-billing-mobile-en.png",fullPage:true,animations:"disabled"});
   const dimensions=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,win:window.innerWidth}));

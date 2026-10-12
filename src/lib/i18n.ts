@@ -266,18 +266,198 @@ const translations: Readonly<Record<string,string>> = {
   "例如：中文优先，重要工程结论必须附验证证据。": "For example: Prefer Chinese and attach evidence to engineering claims.",
   "本地保存，模型调用时发送": "Stored locally, sent when chatting",
   "指令保存在当前浏览器；启用后会发送到配置的推理服务，但不能替代沙盒或 GitHub 权限设置。": "Instructions stay in this browser until enabled and sent to your model. They cannot override sandbox or GitHub permissions.",
-  "Ciro — 让每一个想法，走得更远": "Ciro — Let every idea go further"
+  "Ciro — 让每一个想法，走得更远": "Ciro — Let every idea go further",
+  "Ciro 会用它来问候你。": "Ciro uses it to greet you.",
+  "Ciro 账户": "Ciro account",
+  "GitHub 仓库": "GitHub repository",
+  "下午好": "Good afternoon",
+  "下载桌面客户端": "Download desktop app",
+  "个人资料": "Profile",
+  "个性化": "Personalization",
+  "中午好": "Good day",
+  "主导航": "Main navigation",
+  "主题": "Theme",
+  "交给代理自主执行并验证": "Let agents execute and verify",
+  "从这里创建分支": "Branch from here",
+  "以 reasoning_effort 传给模型服务": "Sent to your model as reasoning_effort",
+  "你的名字": "Your name",
+  "侧栏": "Sidebar",
+  "关闭": "Close",
+  "兼顾速度与质量": "Balances speed and quality",
+  "分支": "branch",
+  "分钟": "min",
+  "创建分支": "Branch created",
+  "创建检查点": "Checkpoint created",
+  "即时": "Instant",
+  "发送": "Send",
+  "取消": "Cancel",
+  "只生成计划，不改动仓库": "Plan only, no repository changes",
+  "回到底部": "Jump to latest",
+  "均衡": "Balanced",
+  "复制消息": "Copy message",
+  "多步推理并自我检查": "Multi-step reasoning with self-checks",
+  "夜深了": "Good evening",
+  "对话": "Chats",
+  "对话已删除": "Chat deleted",
+  "工作台与连接": "Workspace & connections",
+  "已归档": "Archived",
+  "已思考": "Thought for",
+  "已置顶": "Pinned",
+  "已退出登录": "Signed out",
+  "帮助与关于": "Help & about",
+  "当前模型服务未开启思考深度": "Your model service has thinking depth disabled",
+  "快捷操作": "Quick actions",
+  "快速打开工作台与工具": "Jump to workspaces and tools",
+  "思考深度": "Thinking depth",
+  "思考过程": "Thoughts",
+  "恢复此版本": "Version restored",
+  "打开": "Open",
+  "打开协作空间": "Open workbench",
+  "打开融合工作台": "Open unified studio",
+  "打开设置": "Open settings",
+  "打开账户菜单": "Open account menu",
+  "折叠 / 展开侧栏": "Toggle sidebar",
+  "拖动滑杆调节 Ciro 回答前的思考时间": "Drag to set how long Ciro thinks before answering",
+  "描述你希望 Ciro 自主完成的目标…": "Describe a goal for Ciro to complete…",
+  "描述需要规划的任务…": "Describe the task to plan…",
+  "插件中心": "Plugins",
+  "搜索对话或输入命令…": "Search chats or type a command…",
+  "文本或代码文件，每个不超过 80 KB": "Text or code files, up to 80 KB each",
+  "文本或代码，最多 3 个": "Text or code, up to 3 files",
+  "斜杠命令": "Slash commands",
+  "新对话": "New chat",
+  "早上好": "Good morning",
+  "显示在左下角的个人菜单中；登录账户后使用账户名称。": "Shown in the profile menu at the bottom left; your account name is used when signed in.",
+  "显示所有命令": "Show all commands",
+  "晚上好": "Good evening",
+  "更多工具": "More tools",
+  "最近对话": "Recent chats",
+  "最长": "up to",
+  "最长思考预算，适合难题": "Longest budget, for the hardest problems",
+  "未登录": "Signed out",
+  "本地模式": "Local mode",
+  "本地模式 · 数据保存在此设备": "Local mode · data stays on this device",
+  "松开以添加附件": "Drop to attach",
+  "极致": "Max",
+  "查看快捷键": "Show shortcuts",
+  "模型与连接设置": "Model & connection settings",
+  "正在思考…": "Thinking…",
+  "浅色": "Light",
+  "深入": "Deep",
+  "深色": "Dark",
+  "添加附件与模式": "Attachments & modes",
+  "由 CIRO 原生深度推理执行": "Runs on CIRO native deep reasoning",
+  "登录": "Sign in",
+  "目标模式：交给代理自主完成": "Goal mode: agents complete it autonomously",
+  "直接回答，速度最快": "Answers right away, fastest",
+  "秒": "s",
+  "简单想一想再回答": "Thinks briefly first",
+  "编辑上一条消息": "Edit last message",
+  "编辑消息": "Edit message",
+  "背景与外观…": "Background & appearance…",
+  "计划模式：只规划不执行": "Plan mode: plan without executing",
+  "语言": "Language",
+  "账户": "Account",
+  "账户菜单": "Account menu",
+  "跟随系统": "System",
+  "跟随系统时，菜单与界面会随操作系统语言自动切换。": "With System, menus and UI follow your operating system language.",
+  "轻度": "Light",
+  "过去 30 天": "Previous 30 days",
+  "过去 7 天": "Previous 7 days",
+  "退出": "Exit",
+  "退出失败": "Sign-out failed",
+  "退出登录": "Sign out",
+  "选择": "Select",
+  "键盘快捷键": "Keyboard shortcuts",
+  "预览模式：连接推理服务后生效": "Preview mode: applies once inference is connected",
+  "默认保存在当前设备；登录后可在「跨设备同步」中开启云端同步。": "Saved on this device by default; sign in to enable Device sync.",
+  "已取消置顶": "Unpinned",
+  "置顶": "Pin",
+  "取消置顶": "Unpin",
+  "需要先在服务端配置：": "Requires server configuration: ",
+  "该功能需要连接原生服务。请在服务端 .env 配置 ": "This feature needs a native service. Configure ",
+  " 后重启。": " in the server .env and restart.",
+  "/goal": "/goal",
+  "个对话": "chats",
+  "个文件": "files",
+  "临时": "Temporary",
+  "临时对话": "Temporary chat",
+  "临时对话：不会保存到历史记录": "Temporary chat: won't be saved to history",
+  "例如：这是我的毕业论文项目，回答时使用学术语气，并标注引用来源。": "e.g. This is my thesis project. Use an academic tone and cite sources.",
+  "停止朗读": "Stop reading",
+  "停止语音输入": "Stop dictation",
+  "删除项目": "Delete project",
+  "删除项目后，其中的对话会移回“最近”，确定删除？": "Deleting the project moves its chats back to Recents. Delete it?",
+  "在下方输入框开始此项目的第一个对话": "Start this project's first chat in the box below",
+  "在此项目中开始新对话…": "Start a new chat in this project…",
+  "在此项目的每次对话中，Ciro 都会参考这些指令。": "Ciro follows these instructions in every chat in this project.",
+  "复制代码": "Copy code",
+  "已关闭临时对话": "Temporary chat off",
+  "已复制": "Copied",
+  "已移出项目": "Removed from project",
+  "已移动到项目": "Moved to project",
+  "感谢反馈": "Thanks for the feedback",
+  "感谢反馈，我们会改进": "Thanks — we'll use this to improve",
+  "打开项目": "Open project",
+  "文件已添加到项目": "Files added to project",
+  "文本或代码文件会作为参考资料随项目对话发送。": "Text or code files are sent as reference material with project chats.",
+  "新建项目": "New project",
+  "新建项目，归类相关对话": "New project to group related chats",
+  "有帮助": "Good response",
+  "朗读": "Read aloud",
+  "此对话不会出现在历史记录中，也不会同步或用于记忆。离开后即删除。": "This chat won't appear in history, sync or memory. It's deleted when you leave.",
+  "每个项目最多 10 个文件": "Up to 10 files per project",
+  "没有帮助": "Bad response",
+  "添加文件": "Add files",
+  "移出项目": "Remove from project",
+  "移动到项目": "Move to project",
+  "语音输入": "Dictate",
+  "语音输入不可用": "Dictation unavailable",
+  "返回首页": "Back to home",
+  "还没有项目": "No projects yet",
+  "重命名项目": "Rename project",
+  "项目中的对话": "Chats in this project",
+  "项目名称": "Project name",
+  "项目已创建": "Project created",
+  "项目已删除": "Project deleted",
+  "项目指令": "Project instructions",
+  "项目文件": "Project files",
+  "项目文件总大小不能超过 200 KB": "Project files can't exceed 200 KB in total",
+  "项目颜色": "Project color",
+  "麦克风权限被拒绝": "Microphone permission denied"
 };
 /** Only UI text is translated; user messages and model replies are never rewritten. */
 export function translate(language: Language, text: string): string {
   return language === "en" ? (translations[text] ?? text) : text;
 }
+/** "system" follows the operating system / browser language; Simplified Chinese is the default. */
+export type LanguagePref = Language | "system";
+export function systemLanguage(): Language {
+  const list = typeof navigator === "undefined" ? [] : (navigator.languages?.length ? navigator.languages : [navigator.language]);
+  for (const tag of list) {
+    const lower = String(tag || "").toLowerCase();
+    if (lower.startsWith("zh")) return "zh-CN";
+    if (lower.startsWith("en")) return "en";
+  }
+  return list.length ? "en" : DEFAULT_LANGUAGE;
+}
+export function resolveLanguage(pref: LanguagePref): Language {
+  return pref === "system" ? systemLanguage() : pref;
+}
+export function loadLanguagePref(): LanguagePref {
+  try {
+    const value = localStorage.getItem(STORAGE_KEY);
+    return value === "en" || value === "zh-CN" || value === "system" ? value : DEFAULT_LANGUAGE;
+  } catch { return DEFAULT_LANGUAGE; }
+}
+export function saveLanguagePref(pref: LanguagePref): void {
+  try { localStorage.setItem(STORAGE_KEY, pref); } catch { /* private browsing */ }
+}
 export function loadLanguage(): Language {
-  try { return localStorage.getItem(STORAGE_KEY) === "en" ? "en" : DEFAULT_LANGUAGE; }
-  catch { return DEFAULT_LANGUAGE; }
+  return resolveLanguage(loadLanguagePref());
 }
 export function saveLanguage(language: Language): void {
-  try { localStorage.setItem(STORAGE_KEY, language); } catch { /* private browsing */ }
+  saveLanguagePref(language);
 }
 export function previewText(language: Language): string {
   if (language === "en") {

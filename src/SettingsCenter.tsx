@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, Wallet, X } from "lucide-react";
+import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Wallet, X, Monitor } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
 import type { ChatPreferences } from "./lib/preferences";
 import type { ApiStatus, Conversation } from "./types";
-import { translate } from "./lib/i18n";
-import type { Language } from "./lib/i18n";
+import { translate, systemLanguage } from "./lib/i18n";
+import type { Language, LanguagePref } from "./lib/i18n";
+import type { ThemePref } from "./lib/storage";
 import WorkbenchCenter from "./WorkbenchCenter";
 import AccountCenter from "./AccountCenter";
 import type {AccountTab} from "./lib/account-api";
@@ -17,10 +18,14 @@ import type { WorkbenchTab } from "./lib/workbench-api";
 type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
+  initialSection?: string;
   language: Language;
-  onLanguageChange: (language: Language) => void;
-  theme: "light" | "dark";
-  onThemeChange: (value: "light" | "dark") => void;
+  languagePref: LanguagePref;
+  onLanguagePrefChange: (language: LanguagePref) => void;
+  themePref: ThemePref;
+  onThemePrefChange: (value: ThemePref) => void;
+  displayName: string;
+  onDisplayNameChange: (value: string) => void;
   appearance: AppearanceSettings;
   onAppearanceChange: (value: AppearanceSettings) => void;
   customImageUrl: string | null;
@@ -38,8 +43,8 @@ type SettingsProps = {
   onExportAll: () => void;
   onClearHistory: () => void;
 };
-const sections: { id: Section; label: string; icon: typeof Palette }[] = [
-  { id: "general", label: "通用设置", icon: Settings2 },
+const sections: { id: Section; label: string; icon: typeof Palette; group?: string }[] = [
+  { id: "general", label: "通用设置", icon: Settings2, group: "偏好与配置" },
   { id: "instructions", label: "自定义指令", icon: FileText },
   { id: "appearance", label: "外观与背景", icon: Palette },
   { id: "models", label: "模型设置", icon: Sparkles },
@@ -48,14 +53,14 @@ const sections: { id: Section; label: string; icon: typeof Palette }[] = [
   { id: "shortcuts", label: "快捷键", icon: Keyboard },
   { id: "security", label: "隐私与安全", icon: ShieldCheck },
   { id: "about", label: "关于 Ciro", icon: Info },
-  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck },
+  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与连接" },
   { id: "github", label: "GitHub 连接", icon: GitBranch },
   { id: "plugins", label: "插件管理", icon: PlugZap },
   { id: "schedules", label: "定时任务", icon: CalendarClock },
   { id: "billing", label: "账单与用量", icon: Wallet },
   { id: "apps", label: "官方应用", icon: LayoutGrid },
   { id: "skills", label: "技能中心", icon: Sparkles },
-  { id: "account", label: "账户与安全", icon: Settings2 },
+  { id: "account", label: "账户与安全", icon: UserRound, group: "账户" },
   { id: "subscription", label: "订阅管理", icon: Wallet },
   { id: "api-keys", label: "API 密钥", icon: GitBranch },
   { id: "spending", label: "消费限额", icon: Wallet },
@@ -81,12 +86,14 @@ function Slider({ title, value, min, max, suffix, onChange }: {
 }
 
 export default function SettingsCenter({
-  onClose, language, onLanguageChange, theme, onThemeChange, appearance, onAppearanceChange, customImageUrl,
+  onClose, initialSection, language, languagePref, onLanguagePrefChange, themePref, onThemePrefChange,
+  displayName, onDisplayNameChange, appearance, onAppearanceChange, customImageUrl,
   onUploadImage, onRemoveImage, preferences, onPreferencesChange, instructions, onInstructionsChange, status, model,
   onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory
 }: SettingsProps) {
   const t = (value: string) => translate(language, value);
-  const [section, setSection] = useState<Section>("appearance");
+  const [section, setSection] = useState<Section>(() =>
+    sections.some((item) => item.id === initialSection) ? initialSection as Section : "appearance");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -125,10 +132,11 @@ export default function SettingsCenter({
     <section className="sc-shell" role="dialog" aria-modal="true" aria-labelledby="sc-title">
       <aside className="sc-nav">
         <div className="sc-logo"><CiroMark small/><div><strong>CIRO</strong><span>PERSONAL SETTINGS</span></div></div>
-        <div className="sc-nav-label">{t("偏好与配置")}</div>
-        <nav aria-label={t("设置类别")}>{sections.map(({ id, label, icon: Icon }) => <button type="button" key={id}
-          className={section === id ? "sc-nav-item sc-nav-item--active" : "sc-nav-item"}
-          onClick={() => { setSection(id); setError(null); }}><Icon size={17}/><span>{t(label)}</span><ChevronRight size={13} className="sc-nav-arrow"/></button>)}</nav>
+        <nav aria-label={t("设置类别")}>{sections.map(({ id, label, icon: Icon, group }) => <div key={id} className="sc-nav-entry">
+          {group && <div className="sc-nav-label">{t(group)}</div>}
+          <button type="button"
+          className={section === id ? "sc-nav-item sc-nav-item--active" : "sc-nav-item"} aria-current={section === id ? "page" : undefined}
+          onClick={() => { setSection(id); setError(null); }}><Icon size={17}/><span>{t(label)}</span><ChevronRight size={13} className="sc-nav-arrow"/></button></div>)}</nav>
         <div className="sc-nav-foot"><ShieldCheck size={15}/> {t("本地优先 · 由你掌控")}</div>
       </aside>
       <div className="sc-main">
@@ -150,11 +158,11 @@ export default function SettingsCenter({
               <span className="sc-preview-label">{t("实时预览 · 模糊 ")}{appearance.blur}px</span>
             </div>
             <SettingBlock title={t("主题模式")} subtitle={t("背景与界面颜色可以独立设置")}>
-              <div className="sc-theme-grid">
-                <button className={theme === "dark" ? "sc-theme-button sc-theme-button--active" : "sc-theme-button"} onClick={() => onThemeChange("dark")}>
-                  <Moon size={18}/><span>{t("深色月夜")}</span>{theme === "dark" && <Check size={16}/>}</button>
-                <button className={theme === "light" ? "sc-theme-button sc-theme-button--active" : "sc-theme-button"} onClick={() => onThemeChange("light")}>
-                  <Sun size={18}/><span>{t("浅色日光")}</span>{theme === "light" && <Check size={16}/>}</button>
+              <div className="sc-theme-grid sc-theme-grid--three">
+                {([["light", Sun, "浅色日光"], ["dark", Moon, "深色月夜"], ["system", Monitor, "跟随系统"]] as const).map(([id, Icon, label]) =>
+                  <button key={id} className={themePref === id ? "sc-theme-button sc-theme-button--active" : "sc-theme-button"}
+                    aria-pressed={themePref === id} onClick={() => onThemePrefChange(id)}>
+                    <Icon size={18}/><span>{t(label)}</span>{themePref === id && <Check size={16}/>}</button>)}
               </div>
             </SettingBlock>
             <SettingBlock title={t("背景图库")} subtitle={t("六套内置背景无需联网；自定义图片仅保存在当前设备")}>
@@ -197,13 +205,22 @@ export default function SettingsCenter({
           </>}
 
           {section === "general" && <>
+            <SettingBlock title={t("个人资料")} subtitle={t("显示在左下角的个人菜单中；登录账户后使用账户名称。")}>
+              <SettingRow title={t("你的名字")} description={t("Ciro 会用它来问候你。")}>
+                <input className="sc-text-input" aria-label={t("你的名字")} maxLength={40} value={displayName}
+                  placeholder={t("本地访客")} onChange={(event) => onDisplayNameChange(event.target.value)}/>
+              </SettingRow>
+            </SettingBlock>
             <SettingBlock title={t("语言与输入")}>
-              <SettingRow title={t("界面语言")} description={t("支持简体中文和英语，默认中文。")}>
+              <SettingRow title={t("界面语言")} description={t("跟随系统时，菜单与界面会随操作系统语言自动切换。")}>
                 <div className="sc-language-switch" role="group" aria-label={t("界面语言")}>
-                  <button type="button" className={language === "zh-CN" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
-                    aria-pressed={language === "zh-CN"} onClick={() => onLanguageChange("zh-CN")}>{t("简体中文")}</button>
-                  <button type="button" className={language === "en" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
-                    aria-pressed={language === "en"} onClick={() => onLanguageChange("en")}>English</button>
+                  <button type="button" className={languagePref === "system" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
+                    aria-pressed={languagePref === "system"} onClick={() => onLanguagePrefChange("system")}
+                    title={systemLanguage() === "en" ? "English" : "简体中文"}>{t("跟随系统")}</button>
+                  <button type="button" className={languagePref === "zh-CN" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
+                    aria-pressed={languagePref === "zh-CN"} onClick={() => onLanguagePrefChange("zh-CN")}>{t("简体中文")}</button>
+                  <button type="button" className={languagePref === "en" ? "sc-language-option sc-language-option--active" : "sc-language-option"}
+                    aria-pressed={languagePref === "en"} onClick={() => onLanguagePrefChange("en")}>English</button>
                 </div>
               </SettingRow>
               <SettingRow title={t("Enter 发送消息")} description={t("关闭后改为 Ctrl / ⌘ + Enter 发送")}>
@@ -211,7 +228,7 @@ export default function SettingsCenter({
               <SettingRow title={t("减少界面动画")} description={t("关闭渐变滚动和过渡动画")}>
                 <Toggle checked={preferences.reduceMotion} title={t("减少界面动画")} onChange={(v) => updatePreference("reduceMotion", v)}/></SettingRow>
             </SettingBlock>
-            <div className="sc-info-card"><Sparkles size={18}/><div><strong>{t("你的设置会自动保存")}</strong><p>{t("目前仅保存到当前浏览器，不会自动同步到其他设备。")}</p></div></div>
+            <div className="sc-info-card"><Sparkles size={18}/><div><strong>{t("你的设置会自动保存")}</strong><p>{t("默认保存在当前设备；登录后可在「跨设备同步」中开启云端同步。")}</p></div></div>
           </>}
 
           {section === "instructions" && <>
@@ -294,6 +311,11 @@ export default function SettingsCenter({
               {[
                 [t("搜索历史"),"Ctrl / ⌘","K"],
                 [t("新建对话"),"Ctrl / ⌘","Shift","O"],
+                [t("折叠 / 展开侧栏"),"Ctrl / ⌘","Shift","S"],
+                [t("打开设置"),"Ctrl / ⌘",","],
+                [t("查看快捷键"),"Ctrl / ⌘","/"],
+                [t("停止生成"),"Esc"],
+                [t("编辑上一条消息"),"↑"],
                 [t("输入换行"),"Shift","Enter"],
                 [t("发送消息"),...(preferences.sendWithEnter ? ["Enter"] : ["Ctrl / ⌘","Enter"])]
               ].map(([name,...keys]) => <div className="sc-shortcut" key={name}><span>{name}</span>
@@ -312,7 +334,7 @@ export default function SettingsCenter({
 
           {section === "about" && <>
             <div className="sc-about-hero"><CiroMark/><strong>Ciro</strong><span>Think further.</span>
-              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · PREVIEW v0.7</small></div>
+              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v0.9</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
               <SettingRow title={t("推理能力")} description={t("实际能力以服务端正式验收为准")}><span className="sc-static-value">{t("待接入")}</span></SettingRow>

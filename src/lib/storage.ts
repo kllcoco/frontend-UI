@@ -26,7 +26,7 @@ export function loadConversations(): Conversation[] {
 
 export function saveConversations(conversations: Conversation[]): boolean {
   try {
-    localStorage.setItem(CHAT_KEY, JSON.stringify(conversations.slice(0, 100)));
+    localStorage.setItem(CHAT_KEY, JSON.stringify(conversations.filter((c) => !c.temporary).slice(0, 100)));
     return true;
   } catch {
     return false;
@@ -45,11 +45,25 @@ export function saveActiveId(id: string | null): void {
   } catch { /* Storage can be unavailable in private browsing. */ }
 }
 
-export function loadTheme(): "light" | "dark" {
-  try { return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light"; }
+export type ThemePref = "light" | "dark" | "system";
+export function systemTheme(): "light" | "dark" {
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
   catch { return "light"; }
+}
+export function loadThemePref(): ThemePref {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === "dark" || value === "system" ? value : "light";
+  } catch { return "light"; }
+}
+export function saveThemePref(pref: ThemePref): void {
+  try { localStorage.setItem(THEME_KEY, pref); } catch { /* optional */ }
+}
+export function loadTheme(): "light" | "dark" {
+  const pref = loadThemePref();
+  return pref === "system" ? systemTheme() : pref;
 }
 
 export function saveTheme(theme: "light" | "dark"): void {
-  try { localStorage.setItem(THEME_KEY, theme); } catch { /* optional */ }
+  saveThemePref(theme);
 }

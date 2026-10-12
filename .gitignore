@@ -13,3 +13,7 @@ playwright-report/
 
 # Local CIRO Workbench private state (separate from source and evidence)
 .ciro-runtime/
+release/
+build/npm/
+*.tmp.mjs
+*.tmp.png

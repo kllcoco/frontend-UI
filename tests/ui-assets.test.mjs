@@ -13,10 +13,11 @@ test("five offline wallpaper assets are present", () => {
     assert.doesNotMatch(content, /<script\b|<foreignObject\b|<image\b|<use\b|(?:href|xlink:href)\s*=\s*["\x27]https?:\/\//i);
   }
 });
-test("Ciro logo uses crescent and sparkle and sets favicon", () => {
+test("Ciro orbit-C logo uses gradient ring with star and sets favicon", () => {
   const logo = file("public/ciro-mark.svg");
   assert.match(logo, /linearGradient/);
-  assert.match(logo, /#bcffe0/i);
+  assert.match(logo, /stroke-linecap="round"/);
+  assert.match(logo, /<circle\b/);
   assert.match(file("index.html"), /ciro-mark\.svg/);
 });
 test("settings UI contains eight configured views and indexedDB DIY controls", () => {

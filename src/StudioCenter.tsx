@@ -101,6 +101,15 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   const [nativeShell,setNativeShell]=useState<NativeShellStatus|null>(null);
   const [noticePermission,setNoticePermission]=useState(typeof Notification==="undefined"?"unsupported":Notification.permission);
 
+  /** Buttons that need a native adapter stay clickable and explain exactly what to configure. */
+  function needs(configured:boolean|undefined,env:string){
+    if(configured)return {};
+    return {"aria-disabled":true as const,title:t("需要先在服务端配置：")+env,
+      onClickCapture:(event:{preventDefault:()=>void;stopPropagation:()=>void})=>{
+        event.preventDefault();event.stopPropagation();
+        setNotice("");setError(t("该功能需要连接原生服务。请在服务端 .env 配置 ")+env+t(" 后重启。"));
+      }};
+  }
   const chosen=useMemo(()=>selectedProject?.files.find(f=>f.path===selectedPath)||null,[selectedProject,selectedPath]);
   const libraryList=useMemo(()=>conversations.filter(c=>[c.title,...c.messages.map(m=>m.content)]
     .join(" ").toLowerCase().includes(libraryQuery.toLowerCase()))
@@ -357,7 +366,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
               <label>{t("算力优先级")}<select value={priority} onChange={e=>setPriority(Number(e.target.value))}>
                 {[1,2,5].map(n=><option key={n} value={n}>{n}×</option>)}</select></label>
             </div>
-            <button className="stu-primary" disabled={loading||!caps?.thinking.provider.configured}><Play size={15}/>{t("创建思考任务")}</button>
+            <button className="stu-primary" disabled={loading} {...needs(caps?.thinking.provider.configured,"CIRO_REASONING_URL / CIRO_REASONING_TOKEN")}><Play size={15}/>{t("创建思考任务")}</button>
           </form>
         </section>
         <section className="stu-card stu-split-info"><h3>{t("推理策略")}</h3>
@@ -442,7 +451,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <div className="stu-inline-form"><select aria-label={t("运行任务")} value={runnerTask} onChange={e=>setRunnerTask(e.target.value)}>
               <option value="test">{t("运行测试")}</option><option value="build">{t("构建项目")}</option>
               <option value="lint">{t("检查代码")}</option></select>
-              <button className="stu-primary" disabled={loading||!caps?.ide.sandboxExecution.configured}
+              <button className="stu-primary" disabled={loading} {...needs(caps?.ide.sandboxExecution.configured,"CIRO_IDE_RUNNER_URL / CIRO_IDE_RUNNER_TOKEN")}
                 onClick={()=>void run(async()=>{
                   const data=await studioApi<{jobId:string}>("/projects/"+selectedProject.id+"/run","POST",{task:runnerTask});
                   setNotice(data.jobId);
@@ -472,7 +481,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <input aria-label={t("搜索知识库")} value={knowledgeQuery} required maxLength={120}
               onChange={e=>setKnowledgeQuery(e.target.value)} placeholder={t("搜索文本和代码来源")}/>
             <button className="stu-primary"><Search size={15}/>{t("搜索知识库")}</button>
-            <button type="button" className="stu-light-button" disabled={!caps?.knowledge.embedding.configured}
+            <button type="button" className="stu-light-button" {...needs(caps?.knowledge.embedding.configured,"CIRO_KNOWLEDGE_INDEX_URL / CIRO_KNOWLEDGE_INDEX_TOKEN")}
               onClick={()=>void run(async()=>{
                 const data=await studioApi<{results:KnowledgeHit[]}>("/knowledge/semantic","POST",{query:knowledgeQuery.trim()});
                 setKnowledgeHits(data.results);
@@ -485,7 +494,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       <section className="stu-card"><div className="stu-section-head"><h3><BookOpen size={17}/>{t("文档数量")}: {documents.length}</h3></div>
         {documents.map(doc=><div className="stu-document" key={doc.id}>
           <FileText size={17}/><span><strong>{doc.title}</strong><small>{humanBytes(doc.bytes,language)} · SHA256 {doc.sha256.slice(0,12)}</small></span>
-          <button className="stu-light-button" disabled={!caps?.knowledge.embedding.configured||Boolean(doc.indexedAt)}
+          <button className="stu-light-button" disabled={Boolean(doc.indexedAt)} {...needs(caps?.knowledge.embedding.configured,"CIRO_KNOWLEDGE_INDEX_URL / CIRO_KNOWLEDGE_INDEX_TOKEN")}
             onClick={()=>{if(window.confirm(t("建立语义索引需将该文档发送到你配置的原生服务，是否继续？")))
               void run(async()=>{
                 await studioApi("/knowledge/"+doc.id+"/index","POST",{confirmExternalUpload:true});
@@ -508,7 +517,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           <div className="stu-actions"><label>{t("研究深度")}
             <select value={researchDepth} onChange={e=>setResearchDepth(e.target.value)}>
               <option value="quick">{t("快速")}</option><option value="deep">{t("深入")}</option>
-            </select></label><button className="stu-primary" disabled={loading||!caps?.research.configured}>
+            </select></label><button className="stu-primary" disabled={loading} {...needs(caps?.research.configured,"CIRO_RESEARCH_SERVICE_URL / CIRO_RESEARCH_SERVICE_TOKEN")}>
               <Search size={16}/>{t("启动研究")}</button></div>
         </form>
         {!caps?.research.configured&&<p className="stu-small">{t("模型与搜索服务尚未接入。")}</p>}
@@ -528,7 +537,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
               <input type="file" aria-label={t("选择媒体文件")}
                 accept="image/png,image/jpeg,image/webp,audio/wav,audio/mpeg,audio/webm,audio/mp4,video/mp4,video/webm"
                 onChange={e=>setMediaFile(e.target.files?.[0]||null)}/></label>
-            <button className="stu-primary" disabled={!mediaFile||!caps?.media.configured||loading}>
+            <button className="stu-primary" disabled={!mediaFile||loading} {...needs(caps?.media.configured,"CIRO_MEDIA_SERVICE_URL / CIRO_MEDIA_SERVICE_TOKEN")}>
               <ArrowRight size={15}/>{t("上传并分析")}</button>
           </form>
         </section>
@@ -565,7 +574,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
 
       <section className="stu-card stu-model-console">
         <div className="stu-section-head"><h3><BrainCircuit size={18}/>{t("模型与训练控制台")}</h3>
-          <button type="button" className="stu-light-button" disabled={!caps?.compute.modelControl.configured}
+          <button type="button" className="stu-light-button" {...needs(caps?.compute.modelControl.configured,"CIRO_MODEL_CONTROL_URL / CIRO_MODEL_CONTROL_TOKEN")}
             onClick={()=>void run(async()=>setModelOverview(await studioApi<ModelOverview>("/model-control")))}>
             <RefreshCcw size={15}/>{t("从原生模型读取")}</button></div>
         <NativeNote provider={caps?.compute.modelControl} language={language}/>

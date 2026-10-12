@@ -111,20 +111,20 @@
 .com-error button{margin-left:auto;background:#fff;color:#b65c4e;padding:6px 8px;border-radius:7px;font-size:10px;display:flex;gap:5px;align-items:center}
 .com-success{display:flex;gap:8px;align-items:center;color:#27814e;background:#f0f8f1;border:1px solid #dcf0e0;
   padding:10px 12px;border-radius:9px;font-size:11px;margin:0 0 12px}
-:root[data-theme="dark"] .com-root{color:#cde5d1}
+:root[data-theme="dark"] .com-root{color:#d2e0d5}
 :root[data-theme="dark"] .com-page-head h2,:root[data-theme="dark"] .com-card h3,
-:root[data-theme="dark"] .com-app-card h3,:root[data-theme="dark"] .com-skill-title h3{color:#d3efdb}
+:root[data-theme="dark"] .com-app-card h3,:root[data-theme="dark"] .com-skill-title h3{color:#d9e9de}
 :root[data-theme="dark"] .com-card,:root[data-theme="dark"] .com-metric,
 :root[data-theme="dark"] .com-app-card,:root[data-theme="dark"] .com-skill,
-:root[data-theme="dark"] .com-search{background:#10251c;border-color:#2a4837}
-:root[data-theme="dark"] .com-metric strong{color:#bee9ca}
+:root[data-theme="dark"] .com-search{background:#1d1c1b;border-color:#3e3d39}
+:root[data-theme="dark"] .com-metric strong{color:#c8dfce}
 :root[data-theme="dark"] .com-budget-form input,:root[data-theme="dark"] .com-budget-form select,
-:root[data-theme="dark"] .com-tools select{background:#0b1f15;color:#d8eadd;border-color:#36523f}
+:root[data-theme="dark"] .com-tools select{background:#171615;color:#dce6df;border-color:#4a4945}
 :root[data-theme="dark"] .com-readiness,:root[data-theme="dark"] .com-info,
-:root[data-theme="dark"] .com-billing-tabs,:root[data-theme="dark"] .com-rates{background:#172d20;border-color:#31503a}
+:root[data-theme="dark"] .com-billing-tabs,:root[data-theme="dark"] .com-rates{background:#252422;border-color:#464541}
 :root[data-theme="dark"] .com-skill-tags code,:root[data-theme="dark"] .com-open,
-:root[data-theme="dark"] .com-secondary{background:#183b29;color:#badfc6;border-color:#325840}
-:root[data-theme="dark"] .com-billing-tabs .com-tab-active{background:#244431;color:#c5eacf}
+:root[data-theme="dark"] .com-secondary{background:#2d2c2a;color:#c2d7c9;border-color:#4b4a46}
+:root[data-theme="dark"] .com-billing-tabs .com-tab-active{background:#393834;color:#cde2d3}
 @media(max-width:1050px){.com-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .com-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:670px){.com-page-head{align-items:flex-start;flex-direction:column}
