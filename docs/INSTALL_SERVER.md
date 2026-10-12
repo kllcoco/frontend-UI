@@ -1,7 +1,30 @@
 # 服务器部署教程（ciro-client）
 
 `ciro-client` 是 Ciro 的网页版 + 后端服务（模型代理、账户、分享、语音/图片接口）。部署到服务器后，用浏览器、Android 客户端或 iPhone“添加到主屏幕”访问。
-有两种安装方式，**任选其一**：
+## 一键安装（推荐，Linux 服务器）
+
+```bash
+curl -fsSL https://github.com/kllcoco/frontend-UI/releases/latest/download/install.sh -o install.sh
+sudo bash install.sh
+```
+
+脚本会自动安装 Docker，询问模型地址、模型名、密钥和域名（可留空），然后在 `/opt/ciro` 生成配置并启动：
+
+- **填了域名**：自动开启账户、生成全部密钥，并用 Caddy 自动申请 HTTPS 证书。域名需先解析到这台服务器，且 80 和 443 端口要放行。脚本最后会打印用于创建管理员的初始化口令。
+- **不填域名**：在 `http://服务器IP:8787` 提供服务，不需要登录，只适合内网使用。
+
+升级与卸载：
+
+```bash
+sudo bash install.sh upgrade     # 拉取最新版本并重启，设置与数据保留
+sudo bash install.sh uninstall   # 停止服务（数据卷与 /opt/ciro/.env 保留）
+```
+
+配置在 `/opt/ciro/.env`，修改后执行 `cd /opt/ciro && sudo docker compose up -d` 生效。如果拉取镜像提示无权限，先按下文“方式一”第 2 步登录 ghcr.io。
+
+---
+
+想手动安装时，有两种方式，**任选其一**：
 
 | | Docker 镜像 | npm 包 |
 | --- | --- | --- |
