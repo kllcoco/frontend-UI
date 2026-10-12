@@ -109,8 +109,7 @@
           ]
         }
       ],
-      "icon": "build/icon.png",
-      "publisherName": "kllcoco"
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
