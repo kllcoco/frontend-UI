@@ -17,12 +17,13 @@ export async function getApiStatus(): Promise<ApiStatus> {
     models: value.models.filter((model): model is string => typeof model === "string"),
     mode: value.configured === true ? "configured" : "preview",
     reasoningModes:Array.isArray(value.reasoningModes)?value.reasoningModes.filter((m):m is "fast"|"deep"=>m==="fast"||m==="deep"):["fast"],
-    reasoningEffort:value.reasoningEffort===true
+    reasoningEffort:value.reasoningEffort===true,
+    webSearch:(value as {webSearch?:unknown}).webSearch===true
   };
 }
 
 type StreamOptions = {
-  messages: ChatMessage[];
+  messages: (ChatMessage & { imageUrls?: string[] })[];
   model: string;
   instructions?: CustomInstructions;
   reasoning?:ReasoningRequest;
@@ -31,10 +32,14 @@ type StreamOptions = {
   onDelta: (text: string) => void;
   /** Streamed chain-of-thought summary (reasoning_content / reasoning), when the backend exposes it. */
   onReasoning?: (text: string) => void;
+  /** Streamed OpenAI-style tool calls (name + incrementally streamed JSON arguments). */
+  onTool?: (index: number, name: string | undefined, argsDelta: string) => void;
+  webSearch?: boolean;
 };
 export type ReasoningRequest={mode:"fast"|"deep";effort?:"minimal"|"low"|"medium"|"high";maxSeconds?:number;priority?:1|2|5};
 
-function decodeSseEvent(event: string, onDelta: (text: string) => void, onReasoning?: (text: string) => void): boolean {
+type ToolHandler = (index: number, name: string | undefined, argsDelta: string) => void;
+function decodeSseEvent(event: string, onDelta: (text: string) => void, onReasoning?: (text: string) => void, onTool?: ToolHandler): boolean {
   const data = event.split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart())
@@ -50,7 +55,8 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
   if (!payload || typeof payload !== "object") return false;
   const entry = payload as {
     error?: { message?: string } | string;
-    choices?: { delta?: { content?: string; reasoning_content?: string; reasoning?: string };
+    choices?: { delta?: { content?: string; reasoning_content?: string; reasoning?: string;
+      tool_calls?: { index?: number; function?: { name?: string; arguments?: string } }[] };
       message?: { content?: string; reasoning_content?: string } }[];
   };
   if (entry.error) {
@@ -60,22 +66,26 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
   const thought = entry.choices?.[0]?.delta?.reasoning_content ?? entry.choices?.[0]?.delta?.reasoning ??
     entry.choices?.[0]?.message?.reasoning_content;
   if (onReasoning && typeof thought === "string" && thought.length > 0) onReasoning(thought);
+  for (const call of entry.choices?.[0]?.delta?.tool_calls ?? []) {
+    if (onTool) onTool(call.index ?? 0, call.function?.name, call.function?.arguments ?? "");
+  }
   const token = entry.choices?.[0]?.delta?.content ?? entry.choices?.[0]?.message?.content;
   if (typeof token === "string" && token.length > 0) onDelta(token);
   return false;
 }
 
-export async function streamChat({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning }: StreamOptions): Promise<void> {
+export async function streamChat({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      messages: messages.map(({ role, content }) => ({ role, content })),
+      messages: messages.map(({ role, content, imageUrls }) => ({ role, content, ...(imageUrls?.length ? { images: imageUrls } : {}) })),
       ...(instructions?.enabled ? { instructions } : {}),
       ...(reasoning&&(reasoning.mode==="deep"||reasoning.effort)?{reasoning}:{}),
-      ...(project&&(project.instructions.trim()||project.files.length)?{project}:{})
+      ...(project&&(project.instructions.trim()||project.files.length)?{project}:{}),
+      ...(webSearch?{webSearch:true}:{})
     })
   });
 
@@ -97,11 +107,11 @@ export async function streamChat({ messages, model, instructions, reasoning, pro
       while (split !== -1) {
         const event = pending.slice(0, split);
         pending = pending.slice(split + 2);
-        if (decodeSseEvent(event, onDelta, onReasoning)) return;
+        if (decodeSseEvent(event, onDelta, onReasoning, onTool)) return;
         split = pending.indexOf("\n\n");
       }
     }
-    if (pending.trim()) decodeSseEvent(pending, onDelta, onReasoning);
+    if (pending.trim()) decodeSseEvent(pending, onDelta, onReasoning, onTool);
   } finally {
     reader.releaseLock();
   }

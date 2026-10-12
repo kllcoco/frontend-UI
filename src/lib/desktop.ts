@@ -2,7 +2,8 @@
 import type { Language } from "./i18n";
 
 export type DesktopCommand =
-  | "new-chat" | "search" | "settings" | "toggle-sidebar" | "shortcuts" | "about" | "export-chat";
+  | "new-chat" | "search" | "settings" | "toggle-sidebar" | "shortcuts" | "about" | "export-chat" | "export-pdf" | "focus-composer";
+export type UpdateInfo = { state: "available" | "downloading" | "ready" | "error"; version?: string; percent?: number; message?: string };
 
 type DesktopBridge = {
   platform: string;
@@ -10,6 +11,9 @@ type DesktopBridge = {
   setLanguage: (language: Language) => void;
   onCommand: (handler: (command: DesktopCommand) => void) => () => void;
   openExternal?: (url: string) => void;
+  onUpdate?: (handler: (info: UpdateInfo) => void) => () => void;
+  updateAction?: (action: "download" | "install" | "check") => void;
+  exportPdf?: (name: string) => Promise<boolean>;
 };
 
 declare global {

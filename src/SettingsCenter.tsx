@@ -11,6 +11,8 @@ import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
+import ConversationManager from "./components/ConversationManager";
+import type { BulkAction } from "./components/ConversationManager";
 import AccountCenter from "./AccountCenter";
 import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
@@ -43,6 +45,8 @@ type SettingsProps = {
   conversations: Conversation[];
   onExportAll: () => void;
   onClearHistory: () => void;
+  onBulk: (action: BulkAction, ids: string[]) => void;
+  onImport: (items: Conversation[]) => number;
 };
 const sections: { id: Section; label: string; icon: typeof Palette; group?: string }[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "偏好与配置" },
@@ -90,7 +94,7 @@ export default function SettingsCenter({
   onClose, initialSection, language, languagePref, onLanguagePrefChange, themePref, onThemePrefChange,
   displayName, onDisplayNameChange, appearance, onAppearanceChange, customImageUrl,
   onUploadImage, onRemoveImage, preferences, onPreferencesChange, instructions, onInstructionsChange, status, model,
-  onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory
+  onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory, onBulk, onImport
 }: SettingsProps) {
   const t = (value: string) => translate(language, value);
   const [section, setSection] = useState<Section>(() =>
@@ -302,6 +306,18 @@ export default function SettingsCenter({
                 <Toggle checked={preferences.showTime} title={t("显示消息时间")} onChange={(v) => updatePreference("showTime", v)}/></SettingRow>
               <SettingRow title={t("紧凑显示")} description={t("缩短消息之间的间距")}>
                 <Toggle checked={preferences.compactMessages} title={t("紧凑显示")} onChange={(v) => updatePreference("compactMessages", v)}/></SettingRow>
+              <SettingRow title={t("回答完成时通知")} description={t("窗口不在前台时，用系统通知提醒你回答已完成")}>
+                <Toggle checked={preferences.notifyOnComplete} title={t("回答完成时通知")} onChange={(v) => {
+                  if (!v) { updatePreference("notifyOnComplete", false); return; }
+                  if (!("Notification" in window)) { setError(t("当前环境不支持系统通知")); return; }
+                  void Notification.requestPermission().then((perm) => {
+                    if (perm === "granted") updatePreference("notifyOnComplete", true);
+                    else setError(t("通知权限被拒绝，请在系统或浏览器设置中允许"));
+                  });
+                }}/></SettingRow>
+              <SettingRow title={t("自动生成对话标题")} description={t("第一轮回答后，由模型为对话起一个简短标题")}>
+                <Toggle checked={preferences.autoTitle} title={t("自动生成对话标题")} onChange={(v) => updatePreference("autoTitle", v)}/></SettingRow>
+              {error && <p className="sc-error" role="alert">{error}</p>}
             </SettingBlock>
             <SettingBlock title={t("正文字号")}><div className="sc-segmented">
               {([["small",t("偏小")],["normal",t("标准")],["large",t("偏大")]] as const).map(([id,label]) => <button key={id}
@@ -316,13 +332,18 @@ export default function SettingsCenter({
               <div><strong>{totalMessages}</strong><span>{t("消息总数")}</span></div>
               <div><strong>{t("本设备")}</strong><span>{t("数据位置")}</span></div>
             </div>
-              <p className="sc-help-text">{t("历史对话保存在 localStorage，自定义背景使用 IndexedDB。本版本没有账号同步和云端备份。")}</p>
+              <p className="sc-help-text">{t("历史对话保存在 localStorage，图片附件与自定义背景使用 IndexedDB。登录后可在「跨设备同步」中开启云端同步。")}</p>
               <div className="sc-action-list">
                 <button className="sc-action-secondary" disabled={conversations.length === 0} onClick={onExportAll}><ArrowDownToLine size={17}/> {t("导出全部对话 JSON")}</button>
                 <button className="sc-action-danger" disabled={conversations.length === 0} onClick={onClearHistory}><Trash2 size={17}/> {t("删除全部本地对话")}</button>
               </div></SettingBlock>
+            <SettingBlock title={t("管理对话")} subtitle={t("导入、归档、批量导出或删除本地对话")}>
+              <ConversationManager t={t} conversations={conversations} onBulk={onBulk}
+                onImport={onImport} onError={(text) => setError(text)}/>
+              {error && <p className="sc-error" role="alert">{error}</p>}
+            </SettingBlock>
             <SettingBlock title={t("附件支持")}><div className="sc-info-card"><FileText size={18}/><div><strong>{t("文本与代码文件")}</strong>
-              <p>{t("最多三个文本文件（每个 80 KB），作为消息内容发送。图片理解和永久文件库尚未接入。")}</p>
+              <p>{t("每次最多 5 个附件：图片（自动压缩，按多模态格式发送）、PDF（在本机提取文字）、文本或代码文件。模型能否理解图片取决于后端。")}</p>
             </div></div></SettingBlock>
           </>}
 

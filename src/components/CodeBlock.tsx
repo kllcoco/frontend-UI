@@ -14,7 +14,7 @@ export default function CodeBlock({ children, copyLabel, copiedLabel }: { childr
   const [copied, setCopied] = useState(false);
   const child = Array.isArray(children) ? children[0] : children;
   const className = child && typeof child === "object" && "props" in child ? String((child as { props: { className?: string } }).props.className || "") : "";
-  const language = /language-([\w+#.-]+)/.exec(className)?.[1] || "text";
+  const language = (/language-([\w+#.-]+)/.exec(className)?.[1] || "text").toLowerCase();
   async function copy() {
     try {
       await navigator.clipboard.writeText(textOf(children).replace(/\n$/, ""));
@@ -25,7 +25,7 @@ export default function CodeBlock({ children, copyLabel, copiedLabel }: { childr
   return <div className="cx-code">
     <div className="cx-code-head"><span>{language}</span>
       <button type="button" onClick={() => void copy()} aria-label={copied ? copiedLabel : copyLabel}>
-        {copied ? <Check size={13}/> : <Copy size={13}/>}{copied ? copiedLabel : copyLabel}</button></div>
+        {copied ? <Check size={14}/> : <Copy size={14}/>}<span className="cx-code-copy">{copied ? copiedLabel : copyLabel}</span></button></div>
     <pre>{children}</pre>
   </div>;
 }

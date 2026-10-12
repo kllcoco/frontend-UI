@@ -18,7 +18,7 @@ export function loadConversations(): Conversation[] {
       .filter((value): value is Conversation => !!value && typeof value === "object" &&
         typeof value.id === "string" && typeof value.title === "string" &&
         typeof value.updatedAt === "number" && Array.isArray(value.messages))
-      .slice(0, 100);
+      .slice(0, 500);
   } catch {
     return [];
   }
@@ -26,7 +26,7 @@ export function loadConversations(): Conversation[] {
 
 export function saveConversations(conversations: Conversation[]): boolean {
   try {
-    localStorage.setItem(CHAT_KEY, JSON.stringify(conversations.filter((c) => !c.temporary).slice(0, 100)));
+    localStorage.setItem(CHAT_KEY, JSON.stringify(conversations.filter((c) => !c.temporary).slice(0, 500)));
     return true;
   } catch {
     return false;

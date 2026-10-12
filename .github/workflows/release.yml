@@ -112,6 +112,8 @@ jobs:
             release/*.AppImage
             release/*.deb
             release/*.tar.gz
+            release/latest*.yml
+            release/*.blockmap
             desktop-smoke.png
           if-no-files-found: error
 

@@ -1,6 +1,11 @@
 const MAX_MESSAGES = 80;
 const MAX_CONTENT = 100_000;
 const MAX_TOTAL = 250_000;
+const MAX_IMAGES_PER_MESSAGE = 5;
+const MAX_IMAGES = 10;
+const MAX_IMAGE_CHARS = 8_000_000;
+const MAX_IMAGE_TOTAL = 20_000_000;
+const IMAGE_DATA_URL = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
 
 export class ValidationError extends Error {
   constructor(message) {
@@ -18,7 +23,7 @@ export function normalizeModels(rawModels, fallback = "ciro") {
 /** OpenAI-compatible effort levels; most reasoning backends accept these names. */
 export const REASONING_EFFORTS=["minimal","low","medium","high"];
 
-export function validateChat(input, availableModels, supportedModes=["fast"], forwardEffort=true) {
+export function validateChat(input, availableModels, supportedModes=["fast"], forwardEffort=true, webSearch=false) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new ValidationError("请求格式不正确");
   }
@@ -31,6 +36,8 @@ export function validateChat(input, availableModels, supportedModes=["fast"], fo
   }
 
   let total = 0;
+  let imageCount = 0;
+  let imageChars = 0;
   const sanitized = messages.map((message) => {
     if (!message || typeof message !== "object" ||
         !["user", "assistant"].includes(message.role) ||
@@ -40,6 +47,24 @@ export function validateChat(input, availableModels, supportedModes=["fast"], fo
       throw new ValidationError("消息格式不正确");
     }
     total += message.content.length;
+    if (message.images !== undefined) {
+      if (message.role !== "user" || !Array.isArray(message.images) || message.images.length > MAX_IMAGES_PER_MESSAGE) {
+        throw new ValidationError("图片附件格式不正确");
+      }
+      for (const url of message.images) {
+        if (typeof url !== "string" || url.length > MAX_IMAGE_CHARS || !IMAGE_DATA_URL.test(url)) {
+          throw new ValidationError("图片附件格式不正确");
+        }
+        imageCount += 1;
+        imageChars += url.length;
+      }
+      if (imageCount > MAX_IMAGES || imageChars > MAX_IMAGE_TOTAL) throw new ValidationError("图片附件过多或过大");
+      // OpenAI-compatible multimodal content parts.
+      return { role: message.role, content: [
+        { type: "text", text: message.content },
+        ...message.images.map((url) => ({ type: "image_url", image_url: { url } }))
+      ] };
+    }
     return { role: message.role, content: message.content };
   });
   if (total > MAX_TOTAL || sanitized[sanitized.length - 1].role !== "user") {
@@ -105,7 +130,10 @@ export function validateChat(input, availableModels, supportedModes=["fast"], fo
       ciro_reasoning={mode,maxSeconds:reasoning.maxSeconds,priority:reasoning.priority};
     }
   }
+  if (input.webSearch !== undefined && typeof input.webSearch !== "boolean") throw new ValidationError("Invalid webSearch flag");
+  if (input.webSearch === true && !webSearch) throw new ValidationError("Web search is not enabled on this server");
   return { model, messages: sanitized, stream: true,
+    ...(input.webSearch === true ? { ciro_web_search: true } : {}),
     ...(ciro_reasoning?{ciro_reasoning}:{}),
     ...(reasoning_effort&&forwardEffort?{reasoning_effort}:{}) };
 }

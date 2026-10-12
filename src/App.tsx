@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   ArrowDownToLine, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
   GitBranch, Layers, LayoutGrid, Lightbulb, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
-  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX
+  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -40,13 +38,17 @@ import type { Language, LanguagePref } from "./lib/i18n";
 import { loadThinkingLevel, reasoningRequest, saveThinkingLevel, THINKING_LEVELS } from "./lib/thinking";
 import { loadProfile, saveProfile } from "./lib/profile";
 import { desktop, openExternal, RELEASES_URL } from "./lib/desktop";
+import type { UpdateInfo } from "./lib/desktop";
 import { createProject, loadProjects, projectContext, saveProjects } from "./lib/projects";
 import type { Project } from "./lib/projects";
 import ProjectView from "./components/ProjectView";
-import CodeBlock from "./components/CodeBlock";
+import PromptLibrary from "./components/PromptLibrary";
+import ShareDialog from "./components/ShareDialog";
+import Markdown from "./components/Markdown";
+import { ACCEPT, AttachmentError, LIMITS, getImage, putImage, readAttachment } from "./lib/attachments";
+import type { Attachment } from "./lib/attachments";
 import { speechInputSupported, speechOutputSupported, useDictation, useReadAloud } from "./lib/speech";
 
-type Attachment = { id: string; name: string; content: string };
 const PREVIEW: ApiStatus = { configured: false, model: "ciro", models: ["ciro"], mode: "preview" };
 const ACCOUNT_TABS = ["account", "subscription", "api-keys", "spending", "notifications", "memory", "sync"];
 const STUDIO_TABS = ["studio", "thinking", "ide", "knowledge", "research", "media", "compute", "library", "marketplace", "devices"];
@@ -68,7 +70,6 @@ const SLASH_COMMANDS: [string, string][] = [
   ["/sync", "跨设备同步"], ["/help", "显示所有命令"]
 ];
 
-const acceptedExtensions = /\.(txt|md|markdown|json|csv|ts|tsx|js|jsx|mjs|cjs|py|html|css|scss|xml|yaml|yml|toml|ini|sql|log|sh|ps1|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|rb|php|vue|svelte)$/i;
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = isMac ? "⌘" : "Ctrl";
 
@@ -124,9 +125,16 @@ function saveFlag(key: string, value: boolean) {
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
   const conversationsRef = useRef(conversations);
+  const preferencesRef = useRef(loadChatPreferences());
   const [activeId, setActiveId] = useState<string | null>(loadActiveId);
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [readingFiles, setReadingFiles] = useState(0);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [promptsOpen, setPromptsOpen] = useState(false);
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [webSearchOn, setWebSearchOn] = useState(() => loadFlag("ciro.web-search.v1", false));
   const [status, setStatus] = useState<ApiStatus>(PREVIEW);
   const [statusLoading, setStatusLoading] = useState(true);
   const [model, setModel] = useState("ciro");
@@ -200,9 +208,9 @@ export default function App() {
   const sorted = useMemo(() => [...conversations].sort((a, b) => b.updatedAt - a.updatedAt), [conversations]);
   const projectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
   const inProject = (chat: Conversation) => Boolean(chat.projectId && projectIds.has(chat.projectId));
-  const pinned = sorted.filter((chat) => chat.pinned && !chat.temporary);
+  const pinned = sorted.filter((chat) => chat.pinned && !chat.temporary && !chat.archived);
   const grouped = ["今天", "昨天", "过去 7 天", "过去 30 天", "更早"].map((label) => ({
-    label, chats: sorted.filter((chat) => !chat.pinned && !chat.temporary && !inProject(chat) && dateGroup(chat.updatedAt) === label)
+    label, chats: sorted.filter((chat) => !chat.pinned && !chat.temporary && !chat.archived && !inProject(chat) && dateGroup(chat.updatedAt) === label)
   })).filter((item) => item.chats.length > 0);
   const viewProject = projects.find((p) => p.id === projectViewId);
   const currentProject = current?.projectId ? projects.find((p) => p.id === current.projectId) : undefined;
@@ -280,6 +288,7 @@ export default function App() {
   useEffect(() => { saveThinkingLevel(thinkingLevel); }, [thinkingLevel]);
   useEffect(() => { saveFlag("ciro.sidebar-collapsed.v1", sidebarCollapsed); }, [sidebarCollapsed]);
   useEffect(() => { saveFlag("ciro.sidebar-more.v1", moreOpen); }, [moreOpen]);
+  useEffect(() => { saveFlag("ciro.web-search.v1", webSearchOn); }, [webSearchOn]);
   useEffect(() => {
     saveLanguagePref(languagePref);
     document.documentElement.lang = language === "en" ? "en" : "zh-CN";
@@ -296,6 +305,7 @@ export default function App() {
   }, []);
   useEffect(() => { saveAppearance(appearance); }, [appearance]);
   useEffect(() => {
+    preferencesRef.current = preferences;
     saveChatPreferences(preferences);
     document.documentElement.dataset.reduceMotion = preferences.reduceMotion ? "true" : "false";
   }, [preferences]);
@@ -356,10 +366,46 @@ export default function App() {
       const chat = conversationsRef.current.find((c) => c.id === activeIdRef.current);
       if (chat) exportMarkdown(chat, language);
     }
+    else if (command === "export-pdf") exportPdfRef.current();
+    else if (command === "focus-composer") window.setTimeout(() => composerRef.current?.focus(), 50);
   }, [language]);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   useEffect(() => desktop()?.onCommand(runCommand), [runCommand]);
+  // Android back button / browser-style "go back": close the top-most layer first.
+  const exportPdfRef = useRef<() => void>(() => undefined);
+  exportPdfRef.current = () => {
+    const chat = conversationsRef.current.find((c) => c.id === activeIdRef.current);
+    if (!chat) { notify("请先打开一个对话"); return; }
+    const bridge = desktop();
+    if (bridge?.exportPdf) void bridge.exportPdf(chat.title).then((ok) => { if (ok) notify("已导出 PDF"); });
+    else window.print();
+  };
+  useEffect(() => desktop()?.onUpdate?.((info) => setUpdateInfo(info)), []);
+  const backRef = useRef<() => boolean>(() => false);
+  backRef.current = () => {
+    if (lightbox) { setLightbox(null); return true; }
+    if (paletteOpen) { setPaletteOpen(false); return true; }
+    if (promptsOpen) { setPromptsOpen(false); return true; }
+    if (shareId) { setShareId(null); return true; }
+    if (document.querySelector(".um-menu, .td-pop, .cx-slash")) {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      document.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      if (draft.startsWith("/")) setDraft("");
+      return true;
+    }
+    if (plusOpen || modelOpen || rowMenuId) { setPlusOpen(false); setModelOpen(false); setRowMenuId(null); return true; }
+    if (settingsSection) { setSettingsSection(null); return true; }
+    if (editingId) { setEditingId(null); return true; }
+    if (sidebarOpen) { setSidebarOpen(false); return true; }
+    if (studioOpen || current || viewProject || composerMode !== "chat") { createNew(); return true; }
+    return false;
+  };
+  useEffect(() => {
+    const w = window as unknown as { ciroHandleBack?: () => boolean };
+    w.ciroHandleBack = () => backRef.current();
+    return () => { delete w.ciroHandleBack; };
+  }, []);
   useEffect(() => {
     function shortcuts(event: globalThis.KeyboardEvent) {
       const mod = event.ctrlKey || event.metaKey;
@@ -370,6 +416,7 @@ export default function App() {
       else if (key === "s" && event.shiftKey) { event.preventDefault(); runCommand("toggle-sidebar"); }
       else if (key === ",") { event.preventDefault(); runCommand("settings"); }
       else if (key === "/") { event.preventDefault(); runCommand("shortcuts"); }
+      else if (key === "p" && !event.shiftKey && !desktop()) { event.preventDefault(); runCommand("export-pdf"); }
     }
     window.addEventListener("keydown", shortcuts);
     return () => window.removeEventListener("keydown", shortcuts);
@@ -409,6 +456,9 @@ export default function App() {
     setAtBottom(true);
     let answer = "";
     let thought = "";
+    const tools: { name: string; args: string }[] = [];
+    const useWeb = webSearchOn && Boolean(status.webSearch);
+    if (useWeb) patchMessage(conversationId, assistantId, { webSearch: true });
     const started = Date.now();
     let thoughtDone = false;
     try {
@@ -417,8 +467,16 @@ export default function App() {
         instructions,
         reasoning: reasoningRequest(thinkingLevel, status),
         project: projectContext(projects.find((p) => p.id === projectId)),
-        messages: history,
+        messages: await Promise.all(history.map(async (m) => m.images?.length
+          ? { ...m, imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : m)),
         signal: controller.signal,
+        webSearch: useWeb,
+        onTool: (index, name, argsDelta) => {
+          const entry = tools[index] ?? (tools[index] = { name: "", args: "" });
+          if (name) entry.name = name;
+          entry.args += argsDelta;
+          patchMessage(conversationId, assistantId, { tools: tools.filter(Boolean).map((x) => ({ ...x })) });
+        },
         onReasoning: (text) => {
           thought += text;
           patchMessage(conversationId, assistantId, { reasoning: thought });
@@ -431,6 +489,12 @@ export default function App() {
         }
       });
       if (!answer) throw new Error(t("接口未返回任何文本"));
+      if (preferencesRef.current.autoTitle && history.length === 1) void autoTitle(conversationId, history[0].content, answer);
+      if (preferencesRef.current.notifyOnComplete && document.hidden && "Notification" in window && Notification.permission === "granted") {
+        const title = conversationsRef.current.find((c) => c.id === conversationId)?.title || "Ciro";
+        const note = new Notification(t("Ciro 已回答") + " · " + title, { body: answer.replace(/[#*`>|_-]+/g, " ").slice(0, 140), icon: "/icon-192.png", tag: conversationId });
+        note.onclick = () => { window.focus(); setActiveId(conversationId); note.close(); };
+      }
     } catch (error) {
       if (controller.signal.aborted) {
         if (!answer) patchMessage(conversationId, assistantId, { content: t("生成已停止。") });
@@ -446,6 +510,25 @@ export default function App() {
       setGeneratingId(null);
       setBusy(false);
     }
+  }
+
+  async function autoTitle(conversationId: string, question: string, answer: string) {
+    const initial = conversationsRef.current.find((c) => c.id === conversationId)?.title;
+    let title = "";
+    try {
+      await streamChat({
+        model, signal: new AbortController().signal,
+        messages: [{ id: "title", role: "user", createdAt: Date.now(), content:
+          (language === "en" ? "Write a short title (max 6 words) for this conversation. Reply with the title only.\n\n"
+            : "用不超过 12 个字概括这段对话的标题，只输出标题本身，不要标点和引号。\n\n") +
+          "Q: " + question.slice(0, 1500) + "\nA: " + answer.slice(0, 1500) }],
+        onDelta: (text) => { title += text; }
+      });
+    } catch { return; }
+    const clean = title.replace(/^[\s"'“”‘’《》「」#*]+|[\s"'“”‘’《》「」。.!！]+$/g, "").replace(/\s+/g, " ").slice(0, 40);
+    if (!clean) return;
+    // Only replace the automatic title; never override a name the user typed meanwhile.
+    setConversations((old) => old.map((c) => c.id === conversationId && c.title === initial ? { ...c, title: clean } : c));
   }
 
   function focusComposer() { window.setTimeout(() => composerRef.current?.focus(), 0); }
@@ -573,17 +656,21 @@ export default function App() {
     if (!text && attachments.length === 0) return;
     if (handleSlash(text)) return;
     if (composerMode !== "chat") {
-      const extras = attachments.map(item => "\n\nAttachment: " + item.name + "\n" + item.content).join("");
+      const extras = attachments.filter((item) => item.kind === "text")
+        .map(item => "\n\nAttachment: " + item.name + "\n" + (item.kind === "text" ? item.content : "")).join("");
       void sendGoal(text + extras, composerMode);
       return;
     }
 
-    const attachmentText = attachments.map((file) =>
-      t("附件：") + file.name + "\n\n```text\n" + file.content + "\n```"
+    const attachmentText = attachments.flatMap((file) => file.kind === "text"
+      ? [t("附件：") + file.name + "\n\n```text\n" + file.content + "\n```"] : []
     ).join("\n\n");
-    const content = [text, attachmentText].filter(Boolean).join("\n\n---\n\n");
+    const images = attachments.flatMap((file) => file.kind === "image" ? [file] : []);
+    images.forEach((image) => void putImage(image.id, image.dataUrl));
+    const content = [text, attachmentText].filter(Boolean).join("\n\n---\n\n") || (images.length ? t("请看这张图片。") : "");
     const now = Date.now();
-    const user: ChatMessage = { id: newId(), role: "user", content, createdAt: now };
+    const user: ChatMessage = { id: newId(), role: "user", content, createdAt: now,
+      ...(images.length ? { images: images.map(({ id, name, thumb }) => ({ id, name, thumb })) } : {}) };
     const conversationId = current?.id ?? newId();
     const history = [...(current?.messages || []), user];
 
@@ -697,6 +784,43 @@ export default function App() {
     notify("创建分支");
   }
 
+  function bulk(action: "archive" | "unarchive" | "delete" | "export", ids: string[]) {
+    const set = new Set(ids);
+    if (action === "export") {
+      const picked = conversations.filter((c) => set.has(c.id));
+      const blob = new Blob([JSON.stringify({ schema: "CIRO_CLIENT_CONVERSATIONS_V1", exportedAt: new Date().toISOString(), conversations: picked }, null, 2)],
+        { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "ciro-conversations-selected.json"; a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      notify("已导出所选对话");
+      return;
+    }
+    if (action === "delete") {
+      if (generatingId && set.has(generatingId)) controllerRef.current?.abort();
+      setConversations((old) => old.filter((c) => !set.has(c.id)));
+      if (activeId && set.has(activeId)) setActiveId(null);
+      notify("已删除所选对话");
+      return;
+    }
+    setConversations((old) => old.map((c) => set.has(c.id) ? { ...c, archived: action === "archive", pinned: action === "archive" ? false : c.pinned } : c));
+    if (action === "archive" && activeId && set.has(activeId)) setActiveId(null);
+    notify(action === "archive" ? "已归档，可在设置 → 文件与存储中找回" : "已取消归档");
+  }
+  function importConversations(items: Conversation[]): number {
+    const existing = new Set(conversations.map((c) => c.id));
+    const fresh = items.filter((c) => !existing.has(c.id));
+    if (fresh.length) setConversations((old) => [...fresh, ...old]);
+    setToast(t("已导入") + " " + fresh.length + " " + t("个对话") + (items.length > fresh.length ? t("（跳过重复 ") + (items.length - fresh.length) + t(" 个）") : ""));
+    return fresh.length;
+  }
+  function exportPdfOf(chat: Conversation) {
+    setRowMenuId(null);
+    selectChat(chat.id);
+    window.setTimeout(() => exportPdfRef.current(), 400);
+  }
+
   function clearHistory() {
     if (!window.confirm(t("确定清空全部本地对话？此操作无法撤销。"))) return;
     controllerRef.current?.abort();
@@ -717,22 +841,19 @@ export default function App() {
 
   async function addFiles(selected: File[]) {
     if (!selected.length) return;
-    if (attachments.length + selected.length > 3) {
-      notify("一次最多选择 3 个文本附件");
+    if (attachments.length + selected.length > LIMITS.files) {
+      notify("一次最多添加 5 个附件");
       return;
     }
-    if (selected.some((file) => !acceptedExtensions.test(file.name) || file.size > 80_000)) {
-      notify("仅支持常见文本/代码文件，每个不超过 80 KB");
-      return;
-    }
+    setReadingFiles((n) => n + selected.length);
     try {
-      const items = await Promise.all(selected.map(async (file) => ({
-        id: newId(), name: file.name, content: await file.text()
-      })));
-      setAttachments((before) => [...before, ...items].slice(0, 3));
+      const items = await Promise.all(selected.map(readAttachment));
+      setAttachments((before) => [...before, ...items].slice(0, LIMITS.files));
       composerRef.current?.focus();
-    } catch {
-      notify("读取附件失败");
+    } catch (error) {
+      notify(error instanceof AttachmentError ? error.message : "读取附件失败");
+    } finally {
+      setReadingFiles((n) => Math.max(0, n - selected.length));
     }
   }
   function chooseFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -833,6 +954,7 @@ export default function App() {
     { id: "ide", label: t("代码工作区"), icon: <Code2 size={16}/>, run: () => openStudio("ide") },
     { id: "settings", label: t("设置"), icon: <Settings2 size={16}/>, hint: MOD + " ,", run: () => setSettingsSection("general") },
     { id: "shortcuts", label: t("键盘快捷键"), icon: <Keyboard size={16}/>, hint: MOD + " /", run: () => setSettingsSection("shortcuts") },
+    { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
     { id: "sync", label: t("跨设备同步"), icon: <Cloud size={16}/>, run: () => openStudio("sync") }
   ];
 
@@ -881,6 +1003,9 @@ export default function App() {
         </div>}
         <button role="menuitem" onClick={() => { exportMarkdown(chat, language); setRowMenuId(null); notify("已导出 Markdown"); }}>
           <ArrowDownToLine size={15}/> {t("导出对话")}</button>
+        {!chat.temporary && <button role="menuitem" onClick={() => { setRowMenuId(null); setShareId(chat.id); }}><Share2 size={15}/> {t("分享")}</button>}
+        <button role="menuitem" onClick={() => { exportPdfOf(chat); }}><Printer size={15}/> {t("导出 PDF / 打印")}</button>
+        <button role="menuitem" onClick={() => { setRowMenuId(null); bulk("archive", [chat.id]); }}><Archive size={15}/> {t("归档")}</button>
         <div className="cx-menu-sep"/>
         <button role="menuitem" className="danger" onClick={() => deleteChat(chat)}><Trash2 size={15}/> {t("删除对话")}</button>
       </div>}
@@ -954,7 +1079,7 @@ export default function App() {
                   onClick={() => openProject(p.id)} title={p.name}>
                   <FolderOpen size={15} style={{ color: p.color }}/><span>{p.name}</span>{count > 0 && <small>{count}</small>}
                 </button>
-                {open && sorted.filter((c) => c.projectId === p.id).slice(0, 8).map((chat) => <div className="cx-project-chats" key={chat.id}>{renderRow(chat)}</div>)}
+                {open && sorted.filter((c) => c.projectId === p.id && !c.archived).slice(0, 8).map((chat) => <div className="cx-project-chats" key={chat.id}>{renderRow(chat)}</div>)}
               </div>;
             })}
           </div>
@@ -966,6 +1091,14 @@ export default function App() {
           </div>)}
         </div>
 
+        {updateInfo && updateInfo.state !== "error" && <div className="cx-update" role="status">
+          {updateInfo.state === "available" && <><Download size={15}/><span>{t("新版本")} {updateInfo.version} {t("可用")}</span>
+            <button type="button" onClick={() => { desktop()?.updateAction?.("download"); setUpdateInfo({ state: "downloading", percent: 0, version: updateInfo.version }); }}>{t("更新")}</button></>}
+          {updateInfo.state === "downloading" && <><RefreshCw size={15} className="cx-spin"/><span>{t("正在下载更新")} {updateInfo.percent ?? 0}%</span>
+            <i style={{ width: (updateInfo.percent ?? 0) + "%" }}/></>}
+          {updateInfo.state === "ready" && <><RefreshCw size={15}/><span>{t("更新已就绪")}</span>
+            <button type="button" onClick={() => desktop()?.updateAction?.("install")}>{t("重启以更新")}</button></>}
+        </div>}
         <UserMenu t={t} collapsed={sidebarCollapsed} name={displayName} email={session?.user?.email || null} plan={plan}
           authenticated={Boolean(session?.authenticated)} accountsEnabled={Boolean(session?.enabled)} unread={unread}
           languagePref={languagePref} onLanguagePref={(pref) => { setLanguagePref(pref); }}
@@ -995,7 +1128,7 @@ export default function App() {
           <div className="wallpaper-image" style={wallpaperStyle} aria-hidden="true"/>
           <div className="wallpaper-veil" style={{ backgroundColor: "rgba(2,12,11," + appearance.overlay / 100 + ")" }} aria-hidden="true"/>
         </>}
-        {dragging && <div className="cx-dropzone"><Paperclip size={26}/><strong>{t("松开以添加附件")}</strong><span>{t("文本或代码文件，每个不超过 80 KB")}</span></div>}
+        {dragging && <div className="cx-dropzone"><Paperclip size={26}/><strong>{t("松开以添加附件")}</strong><span>{t("图片、PDF、文本或代码文件")}</span></div>}
         <header className="cx-topbar">
           <div className="cx-topbar-left">
             <button className="cx-icon cx-mobile-menu" onClick={() => setSidebarOpen(true)} aria-label={t("打开侧栏")}><Menu size={20}/></button>
@@ -1037,6 +1170,10 @@ export default function App() {
               className={temporaryMode || current?.temporary ? "cx-temp cx-temp--on" : "cx-temp"} aria-pressed={temporaryMode}
               disabled={Boolean(current?.temporary)} onClick={() => { setTemporaryMode((v) => !v); notify(temporaryMode ? "已关闭临时对话" : "临时对话：不会保存到历史记录"); }}
               title={t("临时对话")} aria-label={t("临时对话")}><Ghost size={16}/><span>{t("临时")}</span></button>}
+            {current && !current.temporary && <button className="cx-share" onClick={() => setShareId(current.id)} title={t("分享对话")} aria-label={t("分享对话")}>
+              <Share2 size={15}/><span>{t("分享")}</span></button>}
+            {current && <button className="cx-icon" title={t("导出 PDF / 打印") + " (" + MOD + " P)"} aria-label={t("导出 PDF / 打印")}
+              onClick={() => exportPdfRef.current()}><Printer size={18}/></button>}
             {current && !current.temporary && <button className="cx-icon" title={t("导出本次对话")}
               onClick={() => { exportMarkdown(current, language); notify("已导出 Markdown"); }}
               aria-label={t("导出本次对话")}><ArrowDownToLine size={18}/></button>}
@@ -1073,6 +1210,13 @@ export default function App() {
                   {assistant && <div className="message-avatar"><CiroMark small/></div>}
                   <div className="message-body">
                     {assistant ? <>
+                      {(message.webSearch || message.tools?.length) ? <div className="cx-tools">
+                        {message.webSearch && <span className="cx-tool-chip"><Globe size={13}/>{t("已启用联网搜索")}</span>}
+                        {message.tools?.map((tool, i) => <details key={i} className="cx-tool-call">
+                          <summary><Wrench size={13}/>{t("调用工具")} <code>{tool.name || "…"}</code></summary>
+                          {tool.args && <pre>{tool.args.slice(0, 4000)}</pre>}
+                        </details>)}
+                      </div> : null}
                       {(message.reasoning || thinking) && <div className={thinking ? "cx-thought cx-thought--live" : "cx-thought"}>
                         <button type="button" className="cx-thought-head" onClick={() => setOpenThoughts((m) => ({ ...m, [message.id]: !thoughtOpen }))}
                           aria-expanded={thoughtOpen} disabled={!message.reasoning}>
@@ -1084,11 +1228,7 @@ export default function App() {
                         {thoughtOpen && message.reasoning && <div className="cx-thought-body">{message.reasoning}</div>}
                       </div>}
                       <div className={["message-prose", message.preview ? "message-prose--preview" : ""].join(" ")}>
-                        {body ? <ReactMarkdown remarkPlugins={[remarkGfm]}
-                          components={{
-                            a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
-                            pre: ({ children }) => <CodeBlock copyLabel={t("复制代码")} copiedLabel={t("已复制")}>{children}</CodeBlock>
-                          }}>{body}</ReactMarkdown> : null}
+                        {body ? <Markdown text={body} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/> : null}
                         {isStreaming && message.content && <span className="typing-cursor" aria-label={t("正在生成")}/>}
                       </div>
                     </> : editingId === message.id ? (
@@ -1104,7 +1244,12 @@ export default function App() {
                           <button type="button" className="cx-btn cx-btn--primary" onClick={() => submitEdit(message)} disabled={busy}>{t("发送")}</button>
                         </div>
                       </div>
-                    ) : <div className="user-bubble">{message.content}</div>}
+                    ) : <>
+                      {message.images?.length ? <div className="cx-msg-images">{message.images.map((image) =>
+                        <button type="button" key={image.id} onClick={() => void getImage(image.id).then((full) => setLightbox(full || image.thumb))}
+                          aria-label={t("查看图片") + " " + image.name}><img src={image.thumb} alt={image.name}/></button>)}</div> : null}
+                      <div className="user-bubble">{message.content}</div>
+                    </>}
                     {preferences.showTime && <time className="message-time" dateTime={new Date(message.createdAt).toISOString()}>
                       {new Date(message.createdAt).toLocaleTimeString(language === "en" ? "en-US" : "zh-CN", { hour: "2-digit", minute: "2-digit" })}
                     </time>}
@@ -1152,9 +1297,10 @@ export default function App() {
                 <code>{cmd}</code><span>{t(desc)}</span></button>)}
             </div>}
             <div className={["composer", "cx-composer", composerMode !== "chat" ? "cx-composer--agent" : ""].join(" ")} onClick={() => composerRef.current?.focus()}>
-              {attachments.length > 0 && <div className="attachments">
-                {attachments.map((file) => <span className="attachment-chip" key={file.id}>
-                  <FileText size={14}/><span>{file.name}</span>
+              {(attachments.length > 0 || readingFiles > 0) && <div className="attachments">
+                {readingFiles > 0 && <span className="attachment-chip attachment-chip--loading"><span className="cx-row-spinner"/>{t("正在读取附件…")}</span>}
+                {attachments.map((file) => <span className={file.kind === "image" ? "attachment-chip attachment-chip--image" : "attachment-chip"} key={file.id}>
+                  {file.kind === "image" ? <img src={file.thumb} alt=""/> : <FileText size={14}/>}<span>{file.name}</span>
                   <button aria-label={t("移除 ") + file.name} onClick={(event) => {
                     event.stopPropagation();
                     setAttachments((prev) => prev.filter((item) => item.id !== file.id));
@@ -1174,20 +1320,22 @@ export default function App() {
               <div className="composer-toolbar">
                 <div className="composer-toolbar-left">
                   <input ref={fileInputRef} type="file" hidden multiple onChange={chooseFiles}
-                    accept=".txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.mjs,.cjs,.py,.html,.css,.scss,.xml,.yaml,.yml,.toml,.ini,.sql,.log,.sh,.ps1,.go,.rs,.java,.kt,.swift,.c,.cc,.cpp,.h,.hpp,.cs,.rb,.php,.vue,.svelte"/>
+                    accept={ACCEPT}/>
                   <div className="cx-plus" ref={plusRef}>
                     <button type="button" className={plusOpen ? "cx-tool cx-tool--round cx-tool--open" : "cx-tool cx-tool--round"} aria-label={t("添加附件与模式")}
                       aria-expanded={plusOpen} title={t("添加附件与模式")} onClick={(e) => { e.stopPropagation(); setPlusOpen((v) => !v); }}>
                       <Plus size={18}/></button>
                     {plusOpen && <div className="cx-plus-menu" role="menu" onClick={(e) => e.stopPropagation()}>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); fileInputRef.current?.click(); }}>
-                        <Paperclip size={16}/><span><strong>{t("添加附件")}</strong><small>{t("文本或代码，最多 3 个")}</small></span></button>
+                        <Paperclip size={16}/><span><strong>{t("添加附件")}</strong><small>{t("图片、PDF、文本或代码，最多 5 个")}</small></span></button>
                       <div className="cx-menu-sep"/>
                       <button role="menuitemradio" aria-checked={composerMode === "goal"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "goal" ? "chat" : "goal"); focusComposer(); }}>
                         <Target size={16}/><span><strong>{t("目标模式")}</strong><small>{t("交给代理自主执行并验证")}</small></span>{composerMode === "goal" && <Check size={15}/>}</button>
                       <button role="menuitemradio" aria-checked={composerMode === "plan"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "plan" ? "chat" : "plan"); focusComposer(); }}>
                         <ListChecks size={16}/><span><strong>{t("计划模式")}</strong><small>{t("只生成计划，不改动仓库")}</small></span>{composerMode === "plan" && <Check size={15}/>}</button>
                       <div className="cx-menu-sep"/>
+                      <button role="menuitem" onClick={() => { setPlusOpen(false); setPromptsOpen(true); }}>
+                        <BookMarked size={16}/><span><strong>{t("提示词库")}</strong><small>{t("保存并一键插入常用提示词")}</small></span></button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setDraft("/"); focusComposer(); }}>
                         <Sparkles size={16}/><span><strong>{t("斜杠命令")}</strong><small>{t("快速打开工作台与工具")}</small></span></button>
                     </div>}
@@ -1197,6 +1345,12 @@ export default function App() {
                     {composerMode === "goal" ? <Target size={14}/> : <ListChecks size={14}/>}
                     <span>{t(composerMode === "goal" ? "目标模式" : "计划模式")}</span><X size={13}/>
                   </button>}
+                  {composerMode === "chat" && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
+                    aria-pressed={webSearchOn && Boolean(status.webSearch)} title={t("联网搜索")} aria-label={t("联网搜索")}
+                    onClick={(e) => { e.stopPropagation();
+                      if (!status.webSearch) { notify(status.configured ? "联网搜索需要服务端开启 CIRO_WEB_SEARCH=on" : "连接推理服务后可使用联网搜索"); return; }
+                      setWebSearchOn((v) => !v); }}>
+                    <Globe size={15}/><span>{t("联网")}</span></button>}
                   {composerMode === "chat" && <div onClick={(e) => e.stopPropagation()}>
                     <ThinkingDepth value={thinkingLevel} onChange={setThinkingLevel} t={t} note={thinkingNote}/>
                   </div>}
@@ -1245,9 +1399,17 @@ export default function App() {
         status={status} model={model} onModelChange={setModel}
         onRefreshStatus={refreshStatus} conversations={conversations}
         onExportAll={exportAllConversations} onClearHistory={clearHistory}
+        onBulk={bulk} onImport={importConversations}
       />}
+      {shareId && conversations.find((c) => c.id === shareId) && <ShareDialog t={t} chat={conversations.find((c) => c.id === shareId)!}
+        onClose={() => setShareId(null)}
+        onShared={(id) => { setConversations((old) => old.map((c) => c.id === shareId ? { ...c, shareId: id } : c)); notify(id ? "分享链接已生成" : "已停止分享"); }}/>}
+      {promptsOpen && <PromptLibrary t={t} draft={draft} onClose={() => setPromptsOpen(false)}
+        onInsert={(content) => { setPromptsOpen(false); setDraft((before) => before.trim() ? before.trimEnd() + "\n\n" + content : content); focusComposer(); }}/>}
       {paletteOpen && <SearchPalette t={t} conversations={conversations} commands={paletteCommands}
         onSelectChat={selectChat} onClose={() => setPaletteOpen(false)}/>}
+      {lightbox && <div className="cx-lightbox" role="dialog" aria-modal="true" aria-label={t("查看图片")} onClick={() => setLightbox(null)}>
+        <img src={lightbox} alt=""/><button type="button" className="cx-icon" aria-label={t("关闭")}><X size={20}/></button></div>}
       {toast && <div className="toast" role="status" key={toast}><Check size={16}/> {toast}</div>}
     </div>
   );

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import SharedView from "./components/SharedView";
 import "./lib/desktop";
 import { bootMobile, isMobileShell } from "./lib/mobile";
 import "./styles.css";
@@ -12,14 +13,17 @@ import "./workbench-entry.css";
 import "./commercial.css";
 import "./account.css";
 import "./studio.css";
+import "katex/dist/katex.min.css";
 import "./shell.css";
 
 bootMobile();
 if (window.ciroDesktop) document.documentElement.dataset.desktop = window.ciroDesktop.platform;
 
+const shareMatch = /^\/share\/([A-Za-z0-9_-]{16,40})\/?$/.exec(window.location.pathname);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    {shareMatch ? <SharedView id={shareMatch[1]} /> : <App />}
   </React.StrictMode>
 );
 

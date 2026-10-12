@@ -4,6 +4,8 @@ export type ChatPreferences = {
   compactMessages: boolean;
   fontSize: "small" | "normal" | "large";
   reduceMotion: boolean;
+  notifyOnComplete: boolean;
+  autoTitle: boolean;
 };
 
 const KEY = "ciro.chat-preferences.v1";
@@ -12,7 +14,9 @@ export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   showTime: false,
   compactMessages: false,
   fontSize: "normal",
-  reduceMotion: false
+  reduceMotion: false,
+  notifyOnComplete: false,
+  autoTitle: true
 };
 
 export function loadChatPreferences(): ChatPreferences {
@@ -24,7 +28,9 @@ export function loadChatPreferences(): ChatPreferences {
       compactMessages: typeof value.compactMessages === "boolean" ? value.compactMessages : false,
       fontSize: ["small", "normal", "large"].includes(value.fontSize || "") ?
         value.fontSize as ChatPreferences["fontSize"] : "normal",
-      reduceMotion: typeof value.reduceMotion === "boolean" ? value.reduceMotion : false
+      reduceMotion: typeof value.reduceMotion === "boolean" ? value.reduceMotion : false,
+      notifyOnComplete: typeof value.notifyOnComplete === "boolean" ? value.notifyOnComplete : false,
+      autoTitle: typeof value.autoTitle === "boolean" ? value.autoTitle : true
     };
   } catch {
     return { ...DEFAULT_CHAT_PREFERENCES };

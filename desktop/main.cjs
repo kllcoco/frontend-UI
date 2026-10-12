@@ -1,5 +1,5 @@
 // Ciro desktop shell: runs the bundled Node API + web UI on a private loopback port.
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, shell } = require("electron");
 const { existsSync, mkdirSync, writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
@@ -11,6 +11,12 @@ const isMac = process.platform === "darwin";
 let mainWindow = null;
 let serverOrigin = null;
 let language = "en";
+let tray = null;
+let isQuitting = false;
+let trayHintShown = false;
+let updater = null;
+let manualUpdateCheck = false;
+const HOTKEY = isMac ? "Alt+Space" : "Alt+Space";
 
 app.setName("Ciro");
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -67,6 +73,75 @@ async function startServer() {
   throw new Error("Local API did not become ready on " + origin);
 }
 
+function showWindow() {
+  if (!mainWindow) { createWindow(); return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function toRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+}
+
+/* ── Auto update (GitHub Releases via electron-updater) ── */
+function setupUpdater() {
+  if (!app.isPackaged || process.env.CIRO_DESKTOP_SMOKE) return;
+  try { updater = require("electron-updater").autoUpdater; } catch { return; }
+  updater.autoDownload = false;
+  updater.autoInstallOnAppQuit = true;
+  updater.on("update-available", (info) => toRenderer("ciro:update", { state: "available", version: info.version }));
+  updater.on("update-not-available", () => {
+    if (manualUpdateCheck) {
+      const s = strings(language);
+      void dialog.showMessageBox({ type: "info", message: s.upToDate, detail: "Ciro " + app.getVersion() });
+    }
+    manualUpdateCheck = false;
+  });
+  updater.on("download-progress", (p) => toRenderer("ciro:update", { state: "downloading", percent: Math.round(p.percent || 0) }));
+  updater.on("update-downloaded", (info) => toRenderer("ciro:update", { state: "ready", version: info.version }));
+  updater.on("error", (error) => {
+    toRenderer("ciro:update", { state: "error", message: String(error && error.message || error).slice(0, 200) });
+    if (manualUpdateCheck) void shell.openExternal(REPO_URL + "/releases/latest");
+    manualUpdateCheck = false;
+  });
+  setTimeout(() => { void updater.checkForUpdates().catch(() => {}); }, 8000);
+  setInterval(() => { void updater.checkForUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);
+}
+function checkForUpdates() {
+  if (!updater) { void shell.openExternal(REPO_URL + "/releases/latest"); return; }
+  manualUpdateCheck = true;
+  void updater.checkForUpdates().catch(() => {});
+}
+
+/* ── Tray + global shortcut ── */
+function setupTray() {
+  const s = strings(language);
+  if (!tray) {
+    const icon = nativeImage.createFromPath(path.join(__dirname, "..", "build", "icon.png")).resize({ width: isMac ? 18 : 20, height: isMac ? 18 : 20 });
+    tray = new Tray(icon);
+    tray.on("click", () => { if (mainWindow && mainWindow.isVisible() && mainWindow.isFocused()) mainWindow.hide(); else showWindow(); });
+  }
+  tray.setToolTip("Ciro");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: s.showCiro, click: showWindow },
+    { label: s.newChat, click: () => { showWindow(); send("new-chat"); } },
+    { type: "separator" },
+    { label: s.updates, click: checkForUpdates },
+    { type: "separator" },
+    { label: s.quit, click: () => { isQuitting = true; app.quit(); } }
+  ]));
+}
+function setupHotkey() {
+  try {
+    globalShortcut.register(HOTKEY, () => {
+      if (mainWindow && mainWindow.isVisible() && mainWindow.isFocused()) { mainWindow.hide(); return; }
+      showWindow();
+      send("focus-composer");
+    });
+  } catch { /* another app owns the shortcut */ }
+}
+
 function send(command) {
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -81,7 +156,7 @@ function buildMenu() {
       label: "Ciro",
       submenu: [
         { label: s.about, click: () => send("about") },
-        { label: s.updates, click: () => shell.openExternal(REPO_URL + "/releases/latest") },
+        { label: s.updates, click: checkForUpdates },
         { type: "separator" },
         { label: s.settings, accelerator: "Cmd+,", click: () => send("settings") },
         { type: "separator" },
@@ -100,6 +175,7 @@ function buildMenu() {
         { label: s.newChat, accelerator: "CmdOrCtrl+Shift+O", click: () => send("new-chat") },
         { label: s.search, accelerator: "CmdOrCtrl+K", click: () => send("search") },
         { label: s.exportChat, accelerator: "CmdOrCtrl+Shift+E", click: () => send("export-chat") },
+        { label: s.exportPdf, accelerator: "CmdOrCtrl+P", click: () => send("export-pdf") },
         { type: "separator" },
         { label: s.openConfig, click: () => shell.openPath(dataDir()) },
         { label: s.editEnv, click: () => shell.openPath(path.join(dataDir(), ".env")) },
@@ -157,12 +233,14 @@ function buildMenu() {
       submenu: [
         { label: s.shortcuts, accelerator: "CmdOrCtrl+/", click: () => send("shortcuts") },
         { label: s.website, click: () => shell.openExternal(REPO_URL) },
-        { label: s.updates, click: () => shell.openExternal(REPO_URL + "/releases/latest") },
+        { label: s.updates, click: checkForUpdates },
+        { label: s.hotkeyHint + " (" + (isMac ? "⌥ Space" : "Alt+Space") + ")", enabled: false },
         ...(isMac ? [] : [{ type: "separator" }, { label: s.about, click: () => send("about") }])
       ]
     }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  if (tray) setupTray();
 }
 
 function createWindow() {
@@ -208,6 +286,16 @@ function createWindow() {
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     }
   });
+  // Closing the window keeps Ciro in the tray (Windows/Linux) so the global shortcut still works.
+  mainWindow.on("close", (event) => {
+    if (isQuitting || isMac || process.env.CIRO_DESKTOP_SMOKE || !tray) return;
+    event.preventDefault();
+    mainWindow.hide();
+    if (!trayHintShown && tray.displayBalloon) {
+      trayHintShown = true;
+      tray.displayBalloon({ title: "Ciro", content: strings(language).trayHint });
+    }
+  });
   mainWindow.on("closed", () => { mainWindow = null; });
   void mainWindow.loadURL(serverOrigin + "/");
 }
@@ -219,15 +307,27 @@ ipcMain.on("ciro:set-language", (_event, next) => {
     buildMenu();
   }
 });
+ipcMain.on("ciro:update-action", (_event, action) => {
+  if (!updater) { void shell.openExternal(REPO_URL + "/releases/latest"); return; }
+  if (action === "download") void updater.downloadUpdate().catch(() => shell.openExternal(REPO_URL + "/releases/latest"));
+  if (action === "install") { isQuitting = true; updater.quitAndInstall(); }
+  if (action === "check") checkForUpdates();
+});
+ipcMain.handle("ciro:export-pdf", async (_event, name) => {
+  if (!mainWindow) return false;
+  const safe = String(name || "Ciro").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").slice(0, 80) || "Ciro";
+  const target = await dialog.showSaveDialog(mainWindow, { defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  if (target.canceled || !target.filePath) return false;
+  const pdf = await mainWindow.webContents.printToPDF({ printBackground: true, pageSize: "A4", margins: { marginType: "default" } });
+  writeFileSync(target.filePath, pdf);
+  void shell.showItemInFolder(target.filePath);
+  return true;
+});
 ipcMain.on("ciro:open-external", (_event, url) => {
   if (/^https:\/\//i.test(url)) void shell.openExternal(url);
 });
 
-app.on("second-instance", () => {
-  if (!mainWindow) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.focus();
-});
+app.on("second-instance", () => showWindow());
 
 app.whenReady().then(async () => {
   language = pickLanguage(app.getPreferredSystemLanguages?.() || [app.getLocale()]);
@@ -240,7 +340,14 @@ app.whenReady().then(async () => {
     return;
   }
   createWindow();
-  app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  if (!process.env.CIRO_DESKTOP_SMOKE) {
+    try { setupTray(); } catch { tray = null; }
+    setupHotkey();
+  }
+  setupUpdater();
+  app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); else showWindow(); });
 });
 
+app.on("before-quit", () => { isQuitting = true; });
+app.on("will-quit", () => { globalShortcut.unregisterAll(); });
 app.on("window-all-closed", () => { if (!isMac) app.quit(); });

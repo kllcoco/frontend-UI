@@ -10,6 +10,9 @@ export type ChatMessage = {
   thinkingMs?: number;
   depth?: string;
   feedback?: "up" | "down";
+  images?: { id: string; name: string; thumb: string }[];
+  tools?: { name: string; args: string }[];
+  webSearch?: boolean;
 };
 
 export type Conversation = {
@@ -22,6 +25,8 @@ export type Conversation = {
   pinned?:boolean;
   projectId?:string;
   temporary?:boolean;
+  archived?:boolean;
+  shareId?:string;
   parentId?:string;
   checkpoints?:{id:string;label:string;createdAt:number;messages:ChatMessage[]}[];
 };
@@ -33,4 +38,5 @@ export type ApiStatus = {
   mode: "preview" | "configured";
   reasoningModes?: ("fast"|"deep")[];
   reasoningEffort?: boolean;
+  webSearch?: boolean;
 };

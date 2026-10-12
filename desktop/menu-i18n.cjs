@@ -8,7 +8,8 @@ const zh = {
   devtools: "开发者工具", resetZoom: "实际大小", zoomIn: "放大", zoomOut: "缩小", fullscreen: "切换全屏",
   minimize: "最小化", zoom: "缩放", front: "全部置于顶层", shortcuts: "键盘快捷键", about: "关于 Ciro",
   website: "访问 GitHub 仓库", updates: "检查更新…", hide: "隐藏 Ciro", hideOthers: "隐藏其他", unhide: "全部显示",
-  services: "服务", startupError: "Ciro 本地服务启动失败"
+  services: "服务", startupError: "Ciro 本地服务启动失败", exportPdf: "导出为 PDF…", upToDate: "已是最新版本",
+  showCiro: "显示 Ciro", trayHint: "Ciro 仍在后台运行，可从托盘图标或 Alt+Space 唤出。", hotkeyHint: "全局唤出快捷键"
 };
 const en = {
   file: "File", edit: "Edit", view: "View", window: "Window", help: "Help",
@@ -19,7 +20,8 @@ const en = {
   devtools: "Developer Tools", resetZoom: "Actual Size", zoomIn: "Zoom In", zoomOut: "Zoom Out", fullscreen: "Toggle Full Screen",
   minimize: "Minimize", zoom: "Zoom", front: "Bring All to Front", shortcuts: "Keyboard Shortcuts", about: "About Ciro",
   website: "Visit GitHub Repository", updates: "Check for Updates…", hide: "Hide Ciro", hideOthers: "Hide Others", unhide: "Show All",
-  services: "Services", startupError: "Ciro could not start its local service"
+  services: "Services", startupError: "Ciro could not start its local service", exportPdf: "Export as PDF…", upToDate: "You're up to date",
+  showCiro: "Show Ciro", trayHint: "Ciro is still running. Open it from the tray icon or with Alt+Space.", hotkeyHint: "Global shortcut"
 };
 function pickLanguage(preferred) {
   for (const tag of preferred) {
