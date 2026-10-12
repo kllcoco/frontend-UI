@@ -10,6 +10,7 @@ import {supabaseOAuthConfig,supabaseStartAuthorization,supabaseToken,supabaseIde
 import {verifyAgentPluginCapability} from "./plugin-agent-capability.mjs";
 import {fetchSignedPluginPackage} from "./plugin-package-verifier.mjs";
 import {createPluginJobQueue} from "./plugin-job-queue.mjs";
+import {buildSelfRepairDraft} from "./github-self-repair.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
@@ -76,20 +77,13 @@ async function runGithub(env,credential,tool,args,fetchFn,signal){
    return githubCall(env,credential,"POST",prefix+"/git/refs",{ref:"refs/heads/"+branch,sha:base.object.sha},fetchFn,signal);
  }
  if(tool==="github.open_pull_request"){
-   if(env.CIRO_GITHUB_SELF_REPAIR_ENABLED!=="true"||env.CIRO_GITHUB_SELF_REPO!==repo)
-     throw fail("Self-repair PR creation is disabled for this repository",403);
-   const branch=safeBranch(args.branch);
-   const base=bounded(args.base,130,"pull request base");
-   if(!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,128}$/.test(base)||base.includes("..")||
-      base.includes("//")||base.endsWith("/")||base===branch)
-     throw fail("Invalid PR base or head",400);
-   const title=bounded(args.title,120,"PR title");
-   const body=typeof args.body==="string"&&args.body.length<=3000?args.body:"";
+   const payload=buildSelfRepairDraft(env,repo,args);
    const result=await githubCall(env,credential,"POST",prefix+"/pulls",
-     {title,body,base,head:branch,draft:true,maintainer_can_modify:false},fetchFn,signal);
+     payload,fetchFn,signal);
    if(!Number.isInteger(result.number)||typeof result.html_url!=="string")
      throw fail("GitHub PR creation response invalid",502);
-   return {repo,number:result.number,url:result.html_url,draft:true,base,head:branch};
+   return {repo,number:result.number,url:result.html_url,draft:true,
+     base:payload.base,head:payload.head};
  }
  if(tool==="github.write_file"){
    const branch=safeBranch(args.branch),path=safeFilePath(args.path),message=bounded(args.message,150,"commit message");
