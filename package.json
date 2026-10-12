@@ -12,6 +12,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server/index.mjs",
     "test": "node --test tests/*.test.mjs",
+    "test:desktop-core": "node --test tests/desktop-runtime.test.mjs tests/desktop-shell-contract.test.mjs tests/github-read-ref.test.mjs tests/github-self-repair-policy.test.mjs tests/plugin-approval-preview.test.mjs",
     "test:e2e": "playwright test",
     "test:ci": "npm run test && npm run build && npm run test:e2e",
     "worker:plugins": "node server/plugin-worker.mjs",
