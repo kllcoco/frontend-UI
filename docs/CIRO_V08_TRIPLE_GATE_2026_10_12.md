@@ -72,3 +72,17 @@ Windows 用户第三轮全流程：Node 123 tests = 120 PASS / 0 FAIL / 3 Linux-
 候选修复：`playwright.config.ts` 在 CI 或 `CIRO_E2E_STRICT=true` 时为本轮独立创建被 Git 忽略的 Workbench 数据目录，清空与测试有关的连接配置并拒绝复用旧 5173/8787 服务；`scripts/accept-ciro-windows.ps1` 强制启用该严格模式。浏览器 E2E 保留原有行为断言，并增加 GitHub pin 操作前后对真实服务端状态的独立检验，不使用 skip/mock 代替功能验证。当前该提交的 Windows 复验 **NOT RUN**。新目录只由 QA 使用，不删除 F/G/B 盘已有源码或用户工作数据。
 
 局部复验：`$env:CIRO_E2E_STRICT='true'; npx.cmd playwright test tests/e2e/client.spec.ts -g 'first-party application directory|skills catalog'`；成功后再重新执行原始 `npm.cmd run accept:desktop-windows` 全仓验收。若端口已被其他开发服务器占用，严格模式应明确失败而非误连旧服务。
+
+## Windows 本地构建验收全绿与安装包 SHA256（2026-10-12）
+
+**实机提供的原始本地收据**：`schema=ciro.v08.windows-local-acceptance.v1`，UTC `2026-10-12T13:45:45.0596092Z`，测试源码 **`51378925ec9fe885563073070845890654593d4c`**，`nodeTests=PASS`、`frontendBuild=PASS`、`browserE2E=PASS`（Playwright **29/29**）、`windowsNsisBuild=PASS`。Node 首轮及后续回归中 120 PASS、0 FAIL、3 Linux-only SKIP。安装包在本机位置：`B:\CIRO-Desktop-QA\release\Ciro-Desktop-0.8.0-dev-x64-Setup.exe`。
+
+本机收据生成的安装包摘要：
+
+```text
+SHA256 121ca1e54ada4004523548a69d3f516cad3e95463e69f87baba6fc167703cd3a
+```
+
+`signatureStatus=NotSigned`：没有 Authenticode 发布者签名，只能按内部候选处理，不能声称已可面向公众可信分发。上面摘要由实际 Windows 用户提供，GitHub 本身并不持有该 Windows EXE，不能假称云端独立重新计算过摘要。
+
+后续仍为 **NOT_RUN**：`cleanInstallBootUninstall`、`githubLiveRead`、`nativeModelStream`；`nativeNcpaAuthority=NOT_VERIFIED`；`graduated=false`。安装器首次运行请仅在全新 Windows 本地测试用户或隔离 VM 中完成，先核验 SHA256，再安装、打开确认桌面窗口与本机账号初始化、正常退出、重启、卸载并检查用户数据不被意外删除。旧账户/G 盘 NCPA/B 盘源码不得因该测试清理或覆盖。后续真实 GitHub 读/审批写/草稿 PR 与原生 NCPA 运行时来源证据须分别复验；没有任何付费云端构建授权。
