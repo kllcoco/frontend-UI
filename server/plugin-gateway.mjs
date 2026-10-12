@@ -332,8 +332,13 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
  function listModelTools(user) {
   const result=[];
   const installedGitHub=installs.installed(user,"github");
+  const githubMeta=installs.getPlugin("github");
+  const githubManifestMatches=installedGitHub&&githubMeta&&
+   installedGitHub.version===githubMeta.version&&
+   installedGitHub.manifestHash===sha(JSON.stringify({id:githubMeta.id,version:githubMeta.version,
+    permissions:githubMeta.permissions,tools:githubMeta.tools}));
   const connectedGitHub=store.connection(user,"github");
-  if(installedGitHub?.enabled&&installedGitHub.installationId&&
+  if(githubManifestMatches&&installedGitHub?.enabled&&installedGitHub.installationId&&
      connectedGitHub?.installationId===installedGitHub.installationId){
    const permission=policy(),repo=permission.repo;
    if(repo && (env.CIRO_GITHUB_REPOS||"").split(",").map(x=>x.trim()).includes(repo)){
