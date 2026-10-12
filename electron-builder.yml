@@ -1,4 +1,3 @@
-version: 1
 appId: ai.ciro.desktop
 productName: Ciro
 asar: true
