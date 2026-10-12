@@ -207,15 +207,27 @@
       "code_signing": "NOT_RUN",
       "native_model_inference": "NOT_RUN",
       "preflight": "SOURCE_AND_BUILT_PRECHECKS_IMPLEMENTED; WINDOWS_NSIS_INSTALL_NOT_RUN",
-      "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration"
+      "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration",
+      "windows_local_acceptance": {
+        "script": "scripts/accept-ciro-windows.ps1",
+        "runs_on": "actual Windows host using disposable user for installation",
+        "node_full_regression": "NOT_RUN",
+        "frontend_build": "NOT_RUN",
+        "browser_e2e": "NOT_RUN",
+        "windows_nsis_exe": "NOT_RUN",
+        "clean_install_boot_uninstall": "NOT_RUN",
+        "external_paid_runner_dispatches": 0,
+        "script_windows_execution": "NOT_RUN"
+      }
     },
     "isolated_verified_tests": {
-      "status": "PASS",
-      "passed": 16,
+      "status": "PASS_SCOPED_OFFLINE",
+      "passed": 20,
       "failed": 0,
-      "method": "Node v22.16.0, exact Git blob-matched scoped tests via test:desktop-core: Electron main mocked integration, desktop secrets/environment, safe GitHub ref/draft PR, approval preview, packaging preflight",
-      "receipt": "docs/CIRO_V08_DESKTOP_CORE_LOCAL_RECEIPT_2026-10-12.json",
-      "note": "Not full npm test, TypeScript/Vite build, browser E2E, authentic Electron/Windows installer, real CIRO GitHub PAT login or NCPA inference"
+      "method": "Node v22.16.0 Linux container, exact-source 16 desktop/GitHub/preflight tests plus 4 live-probe MOCK contract tests. Not full npm test.",
+      "last_local_recheck": "2026-10-12",
+      "limitations": "Windows host, real Electron installer, full source/dependencies, authenticated CIRO backend/GitHub PAT and native model provenance not available",
+      "evidence": "docs/CIRO_V08_DESKTOP_CORE_LOCAL_RECEIPT_2026-10-12.json (earlier 16 tests); 4 additional contract tests exercised for scripts/verify-ciro-desktop-live.mjs"
     },
     "constraints": [
       "No paid resources or Windows CI workflow execution without owner cost approval",
@@ -225,6 +237,20 @@
     "last_source_review": "2026-10-12",
     "review_branch": "ciro/approval-preview-gate-20261012",
     "review_pr": "https://github.com/kllcoco/frontend-UI/pull/5",
-    "review_source_commit": "792084b84fcdce0cbc927943e3b6d79664a890d9"
+    "review_source_commit": "792084b84fcdce0cbc927943e3b6d79664a890d9",
+    "live_probe": {
+      "path": "scripts/verify-ciro-desktop-live.mjs",
+      "contract_tests": {
+        "passed": 4,
+        "failed": 0,
+        "source_sha1": "5ea5261bd24b8073ce42d4491b4128dc8690c340",
+        "test_sha1": "d94d15591e4febdc19475dd4565d361df78a2f09"
+      },
+      "real_ciro_account_login": "NOT_RUN",
+      "actual_github_pat_read_inside_ciro": "NOT_RUN",
+      "actual_native_ncpa_stream": "NOT_RUN",
+      "native_ncpa_identity_attestation": "NOT_RUN",
+      "constraint": "PASS_HTTP_STREAM alone never qualifies native NCPA or self-repair write approval"
+    }
   }
 }
