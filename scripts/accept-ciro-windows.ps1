@@ -59,6 +59,9 @@ try {
     }
     Run-Local 'nodeTests' @('npm','test')
     Run-Local 'frontendBuild' @('npm','run','build')
+    # Release acceptance refuses stale localhost servers and reuses no catalog state.
+    # This never touches production owner data; Playwright creates an ignored QA-only state directory.
+    $env:CIRO_E2E_STRICT = 'true'
     Run-Local 'browserE2E' @('npm','run','test:e2e')
     Run-Local 'windowsNsisBuild' @('npm','run','desktop:win')
     $setups = @(Get-ChildItem -Path (Join-Path $repo 'release') -Filter 'Ciro-Desktop-*-Setup.exe' -File | Sort-Object LastWriteTime -Descending)
