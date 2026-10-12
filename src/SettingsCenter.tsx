@@ -9,6 +9,7 @@ import type { ApiStatus, Conversation } from "./types";
 import { translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
+import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import AccountCenter from "./AccountCenter";
 import type {AccountTab} from "./lib/account-api";
@@ -124,6 +125,12 @@ export default function SettingsCenter({
   async function removeBackground() {
     try { await onRemoveImage(); setError(null); }
     catch (cause) { setError(cause instanceof Error ? cause.message : t("删除背景图片失败")); }
+  }
+  const [serverInput, setServerInput] = useState(() => savedServer() || "");
+  const mobile = isMobileShell();
+  function connectMobileServer() {
+    try { connectServer(normalizeServer(serverInput)); }
+    catch { setError(t("服务器地址格式不正确，例如 http://192.168.1.10:8787")); }
   }
   const heading = sections.find((item) => item.id === section)?.label || "设置";
 
@@ -259,6 +266,19 @@ export default function SettingsCenter({
           </>}
 
           {section === "models" && <>
+            {mobile && <SettingBlock title={t("连接 Ciro 服务器")} subtitle={t("手机端内置离线界面；连接你部署的 Ciro 服务器后即可使用真实模型、账户与同步。")}>
+              {isRemoteMobile()
+                ? <div className="sc-model-status"><span className="sc-model-indicator sc-model-indicator--ready"/>
+                    <div><strong>{t("已连接")}</strong><p>{window.location.origin}</p></div>
+                    <button className="sc-action-secondary" onClick={disconnectServer}>{t("断开并使用离线模式")}</button></div>
+                : <div className="sc-mobile-server">
+                    <input className="sc-text-input" inputMode="url" autoCapitalize="off" autoCorrect="off" aria-label={t("服务器地址")}
+                      placeholder="http://192.168.1.10:8787" value={serverInput} onChange={(e) => setServerInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") connectMobileServer(); }}/>
+                    <button className="sc-action-secondary" disabled={!serverInput.trim()} onClick={connectMobileServer}>{t("连接")}</button>
+                  </div>}
+              {error && <p className="sc-error" role="alert">{error}</p>}
+            </SettingBlock>}
             <SettingBlock title={t("模型连接")} subtitle={t("只显示后端实际提供的模型，不展示未经验证的能力")}>
               <div className="sc-model-status"><span className={status.configured ? "sc-model-indicator sc-model-indicator--ready" : "sc-model-indicator"}/>
                 <div><strong>{status.configured ? t("已读取服务端配置") : t("等待 CIRO 推理服务接入")}</strong>

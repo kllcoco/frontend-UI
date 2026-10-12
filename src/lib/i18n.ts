@@ -424,7 +424,14 @@ const translations: Readonly<Record<string,string>> = {
   "项目文件": "Project files",
   "项目文件总大小不能超过 200 KB": "Project files can't exceed 200 KB in total",
   "项目颜色": "Project color",
-  "麦克风权限被拒绝": "Microphone permission denied"
+  "麦克风权限被拒绝": "Microphone permission denied",
+  "服务器地址格式不正确，例如 http://192.168.1.10:8787": "Invalid server address, e.g. http://192.168.1.10:8787",
+  "连接 Ciro 服务器": "Connect to a Ciro server",
+  "手机端内置离线界面；连接你部署的 Ciro 服务器后即可使用真实模型、账户与同步。": "The app works offline; connect to your Ciro server for real models, accounts and sync.",
+  "已连接": "Connected",
+  "断开并使用离线模式": "Disconnect and use offline mode",
+  "服务器地址": "Server address",
+  "连接": "Connect"
 };
 /** Only UI text is translated; user messages and model replies are never rewritten. */
 export function translate(language: Language, text: string): string {

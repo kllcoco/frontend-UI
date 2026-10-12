@@ -529,3 +529,8 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 :root[data-theme] .cx-shell .toast{top:16px;bottom:auto}
 @keyframes cx-toast{from{opacity:0;transform:translate(-50%,-10px) scale(.96)}to{opacity:1;transform:translate(-50%,0)}}
 @media (max-width:760px){.cx-temp span{display:none}.cx-temp{width:30px;padding:0;justify-content:center}}
+.sc-mobile-server{display:flex;gap:8px;align-items:center}
+.sc-mobile-server .sc-text-input{flex:1;width:auto}
+/* Safe areas for notched phones / Android edge-to-edge */
+.cx-shell{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+@media (max-width:760px){.cx-sidebar{padding-top:calc(10px + env(safe-area-inset-top));padding-bottom:calc(8px + env(safe-area-inset-bottom))}}

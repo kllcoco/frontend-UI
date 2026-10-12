@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ciro</title>
+<style>
+:root{color-scheme:light dark;--bg:#faf9f6;--text:#1c1b18;--muted:#7b7970;--line:#e7e5df;--accent:#0f8159}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b19;--text:#ecebe6;--muted:#9b998f;--line:#2b2b28;--accent:#5dcf9c}}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);
+  font-family:-apple-system,"Segoe UI","PingFang SC","Noto Sans SC",sans-serif;padding:24px;box-sizing:border-box;text-align:center}
+svg{width:56px;height:56px}h1{font-size:20px;margin:18px 0 8px}p{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 22px}
+button{display:block;width:100%;max-width:280px;margin:8px auto;height:44px;border-radius:22px;font-size:15px;border:1px solid var(--line);background:none;color:var(--text)}
+button.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+</style>
+</head>
+<body>
+<main>
+  <svg viewBox="0 0 64 64" fill="none"><path d="M48.5 17.5A22 22 0 1 0 48.5 46.5" stroke="#1f9a6c" stroke-width="8.5" stroke-linecap="round"/><circle cx="51" cy="32" r="5" fill="#2bbf82"/></svg>
+  <h1 id="t">无法连接到 Ciro 服务器</h1>
+  <p id="d">请检查手机网络和服务器地址，或先使用离线模式。</p>
+  <button class="primary" id="retry">重试</button>
+  <button id="offline">使用离线模式</button>
+  <button id="change">更换服务器</button>
+</main>
+<script>
+var en=!/^zh/i.test(navigator.language||"");
+if(en){document.documentElement.lang="en";t.textContent="Can't reach your Ciro server";d.textContent="Check your network and server address, or continue offline.";
+retry.textContent="Retry";offline.textContent="Use offline mode";change.textContent="Change server";}
+var server=null;try{server=localStorage.getItem("ciro.mobile.server.v1");}catch(e){}
+retry.onclick=function(){location.href=server?server+"/":"https://localhost/";};
+offline.onclick=function(){location.href="https://localhost/?local=1";};
+change.onclick=function(){location.href="https://localhost/?local=1&forget=1";};
+</script>
+</body>
+</html>
