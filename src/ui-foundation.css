@@ -140,3 +140,34 @@ button, input, select, textarea { font-family: inherit; }
     transition-duration: .01ms;
   }
 }
+
+
+/* Typography and interaction targets are consistent across all page families. */
+:where(.stu-header, .com-page-head, .acc-head, .wb-header, .ciro-market-head) p {
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+:where(.stu-card, .acc-card, .com-card, .com-app-card, .com-skill, .wb-card,
+       .ciro-market-detail) p {
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+:where(.stu-header, .com-page-head, .acc-head, .wb-header, .ciro-market-head) h1,
+:where(.stu-header, .com-page-head, .acc-head, .wb-header, .ciro-market-head) h2 {
+  line-height: 1.28;
+  letter-spacing: -.025em;
+}
+:where(.stu-root, .acc-root, .com-root, .wb-root, .ciro-market) :is(
+  .stu-primary, .stu-light-button, .acc-primary, .acc-secondary, .com-primary,
+  .com-secondary, .wb-primary, .wb-secondary, .ciro-market-nav
+) {
+  font-size: 12px;
+  line-height: 1.35;
+}
+@media (max-width: 760px) {
+  :where(.stu-primary, .stu-light-button, .acc-primary, .acc-secondary,
+         .com-primary, .com-secondary, .wb-primary, .wb-secondary,
+         .ciro-market-nav) { min-height: 40px; }
+}
