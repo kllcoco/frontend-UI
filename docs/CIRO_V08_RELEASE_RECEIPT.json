@@ -180,7 +180,7 @@
   "candidate_development": {
     "as_of": "2026-10-12",
     "branch": "feat/ciro-v08-github-desktop-release",
-    "latest_scope": "GitHub internal fine-grained PAT + approval-only draft PR; Electron Windows desktop shell + NSIS build recipe",
+    "latest_scope": "GitHub internal fine-grained PAT and human-reviewed draft PR; Electron Windows wrapper, inherited configuration isolation, and fail-fast NSIS packaging source preflight",
     "self_repair": {
       "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
       "tools": [
@@ -198,27 +198,33 @@
       "read_scope": "Read allowed repo with safe explicit main/feat/* ref; build new repair branch only under ciro/feature/repair; all writes approvals required"
     },
     "desktop": {
-      "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
+      "source_status": "IMPLEMENTED_CANDIDATE_OFFLINE_CORE_TESTING",
       "electron": "44.7.0",
       "electron_builder": "26.17.0",
       "nsis_config": "electron-builder.yml",
       "built_windows_exe": "NOT_RUN",
       "windows_install_update_uninstall": "NOT_RUN",
       "code_signing": "NOT_RUN",
-      "native_model_inference": "NOT_RUN"
+      "native_model_inference": "NOT_RUN",
+      "preflight": "SOURCE_AND_BUILT_PRECHECKS_IMPLEMENTED; WINDOWS_NSIS_INSTALL_NOT_RUN",
+      "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration"
     },
     "isolated_verified_tests": {
       "status": "PASS",
-      "passed": 6,
+      "passed": 16,
       "failed": 0,
-      "method": "Node v22.16.0 local exact-source isolated tests: desktop/runtime.cjs, server/github-self-repair.mjs, server/agent-policy.mjs, including main/preload JS syntax checks",
-      "note": "Not full npm test, React TypeScript build, app bootstrap, real provider login, or Windows installer"
+      "method": "Node v22.16.0, exact Git blob-matched scoped tests via test:desktop-core: Electron main mocked integration, desktop secrets/environment, safe GitHub ref/draft PR, approval preview, packaging preflight",
+      "receipt": "docs/CIRO_V08_DESKTOP_CORE_LOCAL_RECEIPT_2026-10-12.json",
+      "note": "Not full npm test, TypeScript/Vite build, browser E2E, authentic Electron/Windows installer, real CIRO GitHub PAT login or NCPA inference"
     },
     "constraints": [
       "No paid resources or Windows CI workflow execution without owner cost approval",
       "Do not claim signed installer / model / full commercial graduation from source code alone"
     ],
     "independent_acceptance": "NOT_GRADUATED",
-    "last_source_review": "2026-10-12"
+    "last_source_review": "2026-10-12",
+    "review_branch": "ciro/approval-preview-gate-20261012",
+    "review_pr": "https://github.com/kllcoco/frontend-UI/pull/5",
+    "review_source_commit": "792084b84fcdce0cbc927943e3b6d79664a890d9"
   }
 }
