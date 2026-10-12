@@ -7,11 +7,11 @@ import {canonicalPluginJSON,verifySignedPluginPackage,fetchSignedPluginPackage}
 function fixture(){
  const {publicKey,privateKey}=generateKeyPairSync("ed25519");
  const keys={"ciro-official.release-1":publicKey.export({format:"pem",type:"spki"}).toString()};
- const manifest={schema:"ciro.plugin-manifest.v1",id:"github",version:"0.8.0",
+ const manifest={schema:"ciro.plugin-manifest.v1",id:"github",version:"0.8.1",
   title:"GitHub",description:"Repository read and isolated branch writes",
   publisher:"ciro-official",runtime:{kind:"builtin",adapter:"github"},
   permissions:["github.read","github.write"],
-  tools:["github.read_file","github.create_branch","github.write_file"],
+  tools:["github.list_directory","github.read_file","github.create_branch","github.write_file","github.open_pull_request"],
   issuedAt:new Date(Date.now()-3600000).toISOString(),
   expiresAt:new Date(Date.now()+86400000).toISOString()};
  const envelope={schema:"ciro.signed-plugin.v1",issuer:"ciro-official",keyId:"release-1",manifest,signature:""};
