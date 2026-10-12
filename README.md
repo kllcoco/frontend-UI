@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 默认纯白界面，深绿月夜等背景可由用户选择**；布局参照经用户审核的左侧聊天历史、顶部模型选择、居中聊天区、底部输入框和双栏设置中心。
 
-> **2026-10-12 更新：** 原 CIRO V0.8 插件中心 PR #2 已合入 `feat/ciro-chat-client-v1`。当前开发分支 `feat/ciro-v08-github-desktop-release` 正在增加 **GitHub 本机精细权限连接 / 人工审批草稿 PR / Electron Windows 桌面版**。源代码仅为发布候选：**尚未构建 Windows 安装包，也未对真实 CIRO 原生推理完成端到端验收，不能称为毕业。** 未配置推理后端时保持明确的预览模式。
+> **2026-10-12 更新：** 旧候选源码 `51378925` 已在真实 Windows 上通过 Node、TypeScript/Vite、29/29 浏览器测试并产出未签名 NSIS 安装包；该旧构建尚未做全新安装/卸载和原生 NCPA 推理验收。当前 PR #5 正在加入**零输入桌面自动初始化**及 UI 跨页面修复，属于新的未验收源码版本，旧收据不能直接为新版本背书。
 
 ## 功能清单
 
@@ -17,7 +17,7 @@ CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 默认
 
 ## CIRO Desktop 与 GitHub 自修复开发候选
 
-内测优先用你自己的 GitHub 账号，不需要等待真实客户或先启用 Supabase OAuth 客户端。**ChatGPT 已连接的 GitHub 插件凭据不能直接复制给 CIRO**。本机使用由用户在 GitHub 官网生成的仓库级 Fine-grained PAT；必须先安装 GitHub 插件、登录本机 CIRO、设置允许的仓库，再输入 PAT 并确认。
+内测优先用自己的 GitHub 账号，**ChatGPT 已连接的插件凭据不能复制给 CIRO**。CIRO 桌面版会自动初始化本机账户，无需手动登录初始化；但 GitHub 插件仍必须由用户明确安装、选择仓库、授予 Fine-grained PAT 或其他正式 OAuth 权限，每次危险写入都须人工审批。
 
 桌面版的前端复用当前 React UI，后端复用现有 Express。Electron 安全窗口、用户目录持久密钥、回环地址启动、Windows NSIS 安装包配置已加入开发分支。构建命令（只在自己可信的 Windows PC、已有依赖和磁盘空间充足时运行）：
 
@@ -27,11 +27,17 @@ npm test
 npm run desktop:win
 ```
 
-构建成功后预期输出在 `release/`；**当前没有已验证的 .exe 下载包，Windows 安装/升级/卸载、签名和真实模型服务尚未验收**。GitHub Actions 的 Windows 构建只提供手动明确授权入口，不会因推送代码自动运行。
+旧版本曾在 Windows 生成 `release/` 下的安装包（SHA256 和 `NotSigned` 状态见发布收据）；**当前零配置/UI 修订源码尚未重建或独立验收，不得分发旧 EXE 冒充新版**。签名、首次安装/卸载和真实模型服务仍未验收。GitHub Actions 的 Windows 构建只提供手动明确授权入口。
 
 详细操作和验收门槛：[`docs/CIRO_V08_GITHUB_DESKTOP_RELEASE.md`](docs/CIRO_V08_GITHUB_DESKTOP_RELEASE.md)。
 
-## 快速开始
+## 普通用户：Windows 桌面版（候选功能，待新版安装包验收）
+
+目标交付流程：下载正式 Ciro 安装包 → 双击安装 → 启动 Ciro。首次运行自动生成本机密钥、创建单所有者账户、启动回环地址服务并自动登录；**不需要打开配置文件、寻找初始化口令、安装 Node 或执行终端命令**。已有用户数据和身份应原样保留。
+
+**安全边界：** GitHub/云服务需用户明确安装、连接与授权；未发现或未验证原生 NCPA 模型时只能显示连接状态，不能伪造 AI 回复。旧安装包未签名，当前新源码尚未完成 Windows 实机验收。
+
+## 源码开发者：快速开始
 
 要求 Node.js 20.19+ 或 22.12+。
 
