@@ -1,0 +1,43 @@
+name: CIRO Desktop Windows candidate (manual / billing opt-in)
+on:
+  workflow_dispatch:
+    inputs:
+      allow_actions_minutes:
+        description: "Type YES only after checking available free GitHub Actions minutes; runners can incur charges."
+        required: true
+        default: "NO"
+        type: string
+permissions:
+  contents: read
+jobs:
+  windows-installer:
+    if: ${{ inputs.allow_actions_minutes == 'YES' }}
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned desktop packages
+        run: npm install --no-audit --no-fund
+      - name: Node and security tests
+        run: npm test
+      - name: Build Windows NSIS installer
+        run: npm run desktop:win
+      - name: Inspect actual installer artifacts
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -Filter "*.exe" -File
+          if (-not $files) { throw "Windows installer not produced" }
+          foreach ($file in $files) {
+            $hash = Get-FileHash $file.FullName -Algorithm SHA256
+            Write-Output ($file.Name + ' SHA256=' + $hash.Hash)
+          }
+      - name: Upload unsigned Windows installer candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: ciro-desktop-windows-unsigned-candidate
+          path: release/*.exe
+          retention-days: 3
+          if-no-files-found: error
