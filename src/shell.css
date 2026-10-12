@@ -1,3 +1,7 @@
+/* Safe areas: Capacitor's SystemBars injects --safe-area-inset-* (older Android WebViews report env() as 0);
+   browsers and iOS use env(). Everything below uses --sa-*. */
+:root{--sa-top:var(--safe-area-inset-top,env(safe-area-inset-top,0px));--sa-bottom:var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px));
+  --sa-left:var(--safe-area-inset-left,env(safe-area-inset-left,0px));--sa-right:var(--safe-area-inset-right,env(safe-area-inset-right,0px))}
 /* Ciro shell v0.9 — sidebar, profile menu, composer, thinking-depth slider, search palette.
    Loaded last; selectors are prefixed with :root[data-theme] .cx-shell so they win over legacy skins. */
 :root[data-theme="light"]{
@@ -533,8 +537,8 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .sc-mobile-server{display:flex;gap:8px;align-items:center}
 .sc-mobile-server .sc-text-input{flex:1;width:auto}
 /* Safe areas for notched phones / Android edge-to-edge */
-.cx-shell{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
-@media (max-width:760px){.cx-sidebar{padding-top:calc(10px + env(safe-area-inset-top));padding-bottom:calc(8px + env(safe-area-inset-bottom))}}
+.cx-shell{padding-top:var(--sa-top);padding-bottom:var(--sa-bottom)}
+@media (max-width:760px){.cx-sidebar{padding-top:calc(10px + var(--sa-top));padding-bottom:calc(8px + var(--sa-bottom))}}
 :root[data-theme] .cx-shell .message--assistant .message-prose:not(.message-prose--preview){background:transparent;border:0;box-shadow:none;padding:0;backdrop-filter:none}
 :root[data-theme] .cx-shell .message-prose table{border-collapse:separate;border-spacing:0;border:1px solid var(--cx-line);border-radius:10px;overflow:hidden;display:table;font-size:.94em}
 :root[data-theme] .cx-shell .message-prose th{background:var(--cx-side);color:var(--cx-text);font-weight:600}
@@ -791,7 +795,7 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .cv-ask .cx-btn{height:36px;border-radius:18px}
 .cx-code-head{gap:2px}.cx-code-head>span:first-child{margin-right:auto}
 @media (max-width:1100px){.cv-root{position:fixed;right:0;top:0;bottom:0;width:min(640px,92vw);flex:none;box-shadow:var(--cx-shadow)}}
-@media (max-width:760px){.cv-root{width:100vw;min-width:0;padding-top:env(safe-area-inset-top)}.cv-head{flex-wrap:wrap;height:auto;padding:8px 8px 8px 12px;row-gap:8px}.cv-head>*{order:2}.cv-head>.cv-title{order:1;flex:1 1 calc(100% - 44px)}.cv-head>.cv-close{order:1}.cv-head>.cv-tabs{margin-right:auto}}
+@media (max-width:760px){.cv-root{width:100vw;min-width:0;padding-top:var(--sa-top)}.cv-head{flex-wrap:wrap;height:auto;padding:8px 8px 8px 12px;row-gap:8px}.cv-head>*{order:2}.cv-head>.cv-title{order:1;flex:1 1 calc(100% - 44px)}.cv-head>.cv-close{order:1}.cv-head>.cv-tabs{margin-right:auto}}
 .cx-memory-chip{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 4px 3px 9px;border-radius:12px;background:var(--cx-accent-soft);color:var(--cx-accent);font-size:12px;animation:cx-pop .2s var(--cx-ease)}
 .cx-memory-chip button{background:none;color:var(--cx-text-2);font-size:12px;padding:2px 7px;border-radius:8px}
 .cx-memory-chip button:hover{background:color-mix(in srgb,var(--cx-accent) 14%,transparent);color:var(--cx-text)}
@@ -818,7 +822,7 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 /* ── Voice mode ── */
 .vm-root{position:fixed;inset:0;z-index:150;display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:radial-gradient(120% 90% at 50% 40%,color-mix(in srgb,var(--cx-accent) 14%,var(--cx-bg)),var(--cx-bg));color:var(--cx-text);animation:cx-fade .2s}
-.vm-close{position:absolute;top:calc(18px + env(safe-area-inset-top));right:18px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+.vm-close{position:absolute;top:calc(18px + var(--sa-top));right:18px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:var(--cx-side-hover);color:var(--cx-text)}
 .vm-center{display:flex;flex-direction:column;align-items:center;gap:14px;padding:0 24px;max-width:640px;text-align:center}
 .vm-orb{position:relative;width:180px;height:180px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;
@@ -838,7 +842,7 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .vm-heard{margin:0;font-size:15px;color:var(--cx-text-2)}
 .vm-reply{margin:0;font-size:14px;color:var(--cx-muted);line-height:1.6}
 .vm-error{margin:0;font-size:13.5px;color:var(--cx-danger);max-width:420px}
-.vm-foot{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:6px;font-size:12px;color:var(--cx-muted)}
+.vm-foot{position:absolute;bottom:calc(20px + var(--sa-bottom));display:flex;align-items:center;gap:6px;font-size:12px;color:var(--cx-muted)}
 
 /* ── Team ── */
 .tm-root{display:flex;flex-direction:column;gap:12px}
@@ -922,14 +926,14 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .cx-update{position:fixed;right:20px;bottom:20px;z-index:110;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;border:1px solid var(--cx-line);border-radius:14px;background:var(--cx-raised);box-shadow:var(--cx-shadow);font-size:13.5px;animation:cx-pop .2s var(--cx-ease)}
 .cx-update>svg{color:var(--cx-accent)}
 .cx-update .cx-btn{height:32px}
-@media (max-width:760px){.cx-update{left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom))}}
+@media (max-width:760px){.cx-update{left:12px;right:12px;bottom:calc(96px + var(--sa-bottom))}}
 /* ── Mobile composer: ChatGPT/Claude-style ───────────── */
 .cx-sheet-scrim{display:none}
 @media (max-width:760px){
   /* 16px prevents iOS zoom-on-focus */
   :root[data-theme] .cx-shell .composer.cx-composer textarea{font-size:16px}
   :root[data-theme] .cx-shell .composer-disclaimer{display:none}
-  :root[data-theme] .cx-shell .composer-dock{padding:0 8px calc(8px + env(safe-area-inset-bottom))}
+  :root[data-theme] .cx-shell .composer-dock{padding:0 8px calc(8px + var(--sa-bottom))}
   :root[data-theme] .cx-shell .composer.cx-composer{border-radius:24px;padding:10px 10px 8px 14px}
   :root[data-theme] .cx-shell .cx-composer .composer-toolbar-left{gap:4px}
   /* Empty input: one big voice button; typing: it becomes Send. Dictation lives in the keyboard's own mic. */
@@ -940,7 +944,7 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
   .cx-send-group:has(.send-button--stop) .cx-mic--voice{display:none}
   /* "+" menu becomes a bottom sheet */
   .cx-sheet-scrim{display:block;position:fixed;inset:0;z-index:125;background:var(--cx-scrim);animation:cx-fade .15s}
-  :root[data-theme] .cx-shell .cx-plus-menu{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));top:auto;width:auto;
+  :root[data-theme] .cx-shell .cx-plus-menu{position:fixed;left:8px;right:8px;bottom:calc(8px + var(--sa-bottom));top:auto;width:auto;
     max-height:min(72vh,560px);overflow:auto;z-index:130;border-radius:22px;padding:18px 8px 10px;transform-origin:bottom center;animation:cx-sheet .22s var(--cx-ease)}
   :root[data-theme] .cx-shell .cx-plus-menu::before{content:"";position:absolute;top:7px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:var(--cx-line-strong)}
   :root[data-theme] .cx-shell .cx-plus-menu button{padding:11px 12px;gap:14px}
@@ -955,3 +959,14 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .vb-root p{margin:0;color:var(--cx-muted);font-size:14px;line-height:1.6}
 .vb-root code{max-width:100%;overflow-wrap:anywhere;font-size:12px;color:var(--cx-muted);background:var(--cx-side);padding:6px 10px;border-radius:8px}
 .vb-root>div{display:flex;gap:8px;margin-top:6px}
+
+/* Full-screen layers that sit outside the padded shell must clear the status bar themselves. */
+@media (max-width:590px){:root[data-theme] .sc-backdrop{padding:var(--sa-top) 0 var(--sa-bottom);background:var(--cx-surface)}}
+.vm-root{padding-top:var(--sa-top);padding-bottom:var(--sa-bottom)}
+.cx-lightbox{padding-top:calc(24px + var(--sa-top));padding-bottom:calc(24px + var(--sa-bottom))}
+:root[data-theme] .shv-head{padding-top:calc(10px + var(--sa-top))}
+@media (max-width:760px){
+  .sp-backdrop{padding-top:calc(10vh + var(--sa-top))}
+  .cx-update{bottom:calc(96px + var(--sa-bottom))}
+  .toast{bottom:calc(110px + var(--sa-bottom))}
+}
