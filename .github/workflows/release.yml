@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to (re)build, e.g. v0.9.0"
+        description: "Release tag to create/publish from the selected branch, e.g. v0.9.0"
         required: true
 
 permissions:
@@ -19,7 +19,7 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
-  CHECKOUT_REF: ${{ github.event.inputs.tag || github.sha }}
+  CHECKOUT_REF: ${{ github.sha }}
 
 jobs:
   verify:
@@ -234,6 +234,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           name: Ciro ${{ env.RELEASE_TAG }}
           body_path: docs/RELEASE_NOTES.md
           files: out/*
