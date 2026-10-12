@@ -211,9 +211,9 @@
       "windows_local_acceptance": {
         "script": "scripts/accept-ciro-windows.ps1",
         "runs_on": "actual Windows host using disposable user for installation",
-        "node_full_regression": "FAIL_106_PASS_16_FAIL_ON_WINDOWS_BEFORE_CLEANUP_AND_LINUX_TEST_SCOPE_PATCH",
-        "frontend_build": "NOT_RUN",
-        "browser_e2e": "NOT_RUN",
+        "node_full_regression": "PASS_120_TESTS_3_LINUX_ONLY_SKIPPED",
+        "frontend_build": "PASS_TYPESCRIPT_VITE",
+        "browser_e2e": "FAIL_27_PASS_2_FAIL",
         "windows_nsis_exe": "NOT_RUN",
         "clean_install_boot_uninstall": "NOT_RUN",
         "external_paid_runner_dispatches": 0,
@@ -239,7 +239,34 @@
           "playwright_e2e": "NOT_RUN",
           "nsis": "NOT_RUN"
         },
-        "platform_remediation": "PR #5: close all SQLite owners before rmSync, reserve Linux-only checks for actual Linux, add Windows negative check. Rerun on owner Windows required."
+        "platform_remediation": "PR #5: close all SQLite owners before rmSync, reserve Linux-only checks for actual Linux, add Windows negative check. Rerun on owner Windows required.",
+        "second_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "source_commit": "cbf14d3a6b6ea90fcdb214c89194163928c4040e",
+          "node_tests": {
+            "total": 123,
+            "passed": 120,
+            "failed": 0,
+            "skipped": 3,
+            "status": "PASS_ON_WINDOWS_SCOPE"
+          },
+          "typescript_vite": {
+            "status": "PASS",
+            "transformed_modules": 1866,
+            "build_seconds": 7.81,
+            "warning": "main JS bundle 634.86 kB exceeds Vite 500 kB warning threshold"
+          },
+          "playwright_e2e": {
+            "total": 29,
+            "passed": 27,
+            "failed": 2,
+            "status": "FAIL",
+            "failure1": "owner bootstrap POST /api/account/bootstrap returned HTTP 400 (expected 201); actual API response error body not captured",
+            "failure2": "subsequent Github plugin test login POST /api/account/login returned 401 (likely cascade; not yet proven)"
+          },
+          "nsis": "NOT_RUN_BECAUSE_BROWSER_E2E_FAILED",
+          "notes": "Actual Windows host used and 526 npm packages installed; Playwright browser binaries downloaded; no paid CI. Request diagnostic error-context.md or bootstrap JSON body before changing authentication logic."
+        }
       }
     },
     "isolated_verified_tests": {
