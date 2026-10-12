@@ -87,6 +87,18 @@
         "https://github.com/kllcoco/frontend-UI/actions/runs/38158772169"
       ],
       "limit": "Model/GitHub OAuth responses simulated in unit integration; real vendor account authorization not tested"
+    },
+    {
+      "id": "CIRO-V08-GITHUB-SELF-REPAIR",
+      "description": "Single-owner encrypted fine-grained PAT without OAuth App, scoped GitHub source edits and approval-only draft PR",
+      "status": "SOURCE_CANDIDATE_AND_ISOLATED_POLICY_TESTS_PASS",
+      "limit": "No real CIRO in-app GitHub PAT login, end-to-end approval or current full regression yet"
+    },
+    {
+      "id": "CIRO-V08-DESKTOP",
+      "description": "Electron native wrapper, local bootstrap and encrypted state, Windows NSIS per-user installer configuration",
+      "status": "SOURCE_CANDIDATE_AND_ISOLATED_BOOTSTRAP_TESTS_PASS",
+      "limit": "No real Windows installer produced, signed, installed or independently accepted"
     }
   ],
   "graduation": {
@@ -104,6 +116,8 @@
       ]
     },
     "next_acceptance": [
+      "Validate exact candidate commit via full npm test, TypeScript build, browser tests and Windows desktop smoke test without exceeding pre-approved zero-cost budget",
+      "On Windows build actual NSIS artifact; verify SHA256, clean install, login, restart, shortcut, uninstall and native runtime integration before calling installer graduated",
       "Configure currently free Supabase OAuth 2.1 server, owned HTTPS Site URL, explicit consent UI and confidential CIRO client; keep server-only secrets private and CIRO_SUPABASE_MCP_RLS_VERIFIED=false until real-user acceptance",
       "With two consenting real users and separate verified JWTs, execute scripts/verify-ciro-supabase-mcp.mjs, HTTP unauthorized/expired/refresh/revoke and RLS cross-user suite, preserving receipts",
       "On the dedicated Linux deployment, complete trusted owner bootstrap privately, remove one-time token, run security preflight and confirm no public traffic was routed before initialization",
@@ -113,7 +127,7 @@
       "Independently redteam the exact release SHA; only then permit a limited dedicated single-tenant paid pilot",
       "Public shared multi-tenant SaaS still requires fully isolated Account/Workbench/Studio and distributed operations before a separate graduation"
     ],
-    "pilot_decision": "ENGINEERING_QUALIFIED_FOR_CONTROLLED_LIVE_DEPLOYMENT_REVIEW; NOT_LIVE_OR_COMMERCIALLY_ACCEPTED",
+    "pilot_decision": "ENGINEERING_CANDIDATE_PENDING_REAL_PROVIDER_WINDOWS_INSTALL_NATIVE_MODEL_ACCEPTANCE",
     "plugin_system_code_decision": "CLOSED_ON_VERIFIED_SHA",
     "plugin_system_code_scope": "Built-in adapter marketplace and permission-gated runtime; does not claim arbitrary downloadable plugin executables.",
     "next_plugin_evidence": [
@@ -162,5 +176,44 @@
       "real_http_e2e": "NOT_RUN"
     },
     "decision": "LIVE_DB_RLS_SIMULATION_VERIFIED_REAL_OAUTH_PENDING"
+  },
+  "candidate_development": {
+    "as_of": "2026-10-12",
+    "branch": "feat/ciro-v08-github-desktop-release",
+    "latest_scope": "GitHub internal fine-grained PAT + approval-only draft PR; Electron Windows desktop shell + NSIS build recipe",
+    "self_repair": {
+      "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
+      "tools": [
+        "github.read_file",
+        "github.create_branch",
+        "github.write_file",
+        "github.open_pull_request"
+      ],
+      "allowed_changes": "allowlisted feature branches, draft PR only, owner approvals mandatory",
+      "live_github_token_authorization": "NOT_RUN_IN_CIRO_CLIENT",
+      "code_gate": "FULL_REGRESSION_NOT_RUN"
+    },
+    "desktop": {
+      "source_status": "IMPLEMENTED_CANDIDATE_TESTING",
+      "electron": "44.7.0",
+      "electron_builder": "26.17.0",
+      "nsis_config": "electron-builder.yml",
+      "built_windows_exe": "NOT_RUN",
+      "windows_install_update_uninstall": "NOT_RUN",
+      "code_signing": "NOT_RUN",
+      "native_model_inference": "NOT_RUN"
+    },
+    "isolated_verified_tests": {
+      "status": "PASS",
+      "passed": 4,
+      "failed": 0,
+      "method": "Node v22.16.0 local isolated exact-source modules desktop/runtime.cjs and server/github-self-repair.mjs, with matching Git blob hashes",
+      "note": "NOT the full CIRO npm test, production build or Electron Windows integration"
+    },
+    "constraints": [
+      "No paid resources or Windows CI workflow execution without owner cost approval",
+      "Do not claim signed installer / model / full commercial graduation from source code alone"
+    ],
+    "independent_acceptance": "NOT_GRADUATED"
   }
 }
