@@ -1,4 +1,4 @@
-# Ciro v0.9.3
+# Ciro v0.9.4
 
 全新设计的 Ciro 客户端：更清爽的界面、完整的个人菜单、项目、思考深度滑杆，以及 Windows / macOS / Linux 桌面端和 Android 移动端安装包。
 
@@ -6,18 +6,30 @@
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows 10/11 (x64) | `Ciro-0.9.3-win-x64.exe`（安装版）· `Ciro-0.9.3-win-x64.zip`（免安装） |
-| macOS (Apple 芯片 / Intel) | `Ciro-0.9.3-mac-arm64.dmg` · `Ciro-0.9.3-mac-x64.dmg` |
-| Linux | `Ciro-0.9.3-linux-x86_64.AppImage` · `Ciro-0.9.3-linux-amd64.deb` · `.tar.gz` |
-| Android 7.0+ | `Ciro-0.9.3-android.apk` |
+| Windows 10/11 (x64) | `Ciro-0.9.4-win-x64.exe`（安装版）· `Ciro-0.9.4-win-x64.zip`（免安装） |
+| macOS (Apple 芯片 / Intel) | `Ciro-0.9.4-mac-arm64.dmg` · `Ciro-0.9.4-mac-x64.dmg` |
+| Linux | `Ciro-0.9.4-linux-x86_64.AppImage` · `Ciro-0.9.4-linux-amd64.deb` · `.tar.gz` |
+| Android 7.0+ | `Ciro-0.9.4-android.apk` |
 | iOS / iPadOS | 用 Safari 打开部署好的 Ciro 网址 → 分享 → “添加到主屏幕”（PWA） |
 
 > 安装包未做商业代码签名：Windows 首次运行若出现 SmartScreen，点“更多信息 → 仍要运行”；macOS 请在“系统设置 → 隐私与安全性”中允许打开；Android 需允许“安装未知应用”。所有文件的 SHA-256 见 `SHA256SUMS.txt`。
 
+## v0.9.4 新功能
+
+- **跨设备同步**：登录同一账户后，对话、项目、提示词和设置在电脑、手机、网页间自动同步；逐条增量加密同步，删除也会同步，两边改了同一对话以最后修改为准。默认开启，可在“跨设备同步”中关闭。
+- **完整备份与恢复**：设置 → 文件与存储 → 导出完整备份，一个文件包含对话、项目、提示词、记忆、设置、图片原图和自定义背景；恢复时可选“合并”或“覆盖此设备”。
+- **代码直接运行**：代码块右上角“运行”。Python 在浏览器内运行（内置 Pyodide，离线可用；numpy、matplotlib 等按需从 CDN 加载，图表直接显示），JavaScript 在隔离沙箱中运行，HTML / SVG 可直接预览。
+- **Android 系统分享**：在其他 App 选中文字、链接或图片 → 分享 → “问 Ciro”，自动新建对话并填好内容；网页安装版（PWA）同样支持分享文字和链接。
+- **用量统计（CWU）**：每条回答显示本次消耗的 CWU / GWU；设置 → 用量统计，可查看今天、近 7 天和近 30 天的用量、14 天趋势，以及按模型、按用途、按对话的明细。只统计模型服务实际上报的原生计量，不按 token 估算。
+- **多模型对比**：“+ → 对比模型”，同一个问题同时问 2–3 个模型并排显示（含各自的 CWU 和耗时），选用一个后，其余答案保留为可切换的版本。
+- **新版本提示**：服务器升级后，已打开的网页右下角会提示“Ciro 已更新”，点击刷新即可。
+- **手机输入框重新设计**：输入框为空时显示语音对话按钮，输入文字后变为发送；“+”菜单改为底部弹出面板；去掉手机上的免责说明行；输入字号 16px，避免 iPhone 自动放大。
+- **一键部署**：Release 附件 `install.sh`，在 Linux 服务器上一条命令完成安装；填写域名时会自动配置 HTTPS 与账户，`install.sh upgrade` 一键升级。
+
 ## v0.9.3
 
 - **服务器部署教程**：Docker 与 npm 两种安装方式的完整步骤、公网 HTTPS 与账户配置、升级方法（见本页下方）。
-- **npm 包 `ciro-client` 命令**：现在会自动读取当前目录的 `.env`；新增 `ciro-client init` 生成配置模板，以及 `--env`、`--data`、`--version` 参数。
+- **npm 包 `ciro-client` 命令**：新增 `ciro-client init` 生成配置模板，以及 `--env`（指定配置文件）、`--data`（指定数据目录）、`--version` 参数。
 - `.env.example` 补充语音、图片生成与团队服务的配置项。
 
 ## v0.9.2 新功能

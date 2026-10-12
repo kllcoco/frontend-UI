@@ -116,12 +116,13 @@ test("real account authentication, encrypted memories, spending limits and devic
   await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("A sync test conversation");
   await page.getByRole("button",{name:"发送消息"}).click();
   await go(page,"跨设备同步");
-  await page.getByRole("button",{name:"保存到服务器"}).click();
-  await expect(page.locator(".acc-sync-grid")).toContainText("1");
+  await page.getByRole("button",{name:"立即同步"}).click();
+  await expect(page.locator(".acc-state")).toContainText("已同步",{timeout:15000});
+  await expect(page.locator(".acc-sync-grid > div").nth(1)).toContainText(/[1-9]/);
   await page.screenshot({path:photoDir+"/36-account-sync.png",fullPage:true,animations:"disabled"});
 
-  // A second browser device signs into the *same* live server, opts in to auto sync,
-  // then obtains encrypted snapshot from the server rather than a fake local copy.
+  // A second browser device signs into the *same* live server; sync is on by default and
+  // pulls the encrypted conversation from the server rather than a fake local copy.
   const other=await browser.newContext();
   const second=await other.newPage();
   await second.goto(root+"/",{waitUntil:"domcontentloaded"});
@@ -135,7 +136,7 @@ test("real account authentication, encrypted memories, spending limits and devic
   expect(loginResponse.status()).toBe(200);
   await second.reload({waitUntil:"domcontentloaded"});
   await go(second,"跨设备同步");
-  await second.getByRole("checkbox",{name:"自动同步"}).check();
+  await expect(second.getByRole("checkbox",{name:"在此设备上同步"})).toBeChecked();
   await expect(second.getByText(/A sync test conversation/).first()).toBeVisible({timeout:18000});
   await second.screenshot({path:photoDir+"/37-account-sync-second-device.png",fullPage:true,animations:"disabled"});
   await other.close();

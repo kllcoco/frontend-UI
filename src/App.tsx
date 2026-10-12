@@ -1763,6 +1763,7 @@ export default function App() {
                     <button type="button" className={plusOpen ? "cx-tool cx-tool--round cx-tool--open" : "cx-tool cx-tool--round"} aria-label={t("添加附件与模式")}
                       aria-expanded={plusOpen} title={t("添加附件与模式")} onClick={(e) => { e.stopPropagation(); setPlusOpen((v) => !v); }}>
                       <Plus size={18}/></button>
+                    {plusOpen && <div className="cx-sheet-scrim" aria-hidden="true" onClick={(e) => { e.stopPropagation(); setPlusOpen(false); }}/>}
                     {plusOpen && <div className="cx-plus-menu" role="menu" onClick={(e) => e.stopPropagation()}>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); fileInputRef.current?.click(); }}>
                         <Paperclip size={16}/><span><strong>{t("添加附件")}</strong><small>{t("图片、PDF、文本或代码，最多 5 个")}</small></span></button>
@@ -1815,10 +1816,10 @@ export default function App() {
                     <ThinkingDepth value={thinkingLevel} onChange={setThinkingLevel} t={t} note={thinkingNote}/>
                   </div>}
                 </div>
-                <div className="cx-send-group">
-                {composerMode === "chat" && <button type="button" className="cx-mic" onClick={(e) => { e.stopPropagation(); setVoiceOpen(true); }}
+                <div className={draft.trim() || attachments.length ? "cx-send-group cx-send-group--typing" : "cx-send-group"}>
+                {composerMode === "chat" && (canDictate || status.stt) && <button type="button" className="cx-mic cx-mic--voice" onClick={(e) => { e.stopPropagation(); setVoiceOpen(true); }}
                   aria-label={t("语音对话")} title={t("语音对话")}><AudioLines size={17}/></button>}
-                {canDictate && composerMode === "chat" && <button type="button" className={dictation.listening ? "cx-mic cx-mic--on" : "cx-mic"}
+                {canDictate && composerMode === "chat" && <button type="button" className={dictation.listening ? "cx-mic cx-mic--dictate cx-mic--on" : "cx-mic cx-mic--dictate"}
                   onClick={(e) => { e.stopPropagation(); dictation.toggle(); }} aria-pressed={dictation.listening}
                   aria-label={dictation.listening ? t("停止语音输入") : t("语音输入")} title={dictation.listening ? t("停止语音输入") : t("语音输入")}>
                   <Mic size={17}/></button>}

@@ -923,3 +923,28 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .cx-update>svg{color:var(--cx-accent)}
 .cx-update .cx-btn{height:32px}
 @media (max-width:760px){.cx-update{left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom))}}
+/* ── Mobile composer: ChatGPT/Claude-style ───────────── */
+.cx-sheet-scrim{display:none}
+@media (max-width:760px){
+  /* 16px prevents iOS zoom-on-focus */
+  :root[data-theme] .cx-shell .composer.cx-composer textarea{font-size:16px}
+  :root[data-theme] .cx-shell .composer-disclaimer{display:none}
+  :root[data-theme] .cx-shell .composer-dock{padding:0 8px calc(8px + env(safe-area-inset-bottom))}
+  :root[data-theme] .cx-shell .composer.cx-composer{border-radius:24px;padding:10px 10px 8px 14px}
+  :root[data-theme] .cx-shell .cx-composer .composer-toolbar-left{gap:4px}
+  /* Empty input: one big voice button; typing: it becomes Send. Dictation lives in the keyboard's own mic. */
+  .cx-mic--dictate{display:none!important}
+  .cx-send-group:not(.cx-send-group--typing):has(.cx-mic--voice) .send-button:not(.send-button--stop){display:none}
+  .cx-send-group--typing .cx-mic--voice{display:none}
+  .cx-send-group:not(.cx-send-group--typing) .cx-mic--voice{width:36px;height:36px;border-radius:50%;background:var(--cx-text);color:var(--cx-bg)}
+  .cx-send-group:has(.send-button--stop) .cx-mic--voice{display:none}
+  /* "+" menu becomes a bottom sheet */
+  .cx-sheet-scrim{display:block;position:fixed;inset:0;z-index:125;background:var(--cx-scrim);animation:cx-fade .15s}
+  :root[data-theme] .cx-shell .cx-plus-menu{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));top:auto;width:auto;
+    max-height:min(72vh,560px);overflow:auto;z-index:130;border-radius:22px;padding:18px 8px 10px;transform-origin:bottom center;animation:cx-sheet .22s var(--cx-ease)}
+  :root[data-theme] .cx-shell .cx-plus-menu::before{content:"";position:absolute;top:7px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:var(--cx-line-strong)}
+  :root[data-theme] .cx-shell .cx-plus-menu button{padding:11px 12px;gap:14px}
+  :root[data-theme] .cx-shell .cx-plus-menu button strong{font-size:15px}
+  :root[data-theme] .cx-shell .cx-plus-menu button small{font-size:12.5px}
+}
+@keyframes cx-sheet{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
