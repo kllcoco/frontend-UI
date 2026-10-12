@@ -80,7 +80,11 @@ test("CIRO local-only fine-grained GitHub credentials and approval-only draft PR
   assert.equal(proposed.status,202,JSON.stringify(proposed.body));
   assert.equal(proposed.body.approvalRequired,true);
   assert.equal(provider.length,2);
-  const approved=await post("/api/plugins/approvals/"+proposed.body.id,{decision:"approve"});
+  const response=await fetch(base+"/api/plugins/approvals/"+proposed.body.id+"/preview");
+  assert.equal(response.status,200);
+  const preview=await response.json();
+  assert.equal(preview.kind,"draft_pull_request");
+  const approved=await post("/api/plugins/approvals/"+proposed.body.id,{decision:"approve",reviewSha256:preview.requestSha256});
   assert.equal(approved.status,200,JSON.stringify(approved.body));
   assert.equal(approved.body.result.result.url,"https://github.com/ciro/app/pull/12");
   assert.equal(provider.length,3);
