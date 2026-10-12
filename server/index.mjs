@@ -23,6 +23,16 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
 const accounts=createAccountService();
+// Packaged Electron's Node child is the only caller allowed to mint the
+// unattended desktop owner session. An ordinary Node/web server cannot opt in.
+const desktopRequested=process.env.CIRO_DESKTOP_AUTO_PROVISION==="true";
+const nativeDesktopChild=desktopRequested&&process.versions.electron &&
+  process.env.ELECTRON_RUN_AS_NODE==="1"&&typeof process.send==="function"&&
+  process.env.HOST==="127.0.0.1"&&process.env.PORT==="0"&&
+  process.env.CIRO_DEPLOYMENT_MODE==="single-owner";
+if(desktopRequested&&!nativeDesktopChild)
+  throw new Error("CIRO desktop provisioning is available only inside the native Electron child");
+const nativeDesktopSession=nativeDesktopChild?await accounts.provisionDesktopSession():null;
 app.use("/api/account",accounts.router);
 app.use("/api",accounts.guard);
 const workbench = createWorkbenchRouter({notify:accounts.notify});
@@ -154,7 +164,10 @@ const port = Number(process.env.PORT || "8787");
 const host = process.env.HOST || "127.0.0.1";
 const listener=app.listen(port, host, () => {
   const actualPort=listener.address().port;
-  if(typeof process.send==="function")process.send({type:"ciro-server-ready",host,port:actualPort});
+  if(typeof process.send==="function")process.send({
+    type:"ciro-server-ready",host,port:actualPort,
+    ...(nativeDesktopSession?{desktopSessionToken:nativeDesktopSession.raw}:{})
+  });
   console.log("Ciro client listening at http://" + host + ":" + actualPort);
   console.log(configured ? "CIRO proxy configured (upstream not yet verified)" : "Preview mode: no inference backend configured");
 });
