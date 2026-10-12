@@ -167,9 +167,9 @@ jobs:
           ./gradlew --no-daemon assembleRelease
           version=$(node -p "require('../package.json').version")
           mkdir -p ../release
-          cp app/build/outputs/apk/release/app-release.apk "../release/Ciro-${version}-android.apk"
+          cp app/build/outputs/apk/release/app-release.apk "../release/Android-Ciro-${version}.apk"
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$apksigner" verify --verbose --print-certs "../release/Ciro-${version}-android.apk" | grep -iE "verified|certificate (DN|SHA-256)" || true
+          "$apksigner" verify --verbose --print-certs "../release/Android-Ciro-${version}.apk" | grep -iE "verified|certificate (DN|SHA-256)" || true
       - uses: actions/upload-artifact@v4
         with:
           name: android
@@ -254,11 +254,13 @@ jobs:
           find . -mindepth 2 -type f -exec mv -f {} . \;
           find . -mindepth 1 -type d -exec rm -rf {} +
           rm -f desktop-smoke.png
-          cp ../deploy/install.sh .
-          sha256sum * > SHA256SUMS.txt
+          # Platform prefixes keep each platform's files together in the (alphabetical) asset list.
+          cp ../deploy/install.sh Server-install.sh
+          for f in kllcoco-ciro-client-*.tgz; do [ -e "$f" ] && mv "$f" "Server-ciro-client-${f#kllcoco-ciro-client-}"; done
+          sha256sum * > checksums-SHA256.txt
           ls -la
           cd ..
-          { cat docs/RELEASE_NOTES.md; printf '\n\n---\n\n'; cat docs/INSTALL_SERVER.md; } > release-body.md
+          node scripts/release-body.mjs out "$RELEASE_TAG" "$GITHUB_REPOSITORY" > release-body.md
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
@@ -266,3 +268,10 @@ jobs:
           name: Ciro ${{ env.RELEASE_TAG }}
           body_path: release-body.md
           files: out/*
+      - name: Keep only the newest release (older releases removed, their tags kept)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' \
+            | grep -vxF "$RELEASE_TAG" \
+            | while read -r tag; do echo "Deleting release $tag"; gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes; done

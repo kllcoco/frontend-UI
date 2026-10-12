@@ -12,6 +12,8 @@ import {runPluginChat} from "./plugin-chat-runtime.mjs";
 import {assertPluginDeploymentSafe} from "./plugin-release-gate.mjs";
 import {createShareRouters} from "./share.mjs";
 import {createMediaRouter,mediaFeatures} from "./media.mjs";
+import {createRemoteRouter} from "./remote.mjs";
+import {createRemoteAgent} from "./remote-agent.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -26,8 +28,9 @@ app.disable("x-powered-by");
 const keepRaw = (req, _res, buf) => { req.rawBody = Buffer.from(buf); };
 const chatJson = express.json({ limit: "25mb", verify: keepRaw });
 const defaultJson = express.json({ limit: "1mb", verify: keepRaw });
-// Chat (image attachments) and sync pushes may be large; everything else keeps the 1 MB cap.
-app.use((req, res, next) => (req.path === "/api/chat" || req.path === "/api/account/sync/v2/push" ? chatJson : defaultJson)(req, res, next));
+// Chat (image attachments), sync pushes and work-mode logs may be large; everything else keeps the 1 MB cap.
+const LARGE_BODIES = new Set(["/api/chat", "/api/account/sync/v2/push", "/api/remote/device/events", "/api/remote/device/chat"]);
+app.use((req, res, next) => (LARGE_BODIES.has(req.path) ? chatJson : defaultJson)(req, res, next));
 const accounts=createAccountService();
 app.use("/api/account",accounts.router);
 const shares=createShareRouters();
@@ -72,6 +75,38 @@ app.get("/api/status", (_req, res) => {
 });
 
 app.use("/api", createMediaRouter({ apiBase, apiKey }));
+
+// One-shot (non-streaming) completion for work-mode agents running on paired computers.
+async function completeChat(messages) {
+  if (!configured) throw Object.assign(new Error("CIRO 推理接口尚未配置"), { statusCode: 503 });
+  const upstream = await fetch(apiBase + "/" + apiPath.replace(/^\/+/, ""), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: "Bearer " + apiKey } : {}) },
+    body: JSON.stringify({ model: defaultModel, messages, stream: false })
+  });
+  if (!upstream.ok) throw Object.assign(new Error("CIRO 后端请求失败 (HTTP " + upstream.status + ")"), { statusCode: 502 });
+  const type = upstream.headers.get("content-type") || "";
+  const text = await upstream.text();
+  if (!type.includes("event-stream")) {
+    const json = JSON.parse(text);
+    return { content: String(json?.choices?.[0]?.message?.content ?? ""), usage: json.usage ?? json.ciro_usage ?? null };
+  }
+  let content = "", usage = null;
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("data:") || line.includes("[DONE]")) continue;
+    try { const chunk = JSON.parse(line.slice(5)); content += chunk?.choices?.[0]?.delta?.content ?? ""; if (chunk.usage || chunk.ciro_usage) usage = chunk.usage ?? chunk.ciro_usage; } catch { /* keep-alive */ }
+  }
+  return { content, usage };
+}
+app.use("/api/remote", createRemoteRouter({
+  dir: process.env.CIRO_WORKSPACE_DATA_DIR || ".ciro-runtime",
+  enabled: () => process.env.CIRO_ACCOUNTS_ENABLED === "true",
+  complete: completeChat
+}));
+// This computer's side of work mode (pairing, allowed folders) — loopback-only control API.
+// Off on account-enabled (public) servers unless CIRO_REMOTE_AGENT=on: those are the relay, not the computer.
+app.use("/api/remote/local", createRemoteAgent({ dir: process.env.CIRO_WORKSPACE_DATA_DIR || ".ciro-runtime", version: appVersion,
+  localAllowed: () => process.env.CIRO_ACCOUNTS_ENABLED !== "true" || process.env.CIRO_REMOTE_AGENT === "on" }).router);
 
 app.post("/api/chat", async (req, res) => {
   if (!configured) {

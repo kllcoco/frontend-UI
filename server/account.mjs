@@ -226,6 +226,8 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     try{
       if(!enabled){req.principal={mode:"local",id:"local",scopes:["*"]};return next();}
       if(req.path==="/status")return next();
+      // Work mode: paired computers authenticate with their own device token inside the remote router.
+      if(req.path==="/remote/pair"||req.path.startsWith("/remote/device/"))return next();
       // Only these machine-to-machine mutations bypass cookie/session auth.
       // Every target route independently validates the exact raw-body HMAC
       // and timestamp. All other Workbench routes still require user auth.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ciro one-command server install / upgrade (Linux, Docker).
 #
-#   curl -fsSL https://github.com/kllcoco/frontend-UI/releases/latest/download/install.sh | sudo bash
+#   curl -fsSL https://github.com/kllcoco/frontend-UI/releases/latest/download/Server-install.sh | sudo bash
 #   sudo bash install.sh            # install (asks a few questions)
 #   sudo bash install.sh upgrade    # pull the newest image and restart, keeping data and settings
 #   sudo bash install.sh uninstall  # stop and remove containers (data volume is kept)

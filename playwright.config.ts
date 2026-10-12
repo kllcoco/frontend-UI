@@ -1,4 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+// Each run starts from empty server state (no leftovers from earlier runs).
+const dataDir = mkdtempSync(join(tmpdir(), "ciro-e2e-data-"));
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -29,8 +35,8 @@ export default defineConfig({
       command: "npm run dev:server",
       url: "http://127.0.0.1:8787/api/status",
       timeout: 30_000,
-      reuseExistingServer: !process.env.CI,
-      env: { HOST: "127.0.0.1", CIRO_API_BASE_URL: "" }
+      reuseExistingServer: false,
+      env: { HOST: "127.0.0.1", CIRO_API_BASE_URL: "", CIRO_WORKSPACE_DATA_DIR: dataDir }
     },
     {
       command: "npm run dev",

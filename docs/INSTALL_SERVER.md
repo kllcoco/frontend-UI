@@ -4,7 +4,7 @@
 ## 一键安装（推荐，Linux 服务器）
 
 ```bash
-curl -fsSL https://github.com/kllcoco/frontend-UI/releases/latest/download/install.sh -o install.sh
+curl -fsSL https://github.com/kllcoco/frontend-UI/releases/latest/download/Server-install.sh -o install.sh
 sudo bash install.sh
 ```
 
@@ -241,8 +241,17 @@ sudo systemctl restart ciro      # 用了开机自启时；否则重新运行 ci
 ## 连接客户端
 
 - **浏览器**：直接打开部署地址。
-- **Android**：安装 `Ciro-*-android.apk` → 设置 → 模型设置 → 连接 Ciro 服务器，填 `https://ciro.你的域名.com`。
+- **Android**：安装 `Android-Ciro-*.apk` → 设置 → 模型设置 → 连接 Ciro 服务器，填 `https://ciro.你的域名.com`。
 - **iPhone / iPad**：用 Safari 打开部署地址 → 分享 → 添加到主屏幕。
+
+## 工作模式：用手机远程控制家里的电脑
+
+1. 服务器按上文开启账户（一键安装时填写域名即可）。
+2. 手机打开服务器网址并登录 → 协作空间 → 工作模式 → **添加电脑**，得到 8 位配对码（10 分钟内有效，只能用一次）。
+3. 在家里的电脑上打开 Ciro 桌面版 → 协作空间 → 工作模式，填写服务器网址和配对码，点“连接”，再添加允许远程使用的项目文件夹。
+4. 回到手机，选择这台电脑和文件夹，就能运行命令或交给 Ciro 完成 AI 任务。
+
+电脑需要保持开机、Ciro 在运行（关闭窗口后会留在系统托盘）。电脑会主动连接服务器，不需要在家里路由器上开放端口。
 
 ## 常见问题
 

@@ -2,6 +2,8 @@ import { localeTag } from "./lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import CommercialCenter from "./CommercialCenter";
 import PluginConnections from "./PluginConnections";
+import RemoteWork from "./components/RemoteWork";
+import { MonitorSmartphone } from "lucide-react";
 import {getAccountSession} from "./lib/account-api";
 import type { FormEvent } from "react";
 import {
@@ -23,6 +25,7 @@ import type {
 type Props = { language: Language; initialTab?: WorkbenchTab; embedded?: boolean; initialGoal?: string; onNavigate?: (route: string) => void };
 const tabs: {id:WorkbenchTab;title:string;Icon:typeof Users}[] = [
   {id:"goals",title:"目标与项目",Icon:Users},
+  {id:"remote",title:"工作模式",Icon:MonitorSmartphone},
   {id:"permissions",title:"权限与沙盒",Icon:ShieldCheck},
   {id:"github",title:"GitHub 仓库",Icon:GitBranch},
   {id:"plugins",title:"插件中心",Icon:PlugZap},
@@ -185,8 +188,9 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
     <div className="wb-body">
       {w.error&&<div role="alert" className="wb-alert wb-alert--error"><CircleAlert size={17}/><span>{w.error}</span><button aria-label={t("关闭设置")} onClick={()=>w.setError("")}><X size={15}/></button></div>}
       {w.notice&&<div role="status" className="wb-alert wb-alert--ok"><Check size={16}/>{w.notice}</div>}
-      {w.loading&&!state&&<div className="wb-empty"><Activity size={24}/>{t("准备中")}</div>}
-      {!state&&!w.loading&&<div className="wb-empty">{t("无法加载工作台")}<button onClick={()=>void w.refresh()}>{t("刷新")}</button></div>}
+      {currentTab==="remote"&&<RemoteWork t={t}/>}
+      {currentTab!=="remote"&&w.loading&&!state&&<div className="wb-empty"><Activity size={24}/>{t("准备中")}</div>}
+      {currentTab!=="remote"&&!state&&!w.loading&&<div className="wb-empty">{t("无法加载工作台")}<button onClick={()=>void w.refresh()}>{t("刷新")}</button></div>}
       {state&&(currentTab==="billing"||currentTab==="apps"||currentTab==="skills")&&
         <CommercialCenter key={currentTab} language={language} section={currentTab} onNavigate={onNavigate}/>}
       {state&&currentTab==="goals"&&<div className="wb-goals">

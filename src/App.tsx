@@ -67,7 +67,7 @@ const ACCOUNT_TABS = ["account", "subscription", "api-keys", "spending", "notifi
 const STUDIO_TABS = ["studio", "thinking", "ide", "knowledge", "research", "media", "compute", "library", "marketplace", "devices"];
 const SLASH_COMMANDS: [string, string][] = [
   ["/goal", "目标模式：交给代理自主完成"], ["/plan", "计划模式：只规划不执行"], ["/studio", "打开融合工作台"],
-  ["/work", "打开协作空间"], ["/plugins", "插件中心"], ["/ide", "代码工作区"], ["/research", "研究工作台"],
+  ["/work", "打开协作空间"], ["/remote", "工作模式：远程控制电脑"], ["/plugins", "插件中心"], ["/ide", "代码工作区"], ["/research", "研究工作台"],
   ["/knowledge", "知识与文件"], ["/github", "GitHub 仓库"], ["/schedule", "定时任务"], ["/skills", "技能中心"],
   ["/apps", "官方应用"], ["/billing", "账单与用量"], ["/account", "账户与安全"], ["/memory", "记忆管理"],
   ["/sync", "跨设备同步"], ["/help", "显示所有命令"]
@@ -879,7 +879,7 @@ export default function App() {
     } finally { setBusy(false); }
   }
   function handleSlash(text: string): boolean {
-    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|account|subscription|keys|spending|notifications|memory|sync|studio|think|ide|knowledge|research|media|compute|library|market|devices|help)(?:\s+([\s\S]*))?$/i.exec(text);
+    const match = /^\/(goal|plan|work|agent|github|schedule|plugins|permissions|billing|apps|skills|account|subscription|keys|spending|notifications|memory|sync|studio|think|ide|knowledge|research|media|compute|library|market|devices|remote|help)(?:\s+([\s\S]*))?$/i.exec(text);
     if (!match) return false;
     const command = match[1].toLowerCase();
     const argument = (match[2] || "").trim();
@@ -903,7 +903,7 @@ export default function App() {
       command === "studio" ? "studio" : command === "think" ? "thinking" :
       command === "ide" ? "ide" : command === "knowledge" ? "knowledge" :
       command === "research" ? "research" : command === "media" ? "media" :
-      command === "compute" ? "compute" : command === "library" ? "library" :
+      command === "compute" ? "compute" : command === "remote" ? "remote" : command === "library" ? "library" :
       command === "market" ? "marketplace" : command === "devices" ? "devices" : "goals";
     openStudio(tab);
     setDraft("");

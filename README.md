@@ -9,8 +9,8 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 | 方式 | 说明 |
 | --- | --- |
 | 桌面客户端 | 从 Releases 下载对应平台安装包；首次运行后在“文件 → 编辑模型连接配置 (.env)”填写 `CIRO_API_BASE_URL` 等并重启 |
-| Android | 安装 `Ciro-*-android.apk`；“设置 → 模型设置 → 连接 Ciro 服务器”填写服务器地址 |
-| 一键部署 | `sudo bash install.sh`（Release 附件，自动安装 Docker、配置 HTTPS 与账户，`install.sh upgrade` 升级） |
+| Android | 安装 `Android-Ciro-*.apk`；“设置 → 模型设置 → 连接 Ciro 服务器”填写服务器地址 |
+| 一键部署 | `sudo bash install.sh`（Release 附件 `Server-install.sh`，自动安装 Docker、配置 HTTPS 与账户，`install.sh upgrade` 升级） |
 | Docker | `docker run -d --name ciro -p 8787:8787 --env-file .env -v ciro-data:/data ghcr.io/kllcoco/ciro-client:latest`（详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
 | npm | `npm i -g @kllcoco/ciro-client` → `ciro-client init` → `ciro-client`（需先配置 GitHub Packages 令牌，详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
 | 源码开发 | `npm install && cp .env.example .env && npm run dev:all`，打开 http://127.0.0.1:5173 |

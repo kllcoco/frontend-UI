@@ -1,6 +1,6 @@
 {
   "name": "ciro-client",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "private": true,
   "type": "module",
   "description": "Ciro conversational client",
@@ -100,7 +100,8 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "artifactName": "Mac-Ciro-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
@@ -117,7 +118,8 @@
           ]
         }
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "Windows-Ciro-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -134,7 +136,8 @@
       "category": "Office",
       "icon": "build/icon.png",
       "maintainer": "kllcoco",
-      "synopsis": "Ciro AI desktop client"
+      "synopsis": "Ciro AI desktop client",
+      "artifactName": "Linux-Ciro-${version}-${arch}.${ext}"
     },
     "publish": [
       {

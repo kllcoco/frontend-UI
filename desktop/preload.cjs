@@ -23,5 +23,7 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
     if (["download", "install", "check"].includes(action)) ipcRenderer.send("ciro:update-action", action);
   },
   exportPdf: (name) => ipcRenderer.invoke("ciro:export-pdf", String(name || "Ciro")),
-  openWindow: (chatId) => ipcRenderer.send("ciro:open-window", chatId ? String(chatId) : "")
+  openWindow: (chatId) => ipcRenderer.send("ciro:open-window", chatId ? String(chatId) : ""),
+  // Work mode: native folder chooser for the folders this computer allows remote tasks in.
+  pickFolder: () => ipcRenderer.invoke("ciro:pick-folder")
 });

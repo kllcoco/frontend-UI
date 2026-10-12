@@ -338,6 +338,11 @@ ipcMain.handle("ciro:export-pdf", async (_event, name) => {
   void shell.showItemInFolder(target.filePath);
   return true;
 });
+ipcMain.handle("ciro:pick-folder", async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });
+  return result.canceled ? null : result.filePaths[0] || null;
+});
 ipcMain.on("ciro:open-external", (_event, url) => {
   if (/^https:\/\//i.test(url)) void shell.openExternal(url);
 });

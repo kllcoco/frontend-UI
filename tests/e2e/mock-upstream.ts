@@ -14,6 +14,17 @@ export function startMockModel(port: number): Promise<Server> {
       const model = payload.model || "ciro";
       const last = payload.messages?.at(-1)?.content || "";
       // Auxiliary prompts (titles, follow-ups) get short answers.
+      // Work-mode agent protocol: write a file, run a command (both need approval), then finish.
+      const all = payload.messages || [];
+      if (all[0]?.content?.includes("You act through tools")) {
+        const done = all.filter((m) => m.content.startsWith("RESULT of")).length;
+        const steps = ['{"thought":"写入问候文件","action":"write","path":"hello.txt","content":"你好，来自手机"}',
+          '{"thought":"确认内容","action":"run","command":"node -e \\"process.stdout.write(require(\'fs\').readFileSync(\'hello.txt\',\'utf8\'))\\""}',
+          '{"action":"done","summary":"已在项目里创建 hello.txt"}'];
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ choices: [{ message: { content: steps[Math.min(done, 2)] } }], usage: { cwu: 50 } }));
+        return;
+      }
       const memory = /记忆助手|memory assistant/i.test(last);
       const text = memory ? (/我喜欢简洁/.test(last) ? '["用户喜欢简洁的回答"]' : "[]") : /JSON|标题|title/i.test(last) ? (/JSON/.test(last) ? '["追问一","追问二"]' : "测试标题") : "来自 " + model + " 的回答：" + last.slice(0, 40) + (last.includes("附件：") ? "（已收到附件）" : "");
       const cwu = model === "ciro-pro" ? 2500 : 1234;
