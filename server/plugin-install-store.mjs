@@ -3,7 +3,7 @@ import {randomUUID,createHash} from "node:crypto";
 import {createTransactionalPluginDocument} from "./plugin-transactional-store.mjs";
 
 const PRESET=[
- {id:"github",title:"GitHub",category:"开发",description:"读取仓库、提出代码修改、创建草稿 PR（变更需人工审批）。",version:"0.8.0",publisher:"CIRO 官方适配器",tools:["github.read_file","github.create_branch","github.write_file","github.open_pull_request"],permissions:["github.read","github.write"],ready:true},
+ {id:"github",title:"GitHub",category:"开发",description:"读取仓库、提出代码修改、创建草稿 PR（变更需人工审批）。",version:"0.8.0",publisher:"CIRO 官方适配器",tools:["github.list_directory","github.read_file","github.create_branch","github.write_file","github.open_pull_request"],permissions:["github.read","github.write"],ready:true},
  {id:"supabase",title:"Supabase",category:"开发",description:"连接数据库与项目工具（正在完成用户级 MCP 授权）。",version:"0.8.0",publisher:"CIRO 官方适配器",tools:["supabase.list_tools","supabase.call_tool"],permissions:["external.network","database.read","database.write"],ready:false},
  {id:"gmail",title:"Gmail",category:"效率",description:"邮件搜索、草稿及发送（尚未开放连接）。",version:"0.8.0",publisher:"CIRO 官方适配器",tools:[],permissions:["mail.read","mail.write"],ready:false},
  {id:"google-drive",title:"Google Drive",category:"效率",description:"云端文件连接（尚未开放连接）。",version:"0.8.0",publisher:"CIRO 官方适配器",tools:[],permissions:["files.read","files.write"],ready:false},
