@@ -15,6 +15,7 @@ import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normali
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
 import BackupPanel from "./components/BackupPanel";
+import ViewBoundary from "./components/ViewBoundary";
 import UsagePanel from "./components/UsagePanel";
 import MemoryManager from "./components/MemoryManager";
 import TeamCenter from "./components/TeamCenter";
@@ -162,7 +163,7 @@ export default function SettingsCenter({
       <div className="sc-main">
         <header className="sc-header"><div><span className="sc-kicker">PERSONALIZE YOUR CIRO</span><h2 id="sc-title">{t(heading)}</h2></div>
           <button className="sc-close" onClick={onClose} title={t("关闭设置")} aria-label={t("关闭设置")}><X size={20}/></button></header>
-        <div className="sc-scroll">
+        <div className="sc-scroll"><ViewBoundary t={t} resetKey={section}>
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
@@ -423,7 +424,7 @@ export default function SettingsCenter({
               <SettingRow title={t("推理能力")} description={t("实际能力以服务端正式验收为准")}><span className="sc-static-value">{t("待接入")}</span></SettingRow>
             </SettingBlock>
           </>}
-        </div>
+        </ViewBoundary></div>
         <footer className="sc-footer"><span><Clock3 size={13}/> {t("设置自动保存到此浏览器")}</span>
           <button onClick={onClose}>{t("完成")} <Check size={15}/></button></footer>
       </div>

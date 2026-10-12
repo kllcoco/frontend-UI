@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Copy, FileUp, Link2, Mail, ShieldCheck, Trash2, Users } from "lucide-react";
-import { accountFetch } from "../lib/account-api";
+import { accountFetch, readApiJson} from "../lib/account-api";
 
 type Role = "owner" | "admin" | "member" | "viewer";
 type Member = { id: string; name?: string; email: string; role: Role; joinedAt?: string };
@@ -13,9 +13,7 @@ const ROLE_NAMES: Record<Role, string> = { owner: "所有者", admin: "管理员
 
 async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const response = await accountFetch("/api/team" + path, { method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((data as { error?: string }).error || "HTTP " + response.status);
-  return data as T;
+  return readApiJson<T>(response, "Team request failed");
 }
 
 /** Settings → Team. Contract: GET /api/team, POST/DELETE /api/team/invites, PATCH/DELETE /api/team/members/:id. */

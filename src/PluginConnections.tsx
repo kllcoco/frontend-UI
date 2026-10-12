@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useState} from "react";
-import {accountFetch} from "./lib/account-api";
+import {accountFetch,readApiJson} from "./lib/account-api";
 import "./plugin-marketplace.css";
 import type {Language} from "./lib/i18n";
 import {localize} from "./lib/i18n";
@@ -22,9 +22,7 @@ async function api<T>(path:string,body?:unknown):Promise<T>{
   method:body===undefined?"GET":"POST",
   ...(body===undefined?{}:{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
  });
- const result=await response.json();
- if(!response.ok)throw new Error(result.error||"Plugin service request failed");
- return result as T;
+ return readApiJson<T>(response,"Plugin service request failed");
 }
 export default function PluginConnections({language="zh-CN"}:{language?:Language}={}){
  const t=(text:string)=>localize(language,text,(k)=>EN[k]);
@@ -134,8 +132,7 @@ export default function PluginConnections({language="zh-CN"}:{language?:Language
               method:"POST",headers:{"Content-Type":"application/json"},
               body:JSON.stringify({mode:"request",repo:repoChoice,custom:githubScope?.custom||{}})
              });
-             const data=await response.json();
-             if(!response.ok)throw new Error(data.error||t("无法设置仓库权限"));
+             const data=await readApiJson<{policy:{repo:string}}>(response,t("无法设置仓库权限"));
              setDiscoveredTools([]);
              setNotice(t("当前仓库：")+data.policy.repo+t("；已恢复逐次审批模式。"));
           })}>{t("选择仓库")}</button>

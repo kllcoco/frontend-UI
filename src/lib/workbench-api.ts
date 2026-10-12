@@ -1,4 +1,4 @@
-import {accountFetch} from "./account-api";
+import {accountFetch,readApiJson} from "./account-api";
 import type {StudioTab} from "./studio-api";
 export type PermissionMode = "request" | "auto" | "full" | "custom";
 export type AgentMode = "goal" | "plan";
@@ -44,12 +44,7 @@ export async function workbenchApi<T>(path:string, payload?:unknown):Promise<T> 
     cache:"no-store",
     ...(payload===undefined?{}:{body:JSON.stringify(payload)})
   });
-  const result:unknown=await response.json().catch(()=>({}));
-  if(!response.ok) {
-    const error=(result&&typeof result==="object"&&"error" in result)?String(result.error):"Request failed (HTTP "+response.status+")";
-    throw new Error(error);
-  }
-  return result as T;
+  return readApiJson<T>(response,"Request failed");
 }
 export function initialPermissionCustom():PermissionCustom {
   return {githubRead:true,githubWrite:false,taskExecution:false,recurringTasks:false,externalNetwork:false};

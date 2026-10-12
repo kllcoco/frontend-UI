@@ -4,6 +4,18 @@ export type SessionSnapshot={
   }|null;csrf:string|null;mode:string|null;bootstrapAvailable:boolean;
 };
 export type AccountTab="account"|"subscription"|"api-keys"|"spending"|"notifications"|"memory"|"sync";
+/** Parses an API response. A page served instead of JSON (offline app, wrong server, proxy page) is an error,
+    never an empty object that later crashes the screen reading missing fields. */
+export async function readApiJson<T>(response:Response,fallback:string):Promise<T>{
+  const isJson=/json/i.test(response.headers.get("content-type")||"");
+  const data:unknown=isJson?await response.json().catch(()=>null):null;
+  if(!response.ok){
+    const msg=data&&typeof data==="object"&&"error" in data?String((data as {error:unknown}).error):fallback+" (HTTP "+response.status+")";
+    throw new Error(msg);
+  }
+  if(!isJson||data===null||typeof data!=="object")throw new Error("未连接到 Ciro 服务：服务器没有返回数据");
+  return data as T;
+}
 let cachedSession:SessionSnapshot|null=null;
 let pending:Promise<SessionSnapshot>|null=null;
 export function invalidateAccountSession(){cachedSession=null;pending=null;}
@@ -11,8 +23,7 @@ export async function getAccountSession(force=false):Promise<SessionSnapshot>{
   if(!force&&cachedSession)return cachedSession;
   if(!force&&pending)return pending;
   pending=fetch("/api/account/session",{cache:"no-store",credentials:"same-origin"}).then(async result=>{
-    if(!result.ok)throw new Error("Unable to contact account service");
-    const data=await result.json() as SessionSnapshot;
+    const data=await readApiJson<SessionSnapshot>(result,"Unable to contact account service");
     cachedSession=data;
     return data;
   }).finally(()=>{pending=null;});
@@ -37,12 +48,7 @@ export async function accountApi<T>(path:string,method="GET",body?:unknown):Prom
     method,
     ...(body===undefined?{}:{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
   });
-  const result:unknown=await response.json().catch(()=>({}));
-  if(!response.ok){
-    const msg=result&&typeof result==="object"&&"error" in result?String(result.error):"HTTP "+response.status;
-    throw new Error(msg);
-  }
-  return result as T;
+  return readApiJson<T>(response,"Account request failed");
 }
 export async function refreshAuthAfterLogin():Promise<SessionSnapshot>{
   invalidateAccountSession();

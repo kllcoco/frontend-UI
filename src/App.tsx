@@ -51,6 +51,7 @@ import ProjectView from "./components/ProjectView";
 import PromptLibrary from "./components/PromptLibrary";
 import ShareDialog from "./components/ShareDialog";
 import FindBar from "./components/FindBar";
+import ViewBoundary from "./components/ViewBoundary";
 import CanvasPanel from "./components/CanvasPanel";
 import VoiceMode from "./components/VoiceMode";
 import { addMemory, localMemoriesForChat, removeMemory } from "./lib/memory";
@@ -1501,6 +1502,7 @@ export default function App() {
           <CiroMark small/><span>Ciro Studio</span></div>
         {sidebarCollapsed && <button className="cx-icon cx-float-expand" onClick={() => setSidebarCollapsed(false)} aria-label={t("展开侧栏")}><PanelLeftOpen size={18}/></button>}
         <div className="cx-studio-scroll" key={studioTab}>
+          <ViewBoundary t={t} resetKey={studioTab} onHome={createNew}>
           {ACCOUNT_TABS.includes(studioTab)
             ? <div className="acc-workspace"><AccountCenter key={studioTab} language={language} section={studioTab as AccountTab}/></div>
             : STUDIO_TABS.includes(studioTab)
@@ -1509,6 +1511,7 @@ export default function App() {
                   onNavigate={route => { if (route === "chat") createNew(); else openStudio(route as WorkbenchTab); }}/></div>
               : <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
                 onNavigate={route => { if (route === "chat") createNew(); else openStudio(route as WorkbenchTab); }}/>}
+          </ViewBoundary>
         </div>
       </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
         data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}

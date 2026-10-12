@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Link2, RefreshCw, Trash2, X } from "lucide-react";
-import { accountFetch } from "../lib/account-api";
+import { accountFetch, readApiJson} from "../lib/account-api";
 import type { Conversation } from "../types";
 
 type Props = {
@@ -14,9 +14,7 @@ async function call(path: string, method: string, body?: unknown) {
   const response = await accountFetch("/api/share" + path, {
     method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {})
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((data as { error?: string }).error || "HTTP " + response.status);
-  return data as { id?: string };
+  return readApiJson<{ id?: string }>(response, "Share request failed");
 }
 
 /** Create / refresh / revoke a read-only snapshot link for one conversation. */
