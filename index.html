@@ -11,8 +11,33 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Ciro — 让每一个想法，走得更远</title>
+    <!-- Launch: paint the saved theme and the logo before any script, then crossfade into the app. -->
+    <script>
+      try {
+        var p = localStorage.getItem("ciro.theme.v1");
+        var dark = p === "dark" || (p === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      } catch (e) {}
+    </script>
+    <style>
+      html { background: #faf9f6; } html[data-theme="dark"] { background: #141a18; }
+      #ciro-boot { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: inherit;
+        transition: opacity .42s cubic-bezier(.2,.7,.2,1), visibility .42s; }
+      #ciro-boot svg { width: 64px; height: 64px; animation: ciro-boot 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+      #ciro-boot .b { stop-color: #0b6b4b; } #ciro-boot .a { stop-color: #22b07a; } #ciro-boot circle { fill: #2bbf82; }
+      html[data-theme="dark"] #ciro-boot .a { stop-color: #8ff0c0; } html[data-theme="dark"] #ciro-boot .b { stop-color: #3fbf86; }
+      html.ciro-ready #ciro-boot { opacity: 0; visibility: hidden; }
+      html.ciro-ready #ciro-boot svg { transform: scale(.86); transition: transform .42s cubic-bezier(.2,.7,.2,1); animation: none; }
+      @keyframes ciro-boot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.94); opacity: .82; } }
+      @media (prefers-reduced-motion: reduce) { #ciro-boot svg { animation: none; } }
+    </style>
   </head>
   <body>
+    <div id="ciro-boot" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none"><defs><linearGradient id="cb" x1="10" y1="8" x2="52" y2="58" gradientUnits="userSpaceOnUse">
+        <stop class="a"/><stop offset="1" class="b"/></linearGradient></defs>
+        <path d="M48.5 17.5A22 22 0 1 0 48.5 46.5" stroke="url(#cb)" stroke-width="8.5" stroke-linecap="round"/><circle cx="51" cy="32" r="5"/></svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

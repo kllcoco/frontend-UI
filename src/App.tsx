@@ -1562,7 +1562,7 @@ export default function App() {
           <div className="wallpaper-veil" style={{ backgroundColor: "rgba(2,12,11," + appearance.overlay / 100 + ")" }} aria-hidden="true"/>
         </>}
         {dragging && <div className="cx-dropzone"><Paperclip size={26}/><strong>{t("松开以添加附件")}</strong><span>{t("图片、PDF、文本或代码文件")}</span></div>}
-        <header className="cx-topbar">
+        <header className="cx-topbar" onClick={(e) => { if (e.target === e.currentTarget) scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }}>
           <div className="cx-topbar-left">
             <button className="cx-icon cx-mobile-menu" onClick={() => setSidebarOpen(true)} aria-label={t("打开侧栏")}><Menu size={20}/></button>
             {sidebarCollapsed && <button className="cx-icon cx-desktop-expand" onClick={() => setSidebarCollapsed(false)} aria-label={t("展开侧栏")}>
@@ -1810,6 +1810,7 @@ export default function App() {
                   event.target.style.height = Math.min(event.target.scrollHeight, 220) + "px";
                 }}
                 onKeyDown={onComposerKeyDown} onPaste={onPaste}
+                onFocus={() => { if (atBottom) window.setTimeout(() => endRef.current?.scrollIntoView({ block: "end" }), 320); }}
                 placeholder={composerMode === "goal" ? t("描述你希望 Ciro 自主完成的目标…") : composerMode === "plan" ? t("描述需要规划的任务…")
                   : composerMode === "image" ? t("描述你想生成的图片…")
                   : !current && viewProject ? t("在此项目中开始新对话…") : t("向 Ciro 发送消息…")}

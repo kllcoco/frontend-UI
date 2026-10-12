@@ -32,6 +32,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
+// Launch: once React has painted its first frame, fade the boot logo (index.html) into the app.
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  document.documentElement.classList.add("ciro-ready");
+  window.setTimeout(() => document.getElementById("ciro-boot")?.remove(), 600);
+}));
+
 // Install only in production: no service worker intercepts developer HTTP or API tests.
 if(import.meta.env.PROD && "serviceWorker" in navigator && !isMobileShell()){
   window.addEventListener("load",()=>{void navigator.serviceWorker.register("/sw.js").catch(()=>{});});

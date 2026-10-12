@@ -88,3 +88,34 @@ test("a newer server version offers a refresh", async ({ page }) => {
   await notice.getByRole("button", { name: "稍后" }).click();
   await expect(notice).toHaveCount(0);
 });
+
+test.describe("phone gestures", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  async function swipe(page: Page, from: [number, number], to: [number, number], steps = 8) {
+    const cdp = await page.context().newCDPSession(page);
+    const point = (x: number, y: number) => [{ x, y, id: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(...from) });
+    for (let i = 1; i <= steps; i += 1) {
+      const x = from[0] + ((to[0] - from[0]) * i) / steps, y = from[1] + ((to[1] - from[1]) * i) / steps;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x, y) });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(350);
+  }
+  test("swipe right opens the sidebar, swipe left closes it, sheets swipe down to close", async ({ page }) => {
+    await fresh(page);
+    await swipe(page, [30, 420], [300, 430]);
+    await expect(page.locator(".cx-sidebar--open")).toHaveCount(1);
+    await swipe(page, [280, 420], [20, 425]);
+    await expect(page.locator(".cx-sidebar--open")).toHaveCount(0);
+    // A vertical scroll never opens it.
+    await swipe(page, [200, 300], [215, 600]);
+    await expect(page.locator(".cx-sidebar--open")).toHaveCount(0);
+    await page.getByRole("button", { name: "添加附件与模式" }).click();
+    const sheet = page.locator(".cx-plus-menu");
+    const box = (await sheet.boundingBox())!;
+    await swipe(page, [box.x + 100, box.y + 14], [box.x + 100, box.y + 260]);
+    await expect(sheet).toHaveCount(0);
+  });
+});

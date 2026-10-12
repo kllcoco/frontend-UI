@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ciro "orbit C" for the Android 12+ launch screen (same mark and colours as the web boot screen). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="288dp" android:height="288dp"
+    android:viewportWidth="288" android:viewportHeight="288">
+    <group android:translateX="96" android:translateY="96" android:scaleX="1.5" android:scaleY="1.5">
+        <path android:pathData="M48.5,17.5A22,22 0,1 0,48.5 46.5"
+            android:strokeWidth="8.5" android:strokeLineCap="round" android:fillColor="#00000000">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear" android:startX="10" android:startY="8" android:endX="52" android:endY="58"
+                    android:startColor="#22B07A" android:endColor="#0B6B4B"/>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M51,32m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" android:fillColor="#2BBF82"/>
+    </group>
+</vector>

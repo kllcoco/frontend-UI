@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same as the web app background, so launch → splash → app has no colour flash. -->
+    <color name="ciro_bg">#FAF9F6</color>
+</resources>

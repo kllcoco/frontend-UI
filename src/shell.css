@@ -1002,3 +1002,20 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
   background:linear-gradient(transparent,var(--cx-bubble) 70%);pointer-events:none}
 .cx-bubble-more{position:absolute;right:12px;bottom:6px;z-index:1;background:none;color:var(--cx-accent);font:600 12.5px "DM Sans","Noto Sans SC",sans-serif;padding:4px 6px;border-radius:8px}
 :root[data-theme] .cx-shell .user-bubble:not(.user-bubble--clamped) .cx-bubble-more{position:static;display:block;margin:6px 0 0 auto}
+/* Touch feel */
+:root[data-theme] .cx-shell button,:root[data-theme] .cx-shell a,:root[data-theme] .cx-shell [role=button]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+@media (hover:none) and (pointer:coarse){
+  :root[data-theme] .cx-shell button:not(:disabled):active{transform:scale(.96);transition:transform .08s}
+  :root[data-theme] .cx-shell .cx-row:active{background:var(--cx-side-hover)}
+}
+html,body{overscroll-behavior:none}
+:root[data-theme] .cx-shell .content-area,:root[data-theme] .cx-shell .cx-history,:root[data-theme] .cx-shell .cx-studio-scroll{overscroll-behavior:contain}
+/* Launch: home content rises in, staggered, as the boot logo fades */
+@keyframes cx-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+:root[data-theme] .cx-shell .cx-welcome>*{animation:cx-rise .5s var(--cx-ease) both}
+:root[data-theme] .cx-shell .cx-welcome>*:nth-child(2){animation-delay:.06s}
+:root[data-theme] .cx-shell .cx-welcome>*:nth-child(3){animation-delay:.12s}
+:root[data-theme] .cx-shell .cx-welcome>*:nth-child(4){animation-delay:.18s}
+:root[data-theme] .cx-shell .composer-dock{animation:cx-rise .5s .14s var(--cx-ease) both}
+@media (prefers-reduced-motion:reduce){:root[data-theme] .cx-shell .cx-welcome>*,:root[data-theme] .cx-shell .composer-dock{animation:none}}
+:root[data-reduce-motion="true"] .cx-shell .cx-welcome>*,:root[data-reduce-motion="true"] .cx-shell .composer-dock{animation:none!important}
