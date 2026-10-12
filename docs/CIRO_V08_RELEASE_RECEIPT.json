@@ -45,7 +45,12 @@
     {
       "id": "CIRO-V08-MCP",
       "description": "User-scoped Supabase Edge MCP source + RLS policies",
-      "status": "UNIT_VERIFIED_DEPLOYMENT_PENDING"
+      "status": "LIVE_POSTGRES_RLS_SIMULATED_IDENTITY_PASS_REAL_OAUTH_E2E_PENDING",
+      "evidence": [
+        "supabase/tests/ciro_plugin_notes_rls_acceptance.sql",
+        "docs/CIRO_V08_SUPABASE_RLS_EVIDENCE_2026_10_12.md"
+      ],
+      "limit": "Real Supabase Postgres policy/role verification with transaction-local simulated users, not signed OAuth JWT or HTTP MCP end-to-end qualification"
     },
     {
       "id": "CIRO-V08-CHAT-AGENT",
@@ -86,11 +91,11 @@
   ],
   "graduation": {
     "decision": "NOT_GRADUATED_FOR_PUBLIC_COMMERCIAL_RELEASE",
-    "reason": "External live OAuth, real user-scoped cloud RLS deployment and production multitenant isolation/queue have not passed independent evidence gates.",
+    "reason": "Real Supabase database RLS simulations pass, but signed end-user OAuth tokens and real MCP/HTTP two-user denial, live provider integration, and public multitenant operations have not been independently qualified.",
     "external_resources": {
       "github_oauth_app": "NOT_VERIFIED_WITH_REAL_ACCOUNT",
       "supabase_projects_visible": 1,
-      "supabase_mcp_deployed": "CIRO acceptance test project idlqjltdqxgeyaitldoo, edge v2 ACTIVE with JWT; two-user Auth acceptance NOT RUN",
+      "supabase_mcp_deployed": "CIRO Free acceptance project idlqjltdqxgeyaitldoo; Edge v2 ACTIVE, JWT required; SQL role-simulation RLS tests PASS; genuine OAuth users/HTTP calls NOT RUN",
       "supabase_organizations_visible": [
         {
           "name": "Ciro",
@@ -99,9 +104,9 @@
       ]
     },
     "next_acceptance": [
+      "Configure currently free Supabase OAuth 2.1 server, owned HTTPS Site URL, explicit consent UI and confidential CIRO client; keep server-only secrets private and CIRO_SUPABASE_MCP_RLS_VERIFIED=false until real-user acceptance",
+      "With two consenting real users and separate verified JWTs, execute scripts/verify-ciro-supabase-mcp.mjs, HTTP unauthorized/expired/refresh/revoke and RLS cross-user suite, preserving receipts",
       "On the dedicated Linux deployment, complete trusted owner bootstrap privately, remove one-time token, run security preflight and confirm no public traffic was routed before initialization",
-      "Obtain explicit owner selection and cost confirmation before creating a test Supabase project in the existing free Ciro organization",
-      "Deploy real user-RLS MCP and obtain independent two-consenting-user cross-account denial evidence",
       "Complete browser-based real GitHub OAuth app authorization, disposable repository write approval, upstream revocation and replay rejection",
       "Run dedicated Linux host preflight and reverse proxy security review using separate secrets and volumes for each paying customer",
       "Prove worker restart, ambiguous writes, data backup/restore, client-specific billing and operator incident response on the deployment",
@@ -115,7 +120,47 @@
       "An account owner configures a real GitHub OAuth App server-side; user reviews authorization and completes login in actual browser",
       "Demonstrate GitHub read in an allowlisted disposable repository and one user-approved write, token revocation and reinstall reconnect",
       "If the Supabase adapter is advertised, verify real end-user OAuth and user-scoped MCP; otherwise leave it not-ready rather than use admin credentials"
-    ]
+    ],
+    "merge_context": {
+      "plugin_pr_number": 2,
+      "merged_at": "2026-10-11T17:40:56Z",
+      "base_branch": "feat/ciro-chat-client-v1",
+      "last_observed_workflow_sha": "b505c2b678a2c1cd4e26de38623d297925a8148e",
+      "last_observed_workflow_conclusion": "success",
+      "note": "No new GitHub CI triggered by cloud verification; historical test counts remain bound to the earlier qualified_code_commit"
+    }
   },
-  "product_scope": "CIRO V0.8 explicit-user-install/plugin connection/tool gateway/disable/uninstall. General public multi-tenant SaaS graduation is a separate product."
+  "product_scope": "CIRO V0.8 explicit-user-install/plugin connection/tool gateway/disable/uninstall. General public multi-tenant SaaS graduation is a separate product.",
+  "cloud_qualification": {
+    "schema": "ciro.v08.supabase-database-qualification.v1",
+    "as_of": "2026-10-12",
+    "project_ref": "idlqjltdqxgeyaitldoo",
+    "plan": "Free",
+    "db_status": "ACTIVE_HEALTHY",
+    "edge_function": {
+      "name": "ciro-mcp",
+      "version": 2,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "invocation_status": "NOT_RUN"
+    },
+    "rls": {
+      "status": "PASS_SQL_ROLE_SIMULATION_ONLY",
+      "sql_path": "supabase/tests/ciro_plugin_notes_rls_acceptance.sql",
+      "sql_blob_sha": "c818b90aaa8f71f1007ebfd88e1e04cacd1df95e",
+      "forced": true,
+      "cleanup": {
+        "users": 0,
+        "notes": 0
+      },
+      "security_advisor_lints": 0
+    },
+    "oauth": {
+      "clients_registered": 0,
+      "test_users": 0,
+      "consents": 0,
+      "real_http_e2e": "NOT_RUN"
+    },
+    "decision": "LIVE_DB_RLS_SIMULATION_VERIFIED_REAL_OAUTH_PENDING"
+  }
 }

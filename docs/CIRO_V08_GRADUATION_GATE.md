@@ -1,3 +1,5 @@
+> **Historical pre-merge snapshot (2026-10-11).** The PR and CI statements below describe that earlier checkpoint, not current state. Plugin PR #2 has since merged into `feat/ciro-chat-client-v1`. On 2026-10-12, live Postgres RLS role simulation passed on the free Supabase acceptance project; real signed-user OAuth/MCP E2E and commercial release remain unqualified. Current evidence: `docs/CIRO_V08_RELEASE_RECEIPT.json` and `docs/CIRO_V08_SUPABASE_RLS_EVIDENCE_2026_10_12.md`.
+
 # CIRO V0.8 / plugin marketplace — pre-release evidence (2026-10-11)
 
 **Verdict: NOT GRADUATED.** This file deliberately distinguishes source-code implementation from verified operation. A draft PR exists against the existing V0.7 branch; no merge or release has occurred.

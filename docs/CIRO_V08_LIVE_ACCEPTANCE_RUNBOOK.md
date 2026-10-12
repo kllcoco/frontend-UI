@@ -1,7 +1,7 @@
 # CIRO V0.8 — Live acceptance and release runbook
 
-Release scope: frontend-UI branch feat/ciro-v08-plugin-marketplace, PR #2.
-Status: developer candidate, NOT certified for public multi-tenant operation.
+Release scope: CIRO V0.8 plugin PR #2 (merged into `feat/ciro-chat-client-v1` on 2026-10-11).
+Status: plugin source and automated UI/Node tests qualified; live user OAuth and public multitenant commercial release NOT certified.
 
 ## User-facing invariant
 
@@ -20,10 +20,10 @@ The market downloads a signed data-only manifest, verifies signature, expiry, id
 
 An example user-authenticated MCP Edge Function is provided at supabase/functions/ciro-mcp/index.ts, with a dependency-free protocol handler in mcp-core.mjs. It uses a Supabase publishable key with a request-local client bound to a verified OAuth user token, never an admin/service-role credential. The only tools are list_notes and idempotent create_note on a user-scoped example table.
 
-1. Connect an explicitly authorized non-production Supabase project; none was present in the connected project listing when this implementation was prepared.
-2. In a trusted project checkout, create a migration using: supabase migration new ciro_plugin_notes_rls. Apply the reviewed SQL from supabase/sql/ciro_plugin_notes_rls.sql using your normal review/deployment process; validate the exposed API grants and run Supabase database/security advisors.
-3. Enable the Supabase Auth OAuth 2.1 server and register an explicit confidential client/callback ending in /api/plugins/supabase/callback; deploy the ciro-mcp function to that project. Never put service-role or secret keys in the browser or the MCP handler.
-4. Configure only server-side CIRO_SUPABASE_PROJECT_REF, CIRO_SUPABASE_OAUTH_CLIENT_ID, CIRO_SUPABASE_OAUTH_CLIENT_SECRET, CIRO_SUPABASE_MCP_TOOLS=list_notes,create_note, and CIRO_PUBLIC_ORIGIN. Keep CIRO_SUPABASE_MCP_RLS_VERIFIED false until independently verified.
+1. The explicitly authorized non-production project is now `ciro-v08-acceptance` (`idlqjltdqxgeyaitldoo`) in the existing **Free** Ciro organization. Do not create a second project or enable billable resources.
+2. The reviewed SQL from `supabase/sql/ciro_plugin_notes_rls.sql` has been applied to the authorized test project; `ciro-mcp` v2 is deployed with `verify_jwt=true`. Real Postgres RLS/role simulation assertions were rerun directly from the repository's `supabase/tests/ciro_plugin_notes_rls_acceptance.sql` and passed, then rolled back (0 users/0 notes). **This is NOT genuine OAuth-token evidence.** See `docs/CIRO_V08_SUPABASE_RLS_EVIDENCE_2026_10_12.md`.
+3. Enable the currently free Supabase Auth OAuth 2.1 server from the project dashboard, set the authorization path and build an explicit **human-visible login/consent UI** at the owned HTTPS Site URL, then register an explicit confidential client with an exact HTTPS callback ending in `/api/plugins/supabase/callback`. **The 2026-10-12 audit found 0 registered OAuth clients, 0 users, and 0 consents.** Do not reuse service-role or secret keys in the browser or MCP handler. Stop if the dashboard requests payment or plan upgrade.
+4. Configure only server-side `CIRO_SUPABASE_PROJECT_REF=idlqjltdqxgeyaitldoo`, `CIRO_SUPABASE_OAUTH_CLIENT_ID`, `CIRO_SUPABASE_OAUTH_CLIENT_SECRET`, `CIRO_SUPABASE_MCP_TOOLS=list_notes,create_note`, and `CIRO_PUBLIC_ORIGIN`. Keep `CIRO_SUPABASE_MCP_RLS_VERIFIED=false` until independently verified using **real** signed per-user JWTs, real CIRO callback and cross-user HTTP/MCP access tests. Do not enter provider secrets/tokens in chat or Git.
 5. With TWO distinct consenting test users and their OAuth access tokens held only as environment variables CIRO_SUPABASE_TEST_USER_A_TOKEN and CIRO_SUPABASE_TEST_USER_B_TOKEN, run: node scripts/verify-ciro-supabase-mcp.mjs. Its token-free JSON report checks invalid-token denial, non-admin tool discovery, per-user write, repeated idempotency key, cross-user read denial, and unauthorized owner-field rejection.
 6. Independently verify expired token, refresh, revoke, concurrency and restart. A claim or config flag alone is never evidence of working RLS.
 
