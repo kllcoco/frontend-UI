@@ -30,10 +30,11 @@ test("every Studio module loads its own styles and fits the available canvas",as
   "多模态工作台","算力与成本","历史对话与版本",
   "官方应用与技能","跨平台终端"
  ];
- for(const label of sections){
+ for(const [index,label] of sections.entries()){
   await page.locator(".stu-module").filter({hasText:label}).click();
   await expect(page.locator(".stu-root"),label).toBeVisible();
   await noViewportOverflow(page,label);
+  await page.screenshot({path:output+"/ux-studio-"+String(index+1).padStart(2,"0")+".png",fullPage:true});
   await page.locator(".stu-header .stu-light-button").click();
   await expect(page.locator(".stu-module")).toHaveCount(10);
  }
@@ -61,12 +62,35 @@ test("account, marketplace, commerce and workbench layouts remain coherent in da
   {name:"研究工作台",selector:".stu-root"},
   {name:"知识与文件",selector:".stu-root"}
  ];
- for(const link of links){
+ for(const [index,link] of links.entries()){
   await page.locator(".studio-quick-links").getByRole("button",{name:link.name,exact:true}).click();
   await expect(page.locator(link.selector),link.name).toBeVisible();
   await noViewportOverflow(page,link.name);
-  if(link.shot)await page.screenshot({
-   path:output+"/ux-dark-"+link.shot+".png",fullPage:true
+  await page.screenshot({
+   path:output+"/ux-dark-"+String(index+1).padStart(2,"0")+"-"+(link.shot||"page")+".png",
+   fullPage:true
+  });
+ }
+});
+
+test("every settings panel and account section has a visible, width-safe layout",async({page})=>{
+ test.setTimeout(150_000);
+ await page.goto("/",{waitUntil:"domcontentloaded"});
+ await page.getByRole("button",{name:/^(设置|Settings)$/}).click();
+ const dialog=page.getByRole("dialog");
+ await expect(dialog).toBeVisible();
+ const sections=[
+  "通用设置","自定义指令","外观与背景","模型设置","对话设置",
+  "文件与存储","快捷键","隐私与安全","关于 Ciro",
+  "账户与安全","订阅管理","API 密钥","消费限额",
+  "通知中心","记忆管理","跨设备同步","插件管理"
+ ];
+ for(const [index,label] of sections.entries()){
+  await dialog.locator(".sc-nav").getByRole("button",{name:label,exact:true}).click();
+  await noViewportOverflow(page,label);
+  await page.screenshot({
+   path:output+"/ux-settings-"+String(index+1).padStart(2,"0")+".png",
+   fullPage:true
   });
  }
 });
