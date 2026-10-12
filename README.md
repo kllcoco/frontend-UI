@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 默认纯白界面，深绿月夜等背景可由用户选择**；布局参照经用户审核的左侧聊天历史、顶部模型选择、居中聊天区、底部输入框和双栏设置中心。
 
-> **当前状态：UI V0.3，Draft PR。** 界面、背景 DIY 和本地对话可用；CIRO 正式推理服务尚未接入。不配置后端时是明确的预览模式，不生成虚假的模型回答。
+> **2026-10-12 更新：** 原 CIRO V0.8 插件中心 PR #2 已合入 `feat/ciro-chat-client-v1`。当前开发分支 `feat/ciro-v08-github-desktop-release` 正在增加 **GitHub 本机精细权限连接 / 人工审批草稿 PR / Electron Windows 桌面版**。源代码仅为发布候选：**尚未构建 Windows 安装包，也未对真实 CIRO 原生推理完成端到端验收，不能称为毕业。** 未配置推理后端时保持明确的预览模式。
 
 ## 功能清单
 
@@ -14,6 +14,22 @@ CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 默认
 - 🧠 模型列表只由实际服务端配置提供，**不得把占位项当真实已接入模型**
 - 📁 文本或代码附件，每次最多 3 个，每个不超过 80 KB（作为消息内容发送，不是真正文件服务器）
 - 🔒 默认本地监听；服务器代理保管密钥；聊天记录 localStorage、背景图片 IndexedDB；支持深浅色主题、**简体中文/English 即时切换（默认中文）**、发送快捷键、字号/密度、时间显示
+
+## CIRO Desktop 与 GitHub 自修复开发候选
+
+内测优先用你自己的 GitHub 账号，不需要等待真实客户或先启用 Supabase OAuth 客户端。**ChatGPT 已连接的 GitHub 插件凭据不能直接复制给 CIRO**。本机使用由用户在 GitHub 官网生成的仓库级 Fine-grained PAT；必须先安装 GitHub 插件、登录本机 CIRO、设置允许的仓库，再输入 PAT 并确认。
+
+桌面版的前端复用当前 React UI，后端复用现有 Express。Electron 安全窗口、用户目录持久密钥、回环地址启动、Windows NSIS 安装包配置已加入开发分支。构建命令（只在自己可信的 Windows PC、已有依赖和磁盘空间充足时运行）：
+
+```powershell
+npm install --no-audit --no-fund
+npm test
+npm run desktop:win
+```
+
+构建成功后预期输出在 `release/`；**当前没有已验证的 .exe 下载包，Windows 安装/升级/卸载、签名和真实模型服务尚未验收**。GitHub Actions 的 Windows 构建只提供手动明确授权入口，不会因推送代码自动运行。
+
+详细操作和验收门槛：[`docs/CIRO_V08_GITHUB_DESKTOP_RELEASE.md`](docs/CIRO_V08_GITHUB_DESKTOP_RELEASE.md)。
 
 ## 快速开始
 
