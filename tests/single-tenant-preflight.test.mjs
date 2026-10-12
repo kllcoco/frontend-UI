@@ -23,7 +23,7 @@ function fixture(){
   CIRO_GITHUB_REPOS:"demo/project"};
  return {dir,env,close:()=>rmSync(dir,{recursive:true,force:true})};
 }
-test("single-tenant pilot preflight requires private data, scoped OAuth and safe loopback",()=>{
+test("single-tenant pilot preflight requires private data, scoped OAuth and safe loopback",{skip:process.platform!=="linux"?"Requires a real Linux host and POSIX filesystem security checks":false},()=>{
  const f=fixture();
  try{
   const result=verifySingleTenantReadiness(f.env,{platform:"linux",uid:process.getuid()});
@@ -42,7 +42,7 @@ test("public tenant deployment cannot be relabelled as a single-tenant pilot",()
   assert.ok(result.failures.includes("public_multi_tenant_not_qualified"));
  }finally{f.close();}
 });
-test("insecure state files, missing credentials and untrusted backend abort admission",()=>{
+test("insecure state files, missing credentials and untrusted backend abort admission",{skip:process.platform!=="linux"?"Requires a real Linux host and POSIX filesystem security checks":false},()=>{
  const f=fixture();
  try{
   writeFileSync(join(f.dir,"plugin-control.sqlite"),"staging", {mode:0o644});
@@ -60,7 +60,7 @@ test("insecure state files, missing credentials and untrusted backend abort admi
  }finally{f.close();}
 });
 
-test("single-owner commercial admission refuses unbootstrapped or still-bootstrap-enabled hosts",()=>{
+test("single-owner commercial admission refuses unbootstrapped or still-bootstrap-enabled hosts",{skip:process.platform!=="linux"?"Requires a real Linux host and POSIX filesystem security checks":false},()=>{
  const f=fixture();
  try{
   rmSync(join(f.dir,"account-state.json"));
@@ -70,5 +70,14 @@ test("single-owner commercial admission refuses unbootstrapped or still-bootstra
   const secret=verifySingleTenantReadiness({...f.env,CIRO_BOOTSTRAP_TOKEN:"token-kept-by-accident"},{platform:"linux",uid:process.getuid()});
   assert.equal(secret.passed,false);
   assert.ok(secret.failures.includes("remove_one_time_bootstrap_token_before_public_pilot"));
+ }finally{f.close();}
+});
+
+test("Windows is explicitly rejected for dedicated Linux-host pilot qualification",()=>{
+ const f=fixture();
+ try{
+  const result=verifySingleTenantReadiness(f.env,{platform:"win32"});
+  assert.equal(result.passed,false);
+  assert.ok(result.failures.includes("dedicated_pilot_requires_linux_security_review"));
  }finally{f.close();}
 });
