@@ -718,5 +718,13 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
    throw error;
   }
  }));
- return {router,store,installs,jobs,listModelTools,executeModelTool,runNextJob};
+ // The HTTP server must be stopped before disposing the gateway. All three
+ // stores own SQLite connections; leaving even one open prevents Windows from
+ // removing temporary WAL/SHM state and leaks handles across restarts.
+ function close(){
+  jobs.close();
+  installs.close();
+  store.close();
+ }
+ return {router,store,installs,jobs,listModelTools,executeModelTool,runNextJob,close};
 }
