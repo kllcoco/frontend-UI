@@ -1,5 +1,18 @@
 # CIRO v0.8: 三关收尾验收状态（2026-10-12）
 
+## Windows 本地正式测试首轮事实：2026-10-12
+
+操作者已在 Windows B: 盘全量检出候选并本机安装 526 个 npm 依赖、下载 Playwright Chromium。首次 `npm run accept:desktop-windows` 执行全仓 `npm test`：
+
+- 122 tests / 106 PASS / 16 FAIL / 0 SKIP（**当前提交修复之前的真实执行结果**）。
+- 13 项在清理临时 SQLite 目录时抛出 Windows `EPERM`，集中于缺少 `close()` 的插件测试（网关的 jobs / installs / store，以及插件安装 store）。
+- 3 项属于专用 Linux Host 的安全门禁测试，直接调用 Windows 不存在的 `process.getuid()`。
+- 正式构建、Playwright E2E、NSIS 安装包未执行，因为完整测试没有通过。
+
+后续候选修复在同一个 Draft PR #5 中：网关新增完整关闭所有 SQLite 持有者的方法，受影响测试在 `rmSync` 前显式关闭；Linux/Posix 专用门禁仅在真实 Linux 执行，Windows 明确 SKIP，并增加真实 Windows 平台拒绝 Linux 专属部署资格的断言。**以上改动尚未在用户 Windows 实机复验，绝不记为 PASS。**
+
+Windows 复验时先将 `TEMP`、`TMP` 指向 B 盘本次 QA 项目独立忽略目录，避免受 F: 盘现有临时文件 ACL 影响；然后 `git pull --ff-only`，本地执行 `npm.cmd run accept:desktop-windows`。保留原来失败现场，不自动删除任何 F: 盘内容。
+
 **当前决定：NOT GRADUATED。** 本文件是当前候选 PR #5 的验收进度，而不是对 NCPA 模型基础科研毕业的结论。
 
 ## 当前真实执行
