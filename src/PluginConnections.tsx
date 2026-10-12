@@ -6,6 +6,7 @@ type Entry={id:string;title:string;category:string;description:string;version:st
 type Installed={id:string;version:string;installedAt:string;enabled:boolean};
 type Connection={provider:string;account?:{login?:string;email?:string;id?:string|number};connectedAt:string};
 type Approval={id:string;provider:string;summary:string;createdAt:string};
+type ApprovalPreview={id:string;kind:string;tool:string;requestSha256:string;[key:string]:unknown};
 type GitHubScope={allowedRepositories:string[];selectedRepository:string;mode:string;
  custom:Record<string,boolean>;writesEnabled:boolean;oauthConfigured:boolean;
  tokenConnectionEnabled?:boolean;selfRepairEnabled?:boolean};
@@ -40,6 +41,8 @@ export default function PluginConnections(){
  const [repoChoice,setRepoChoice]=useState("");
  const [githubToken,setGithubToken]=useState("");
  const [discoveredTools,setDiscoveredTools]=useState<DiscoveredTool[]>([]);
+ const [approvalPreview,setApprovalPreview]=useState<ApprovalPreview|null>(null);
+ const [reviewedId,setReviewedId]=useState<string|null>(null);
  const refresh=useCallback(async()=>{
   try{
    const snapshot=await api<Snapshot>("/catalog");
@@ -236,8 +239,22 @@ export default function PluginConnections(){
      </div>}
      {!!state?.approvals.length&&<div className="ciro-market-detail"><h3>待审批工具调用</h3>
       {state.approvals.map(x=><div key={x.id}><p>{x.summary}</p>
-       <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{await api("/approvals/"+x.id,{decision:"reject"});})}>拒绝</button>
-       <button className="wb-primary" disabled={busy} onClick={()=>void action(async()=>{await api("/approvals/"+x.id,{decision:"approve"});})}>批准本次</button>
+       <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{
+        setApprovalPreview(null);setReviewedId(null);
+        setApprovalPreview(await api<ApprovalPreview>("/approvals/"+x.id+"/preview"));
+       })}>查看完整操作</button>
+       {approvalPreview?.id===x.id&&<>
+        <pre style={{maxHeight:360,overflow:"auto",whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{JSON.stringify(approvalPreview,null,2)}</pre>
+        <label><input type="checkbox" checked={reviewedId===x.id}
+         onChange={e=>setReviewedId(e.target.checked?x.id:null)}/>
+         我已核对完整操作内容及目标；此预览不代表测试通过</label>
+       </>}
+       <button className="wb-secondary" disabled={busy} onClick={()=>void action(async()=>{await api("/approvals/"+x.id,{decision:"reject"});setApprovalPreview(null);setReviewedId(null);})}>拒绝</button>
+       <button className="wb-primary" disabled={busy||approvalPreview?.id!==x.id||reviewedId!==x.id}
+        onClick={()=>void action(async()=>{
+         await api("/approvals/"+x.id,{decision:"approve",reviewSha256:approvalPreview?.requestSha256});
+         setApprovalPreview(null);setReviewedId(null);
+        })}>批准本次</button>
       </div>)}</div>}
     </div>
    </div>
