@@ -165,11 +165,13 @@ export default function AccountCenter({language,section}:Props){
   }
   const note=profile?.subscription;
   const auth=session?.authenticated;
+  const desktopLocal=session?.user?.desktopLocal===true;
+  const nativeShell=Boolean(window.ciroNativeBridge);
   return <section className="acc-root" aria-label={t(labels[section])}>
     <header className="acc-head">
       <span className="acc-eyebrow"><ShieldCheck size={15}/> CIRO ACCOUNT & SECURITY</span>
       <h2>{t(labels[section])}</h2>
-      <p>{t("来自可信服务端")}</p>
+      <p>{desktopLocal?t("桌面版已自动完成本机初始化"):t("来自可信服务端")}</p>
     </header>
     {error&&<div className="acc-alert acc-error" role="alert"><CircleAlert size={16}/><span>{error}</span>
       <button onClick={()=>{setError("");void refresh(section);}}>{t("刷新")}</button></div>}
@@ -178,7 +180,11 @@ export default function AccountCenter({language,section}:Props){
     {!loading&&session&&!session.enabled&&<div className="acc-card acc-unavailable"><LockKeyhole size={31}/>
       <h3>{t("账户尚未启用")}</h3><p>{t("要启用跨设备服务，请在服务器上配置账户系统。")}</p>
       <p>{t("当前是本地预览，不会伪造登录状态。")}</p></div>}
-    {!loading&&session?.enabled&&!auth&&<div className="acc-card acc-login">
+    {!loading&&nativeShell&&!auth&&<div className="acc-card acc-local-ready" role="alert">
+      <ShieldAlert size={23}/><div><h3>{t("本机登录暂不可用")}</h3>
+      <p>{t("请重新启动 Ciro 桌面版，无需手动输入初始化口令。")}</p></div>
+    </div>}
+    {!loading&&!nativeShell&&session?.enabled&&!auth&&<div className="acc-card acc-login">
       <LogIn size={26}/><h3>{t(session.bootstrapAvailable?"初始化管理员账户":"登录 Ciro")}</h3>
       <p>{t(session.bootstrapAvailable?"使用服务端配置的一次性初始化口令。":"需要先登录才能管理此页面。")}</p>
       <form onSubmit={e=>void signIn(e,session.bootstrapAvailable)}>
@@ -191,21 +197,29 @@ export default function AccountCenter({language,section}:Props){
       </form>
     </div>}
     {!loading&&auth&&section==="account"&&<>
+      {desktopLocal&&<div className="acc-card acc-local-ready" role="status">
+        <ShieldCheck size={23}/><div><h3>{t("你的本机空间已经就绪")}</h3>
+          <p>{t("账户、加密密钥和本机服务已自动创建。GitHub 等第三方服务只在你主动安装和授权时连接。")}</p></div>
+      </div>}
       <section className="acc-card"><div className="acc-section-title"><UserCircle size={19}/><h3>{t("账户与安全")}</h3></div>
-        <p className="acc-metadata">{t("邮箱")}: {profile?.user.email}</p>
+        <p className="acc-metadata">{desktopLocal?t("本机专属账户 · 无需邮箱或密码"):t("邮箱")+": "+(profile?.user.email||"")}</p>
         <label className="acc-label">{t("显示名称")}<input value={displayName} maxLength={80} onChange={e=>setDisplayName(e.target.value)}/></label>
         <div className="acc-actions"><button className="acc-primary" onClick={()=>void action(()=>accountApi("/profile","POST",{displayName}))} disabled={busy}>{t("更新资料")}</button>
-          <button className="acc-secondary" onClick={()=>void action(async()=>{
+          {!desktopLocal&&<button className="acc-secondary" onClick={()=>void action(async()=>{
             await accountApi("/logout","POST",{});invalidateAccountSession();window.location.reload();
-          })}><LogOut size={15}/>{t("安全退出")}</button></div>
+          })}><LogOut size={15}/>{t("安全退出")}</button>}</div>
       </section>
-      <section className="acc-card"><div className="acc-section-title"><LockKeyhole size={19}/><h3>{t("更改密码")}</h3></div>
+      {desktopLocal?<section className="acc-card acc-local-security">
+        <div className="acc-section-title"><LockKeyhole size={19}/><h3>{t("本机账户安全")}</h3></div>
+        <p className="acc-muted">{t("桌面版使用随机凭据和受保护的登录会话，普通使用无需设置密码。")}</p>
+        <p className="acc-muted">{t("云端同步和第三方插件仍需你单独授权，自动初始化不会开放这些权限。")}</p>
+      </section>:<section className="acc-card"><div className="acc-section-title"><LockKeyhole size={19}/><h3>{t("更改密码")}</h3></div>
         <form onSubmit={e=>void updatePassword(e)} className="acc-fields">
           <label>{t("当前密码")}<input type="password" minLength={12} required autoComplete="current-password" value={oldPassword} onChange={e=>setOldPassword(e.target.value)}/></label>
           <label>{t("新密码")}<input type="password" minLength={12} required autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>
           <button className="acc-primary" disabled={busy}>{t("修改密码")}</button></form>
         <p className="acc-muted">{t("密码修改会注销其他设备，并撤销所有 API 密钥。")}</p>
-      </section>
+      </section>}
       <section className="acc-card"><div className="acc-section-title"><Fingerprint size={19}/><h3>{t("当前设备会话")}</h3></div>
         <p className="acc-metadata">{profile?.sessions.length||0} sessions</p>
         <button className="acc-secondary" onClick={()=>void action(()=>accountApi("/sessions/revoke","POST",{allOthers:true}))}>
@@ -295,7 +309,7 @@ export default function AccountCenter({language,section}:Props){
         <input type="checkbox" checked={automatic} onChange={e=>{
           const next=e.target.checked;configureAutoSync(next);setAutomatic(next);
         }}/></label>
-      <p className="acc-muted">{t("开启后对话与偏好将安全地同步至你登录的服务器。")}</p>
+      <p className="acc-muted">{desktopLocal?t("当前只连接本机服务，尚未验证跨设备云同步，请勿把本机备份当作云端备份。"):t("开启后对话与偏好将安全地同步至你登录的服务器。")}</p>
       <div className="acc-state"><span>{t("同步状态")}</span><strong>{syncSignal.status}</strong>
         <small>{syncSignal.message||t("同步已就绪")}</small></div>
       <div className="acc-sync-grid"><div><small>{t("本地对话")}</small><strong>{loadConversations().length}</strong></div>
@@ -305,7 +319,7 @@ export default function AccountCenter({language,section}:Props){
         <button className="acc-secondary" disabled={busy||!sync?.snapshot} onClick={()=>void restoreCloud()}><CloudDownload size={16}/>{t("从服务器恢复")}</button>
         <button className="acc-secondary" onClick={()=>void action(()=>refresh(section))}><RefreshCcw size={15}/>{t("刷新")}</button></div>
       {syncSignal.status==="conflict"&&<p className="acc-warning"><CircleAlert size={15}/>{t("检测到版本冲突，请先获取服务器的最新数据，再决定保留哪一份。")}</p>}
-      <p className="acc-muted">{t("相同账户可以从不同设备登录。")} {t("背景图片本体仍只保存在当前设备。")}</p>
+      <p className="acc-muted">{!desktopLocal&&t("相同账户可以从不同设备登录。")} {t("背景图片本体仍只保存在当前设备。")}</p>
     </section></>}
   </section>;
 }
