@@ -202,9 +202,9 @@
       "electron": "44.7.0",
       "electron_builder": "26.17.0",
       "nsis_config": "electron-builder.yml",
-      "built_windows_exe": "NOT_RUN",
+      "built_windows_exe": "PASS_BUILT_UNSIGNED_NOT_INSTALLED",
       "windows_install_update_uninstall": "NOT_RUN",
-      "code_signing": "NOT_RUN",
+      "code_signing": "NOT_CONFIGURED",
       "native_model_inference": "NOT_RUN",
       "preflight": "SOURCE_AND_BUILT_PRECHECKS_IMPLEMENTED; WINDOWS_NSIS_INSTALL_NOT_RUN",
       "inherited_environment": "CIRO/Node startup environment sanitized; desktop-local .env is the owner-controlled configuration",
@@ -213,11 +213,11 @@
         "runs_on": "actual Windows host using disposable user for installation",
         "node_full_regression": "PASS_120_TESTS_3_LINUX_ONLY_SKIPPED",
         "frontend_build": "PASS_TYPESCRIPT_VITE",
-        "browser_e2e": "FAIL_27_PASS_2_FAIL_APPS_SKILLS",
-        "windows_nsis_exe": "NOT_RUN",
+        "browser_e2e": "PASS_29_OF_29",
+        "windows_nsis_exe": "PASS_BUILT_UNSIGNED_NOT_INSTALLED",
         "clean_install_boot_uninstall": "NOT_RUN",
         "external_paid_runner_dispatches": 0,
-        "script_windows_execution": "NOT_RUN",
+        "script_windows_execution": "PASS_THROUGH_INSTALLER_PACKAGING_NO_DISPOSABLE_INSTALL",
         "first_real_windows_run": {
           "observed_at": "2026-10-12",
           "tests": 122,
@@ -310,9 +310,35 @@
         },
         "e2e_isolation_patch": {
           "code_commit": "4916ca8b8ba5ccfef0d843d1ef22779788b96862",
-          "status": "COMMITTED_NOT_WINDOWS_RETESTED",
+          "status": "PASS_WINDOWS_E2E_29_OF_29_AT_TESTED_CODE_COMMIT",
           "implementation": "In release acceptance CIRO_E2E_STRICT=true; Playwright creates isolated ignored backend workbench directory, prevents reuse of previous HTTP server; app pin and skill state regressions are still asserted without weakening expectations",
           "known_limit": "Potential port 8787/5173 conflict now correctly fails closed; manual local developer e2e still supports server reuse"
+        },
+        "fourth_real_windows_run": {
+          "observed_at": "2026-10-12",
+          "tested_source_commit": "51378925ec9fe885563073070845890654593d4c",
+          "original_strict_acceptance_script": "scripts/accept-ciro-windows.ps1",
+          "node_tests": {
+            "passed": 120,
+            "failed": 0,
+            "skipped_linux_only": 3,
+            "source": "previous full Windows node test and current acceptance running past this gate"
+          },
+          "typescript_and_vite": "PASS: 1866 modules transformed, production bundle emitted; 634.86 KB minified chunk warning",
+          "playwright_e2e": "PASS_29_OF_29",
+          "windows_nsis": "PASS_INSTALLED_PACKAGING_NOT_TESTED",
+          "artifact_relative_path": "release/Ciro-Desktop-0.8.0-dev-x64-Setup.exe",
+          "electron_version": "44.7.0",
+          "nsis_arch": "x64",
+          "app_icon": "DEFAULT_ELECTRON_ICON_NEEDS_BRANDING",
+          "code_signing": "SKIPPED_NO_CERT_CONFIGURED",
+          "installer_sha256": "AWAITING_LOCAL_RECEIPT",
+          "authenticode_status": "AWAITING_LOCAL_RECEIPT",
+          "first_run_install_uninstall": "NOT_RUN",
+          "live_github_approved_write": "NOT_RUN",
+          "native_ncpa_verified_inference": "NOT_RUN",
+          "source": "User-provided PowerShell actual Windows log: 29 passed, desktop win source/built PASS, electron-builder built NSIS and blockmap, local receipt created",
+          "claim": "Windows code/build/browser/NSIS packaging accepted for tested code commit only; not product graduation"
         }
       }
     },
