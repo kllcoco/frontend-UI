@@ -3,7 +3,7 @@ import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const manifestPaths=['desktop/main.cjs','desktop/preload.cjs','desktop/runtime.cjs',
- 'server/index.mjs','electron-builder.yml','package.json'];
+ 'server/index.mjs','electron-builder.yml','package.json','build/icon.svg'];
 const archiveEntries=['dist/**/*','desktop/**/*','server/**/*','package.json','node_modules/**/*'];
 const productionDeps=['express','dotenv'];
 
@@ -18,6 +18,8 @@ export function desktopPackagePreflight(root,{phase='source',platform=process.pl
   throw Error('Missing runtime dependency: '+dep);
  const yaml=readFileSync(join(root,'electron-builder.yml'),'utf8');
  if(!/^asar:\s*true\s*$/m.test(yaml))throw Error('ASAR packaging must be enabled');
+ if(!/^\s*icon:\s*build\/icon\.svg\s*$/m.test(yaml))
+  throw Error('Branded Windows application icon must be selected');
  for(const entry of archiveEntries){
   const present=yaml.split(/\r?\n/).some(line=>line.trim().startsWith('- ')&&
    line.trim().slice(2).trim().replace(/^["']|["']$/g,'')===entry);
