@@ -1,6 +1,8 @@
 import {accountFetch} from "./account-api";
 import type { ApiStatus, ChatMessage } from "../types";
 import type { CustomInstructions } from "./instructions";
+import { readUsage, recordUsage } from "./usage";
+import type { Usage, UsageKind } from "./usage";
 
 export async function getApiStatus(): Promise<ApiStatus> {
   const response = await fetch("/api/status", { cache: "no-store" });
@@ -40,11 +42,15 @@ type StreamOptions = {
   onTool?: (index: number, name: string | undefined, argsDelta: string) => void;
   webSearch?: boolean;
   memories?: string[];
+  /** Reported CWU/GWU (never estimated). Recorded in the local usage ledger as `usageKind`. */
+  onUsage?: (usage: Usage) => void;
+  usageKind?: UsageKind;
+  chatId?: string;
 };
 export type ReasoningRequest={mode:"fast"|"deep";effort?:"minimal"|"low"|"medium"|"high";maxSeconds?:number;priority?:1|2|5};
 
 type ToolHandler = (index: number, name: string | undefined, argsDelta: string) => void;
-function decodeSseEvent(event: string, onDelta: (text: string) => void, onReasoning?: (text: string) => void, onTool?: ToolHandler): boolean {
+function decodeSseEvent(event: string, onDelta: (text: string) => void, onReasoning?: (text: string) => void, onTool?: ToolHandler, onUsage?: (u: Usage) => void): boolean {
   const data = event.split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart())
@@ -64,6 +70,8 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
       tool_calls?: { index?: number; function?: { name?: string; arguments?: string } }[] };
       message?: { content?: string; reasoning_content?: string } }[];
   };
+  const usage = readUsage(payload);
+  if (usage && onUsage) onUsage(usage);
   if (entry.error) {
     throw new Error(typeof entry.error === "string" ? entry.error :
       entry.error.message || "后端流式响应失败");
@@ -79,7 +87,21 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
   return false;
 }
 
-export async function streamChat({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories }: StreamOptions): Promise<void> {
+export async function streamChat(options: StreamOptions): Promise<void> {
+  // Usage arrives cumulatively (usually in the last chunk): keep the latest report and record it once.
+  let usage: Usage | null = null;
+  try {
+    await streamChatInner({ ...options, onUsage: (u) => { usage = { ...usage, ...u }; } });
+  } finally {
+    const reported = usage as Usage | null;
+    if (reported) {
+      recordUsage({ ...reported, model: options.model, kind: options.usageKind ?? "other", chatId: options.chatId });
+      options.onUsage?.(reported);
+    }
+  }
+}
+
+async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -113,11 +135,11 @@ export async function streamChat({ messages, model, instructions, reasoning, pro
       while (split !== -1) {
         const event = pending.slice(0, split);
         pending = pending.slice(split + 2);
-        if (decodeSseEvent(event, onDelta, onReasoning, onTool)) return;
+        if (decodeSseEvent(event, onDelta, onReasoning, onTool, onUsage)) return;
         split = pending.indexOf("\n\n");
       }
     }
-    if (pending.trim()) decodeSseEvent(pending, onDelta, onReasoning, onTool);
+    if (pending.trim()) decodeSseEvent(pending, onDelta, onReasoning, onTool, onUsage);
   } finally {
     reader.releaseLock();
   }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor } from "lucide-react";
+import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -8,13 +8,14 @@ import type { ChatPreferences } from "./lib/preferences";
 import { ACCENTS } from "./lib/preferences";
 const ACCENT_NAMES = { jade: "翡翠绿", blue: "湖蓝", violet: "紫罗兰", amber: "琥珀", rose: "玫瑰", graphite: "石墨" } as const;
 import type { ApiStatus, Conversation } from "./types";
-import { LANGUAGES, translate, systemLanguage } from "./lib/i18n";
+import { LANGUAGES, localeTag, translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
 import BackupPanel from "./components/BackupPanel";
+import UsagePanel from "./components/UsagePanel";
 import MemoryManager from "./components/MemoryManager";
 import TeamCenter from "./components/TeamCenter";
 import type { BulkAction } from "./components/ConversationManager";
@@ -23,7 +24,7 @@ import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
+type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -60,6 +61,7 @@ const sections: { id: Section; label: string; icon: typeof Palette; group?: stri
   { id: "appearance", label: "外观与背景", icon: Palette },
   { id: "models", label: "模型设置", icon: Sparkles },
   { id: "chat", label: "对话设置", icon: MessageSquare },
+  { id: "usage", label: "用量统计", icon: Activity },
   { id: "storage", label: "文件与存储", icon: Database },
   { id: "shortcuts", label: "快捷键", icon: Keyboard },
   { id: "security", label: "隐私与安全", icon: ShieldCheck },
@@ -354,6 +356,10 @@ export default function SettingsCenter({
             </div></SettingBlock>
             <div className="sc-info-card"><MessageSquare size={18}/><div><strong>{t("按你习惯的方式思考")}</strong><p>{t("字号和密度调整后，现有对话也会同步更新。")}</p></div></div>
           </>}
+
+          {section === "usage" && <SettingBlock title={t("用量统计")} subtitle={t("按 CWU 统计模型调用")}>
+            <UsagePanel t={t} locale={localeTag(language)} conversations={conversations} onOpenBilling={() => setSection("billing")}/>
+          </SettingBlock>}
 
           {section === "storage" && <>
             <SettingBlock title={t("本地数据")}><div className="sc-data-grid">

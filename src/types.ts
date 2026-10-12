@@ -22,8 +22,10 @@ export type ChatMessage = {
   suggestions?: string[];
   rememberedId?: string;
   generated?: { id: string; thumb: string }[];
+  /** Assistant: native units reported by the model service (never estimated from tokens). */
+  usage?: { cwu?: number; gwu?: number };
 };
-export type AnswerVersion = Pick<ChatMessage, "content" | "reasoning" | "thinkingMs" | "tools" | "webSearch" | "createdAt" | "preview" | "feedback">;
+export type AnswerVersion = Pick<ChatMessage, "content" | "reasoning" | "thinkingMs" | "tools" | "webSearch" | "createdAt" | "preview" | "feedback" | "usage">;
 
 export type Conversation = {
   id: string;

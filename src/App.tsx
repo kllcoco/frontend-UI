@@ -20,6 +20,8 @@ import AccountCenter from "./AccountCenter";
 import StudioCenter from "./StudioCenter";
 import type { StudioTab } from "./lib/studio-api";
 import { requestSync, startSync, stopSync } from "./lib/sync";
+import { formatUnits } from "./lib/usage";
+import type { UsageKind } from "./lib/usage";
 import type { SyncItem, SyncKind } from "./lib/sync";
 import { loadPrompts, savePrompts } from "./lib/prompts";
 import type { SavedPrompt } from "./lib/prompts";
@@ -599,6 +601,8 @@ export default function App() {
           ? { ...m, imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : m)),
         signal: controller.signal,
         webSearch: useWeb,
+        usageKind: "chat", chatId: conversationId,
+        onUsage: (usage) => patchMessage(conversationId, assistantId, { usage }),
         memories: preferencesRef.current.memoryEnabled && !session?.authenticated &&
           !conversationsRef.current.find((c) => c.id === conversationId)?.temporary ? localMemoriesForChat() : undefined,
         onTool: (index, name, argsDelta) => {
@@ -650,9 +654,9 @@ export default function App() {
   }
 
   /** Small side request to the configured model (titles, follow-up suggestions). */
-  async function quickAsk(content: string): Promise<string> {
+  async function quickAsk(content: string, usageKind: UsageKind = "other", chatId?: string): Promise<string> {
     let out = "";
-    await streamChat({ model, signal: new AbortController().signal,
+    await streamChat({ model, signal: new AbortController().signal, usageKind, chatId,
       messages: [{ id: "aux", role: "user", createdAt: Date.now(), content }], onDelta: (text) => { out += text; } });
     return out;
   }
@@ -662,7 +666,7 @@ export default function App() {
       raw = await quickAsk((language === "en"
         ? "Suggest 3 short follow-up questions the user might ask next (max 14 words each). Reply ONLY with a JSON array of strings.\n\n"
         : "根据下面的对话，给出用户接下来最可能追问的 3 个简短问题（每个不超过 20 字）。只输出 JSON 字符串数组。\n\n") +
-        "Q: " + question.slice(0, 1500) + "\nA: " + answer.slice(0, 2500));
+        "Q: " + question.slice(0, 1500) + "\nA: " + answer.slice(0, 2500), "followups", conversationId);
     } catch { return; }
     let list: string[] = [];
     try { const parsed = JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1)); if (Array.isArray(parsed)) list = parsed.map(String); }
@@ -675,7 +679,7 @@ export default function App() {
     let title = "";
     try {
       await streamChat({
-        model, signal: new AbortController().signal,
+        model, signal: new AbortController().signal, usageKind: "title", chatId: conversationId,
         messages: [{ id: "title", role: "user", createdAt: Date.now(), content:
           (language === "en" ? "Write a short title (max 6 words) for this conversation. Reply with the title only.\n\n"
             : "用不超过 12 个字概括这段对话的标题，只输出标题本身，不要标点和引号。\n\n") +
@@ -959,7 +963,7 @@ export default function App() {
   }
   function snapshot(m: ChatMessage): AnswerVersion {
     return { content: m.content, reasoning: m.reasoning, thinkingMs: m.thinkingMs, tools: m.tools, webSearch: m.webSearch,
-      createdAt: m.createdAt, preview: m.preview, feedback: m.feedback };
+      createdAt: m.createdAt, preview: m.preview, feedback: m.feedback, usage: m.usage };
   }
   /** Write the visible answer back into its version slot (after streaming or feedback). */
   function syncVersion(conversationId: string, messageId: string) {
@@ -1601,6 +1605,9 @@ export default function App() {
                       {lastAssistant && <button aria-label={t("重新生成")} title={t("重新生成")} onClick={regenerate} disabled={busy}><RotateCcw size={15}/></button>}
                       <button aria-label={t("从这里创建分支")} title={t("从这里创建分支")} onClick={() => organizeChat("branch", current.id, index + 1)}><GitBranch size={15}/></button>
                       {message.preview && <span className="preview-tag">{t("界面提示 · 非 AI 输出")}</span>}
+                      {message.usage && <span className="cx-usage-tag" title={t("模型服务上报的本次用量")}>
+                        {message.usage.cwu !== undefined && <>{formatUnits(message.usage.cwu, localeTag(language))} CWU</>}
+                        {message.usage.gwu ? <> · {formatUnits(message.usage.gwu, localeTag(language))} GWU</> : null}</span>}
                     </div>}
                     {lastAssistant && !busy && message.suggestions?.length ? <div className="cx-followups" aria-label={t("你可能还想问")}>
                       {message.suggestions.map((q) => <button type="button" key={q} onClick={() => sendMessage(q)}>
