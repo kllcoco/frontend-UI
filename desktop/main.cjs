@@ -21,7 +21,7 @@ else{
      payload.origin!==origin||typeof payload.nonce!=="string"||
      !/^[0-9a-f-]{36}$/i.test(payload.nonce))throw Error("Native origin denied");
   return {contract:"ciro-native-shell.v1",origin,nonce:payload.nonce,
-   platform:process.platform==="win32"?"windows":"linux",
+   platform:process.platform==="win32"?"windows":process.platform==="darwin"?"macos":"linux",
    version:app.getVersion(),grants:["notifications"]};
  });
  ipcMain.handle("ciro-native:notify",(event,payload)=>{
