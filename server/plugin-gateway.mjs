@@ -11,6 +11,7 @@ import {verifyAgentPluginCapability} from "./plugin-agent-capability.mjs";
 import {fetchSignedPluginPackage} from "./plugin-package-verifier.mjs";
 import {createPluginJobQueue} from "./plugin-job-queue.mjs";
 import {buildSelfRepairDraft} from "./github-self-repair.mjs";
+import {buildApprovalPreview,requiresDetailedReview} from "./plugin-approval-preview.mjs";
 
 const fail=(message,statusCode=400)=>Object.assign(new Error(message),{statusCode});
 const CATALOG=Object.freeze([
@@ -666,11 +667,25 @@ export function createPluginGateway({env=process.env,dir,fetchFn=fetch}={}){
   const result=await execute(owner(req),provider,tool,args,"manual");
   res.status(result.approvalRequired?202:200).json(result);
  }));
+ router.get("/approvals/:id/preview",wrap((req,res)=>{
+  if(req.principal?.mode!=="session")throw fail("Authenticated browser review required",403);
+  const pending=store.getApproval(owner(req),req.params.id);
+  if(!pending)throw fail("Pending approval not found",404);
+  res.json(buildApprovalPreview(pending));
+ }));
  router.post("/approvals/:id",wrap(async(req,res)=>{
   if(env.CIRO_ACCOUNTS_ENABLED==="true"&&req.principal?.mode!=="session")
     throw fail("Authenticated browser approval required",403);
   if(!["approve","reject"].includes(req.body?.decision))throw fail("Bad decision");
   const user=owner(req);
+  if(req.body.decision==="approve"){
+   const pending=store.getApproval(user,req.params.id);
+   if(!pending)throw fail("Approval expired or already claimed",404);
+   const preview=buildApprovalPreview(pending);
+   if(requiresDetailedReview(preview)&&
+      !safeEqual(req.body?.reviewSha256,preview.requestSha256))
+    throw fail("Review exact proposed change before approving",403);
+  }
   const item=store.takeApproval(user,req.params.id,req.body.decision);
   if(req.body.decision==="reject")return res.json({status:"rejected"});
   let claimed=null,writerId=null;
