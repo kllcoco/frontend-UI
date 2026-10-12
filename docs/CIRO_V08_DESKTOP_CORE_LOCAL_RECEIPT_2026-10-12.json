@@ -1,0 +1,42 @@
+{
+  "schema": "ciro.v08.desktop_core_smoke.local_receipt.v1",
+  "observed_at_utc": "2026-10-12T05:34:23Z",
+  "repository": "kllcoco/frontend-UI",
+  "branch": "ciro/approval-preview-gate-20261012",
+  "tested_code_commit": "aa3414d662ec8976ee01a4bce396381af35b4906",
+  "platform": "Linux container with Node v22.16.0; NOT a Windows or real Electron acceptance test",
+  "command": "node --test tests/desktop-runtime.test.mjs tests/desktop-shell-contract.test.mjs tests/github-read-ref.test.mjs tests/github-self-repair-policy.test.mjs tests/plugin-approval-preview.test.mjs",
+  "result": {
+    "tests": 12,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "verification": "All ten involved files were copied exactly from GitHub and git hash-object matched their published Git blob SHAs before the test run.",
+  "git_blob_sha1": {
+    "desktop/main.cjs": "61d3aae9b3c00816d8e36ec996ca1b0132c36d46",
+    "desktop/runtime.cjs": "cc4cced38a325f732ce004c2caead4dc37461578",
+    "server/agent-policy.mjs": "9ed9df84802e56208de42debf7b244304d7d4b4c",
+    "server/github-self-repair.mjs": "f8cd0fd3df5ca5e1194c88e44d0628e6f1b26c43",
+    "server/plugin-approval-preview.mjs": "8101a9ae719adb32fdba757b4e4f65c4daa089c5",
+    "tests/desktop-shell-contract.test.mjs": "3f2a20ef6a614c64e58b553cf456dca49a7fa10f",
+    "tests/desktop-runtime.test.mjs": "4cd58d444a5927412dd7ebce3eb3476b6daefa3c",
+    "tests/github-read-ref.test.mjs": "a3f246fe356d90d401df857fd0e257a87d1d0b4a",
+    "tests/github-self-repair-policy.test.mjs": "eda3f23f1de1a02d7ddcc6a4216fd4841f7fb6bb",
+    "tests/plugin-approval-preview.test.mjs": "eee753eb65b0d7974d264b855c44d3d8639548e1"
+  },
+  "architecture_note": "Electron entrypoint tests use mocked Electron, child process and local healthcheck. They do exercise the actual desktop/main.cjs source; no installer was launched.",
+  "not_verified": [
+    "Full npm test suite",
+    "TypeScript and Vite build",
+    "Playwright browser tests",
+    "Real Windows Electron window",
+    "NSIS .exe build and install/uninstall",
+    "CIRO-local GitHub fine-grained PAT login",
+    "Real CIRO/NCPA inference backend",
+    "Windows file ACL and signing/SmartScreen acceptance"
+  ],
+  "workflow_minutes_used_by_this_qa": 0,
+  "qualified_for_release": false
+}
