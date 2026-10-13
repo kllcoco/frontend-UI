@@ -15,6 +15,7 @@ import {createMediaRouter,mediaFeatures} from "./media.mjs";
 import {createRemoteRouter} from "./remote.mjs";
 import {createRemoteAgent} from "./remote-agent.mjs";
 import {createApiGateway} from "./api-gateway.mjs";
+import {createAnnouncements} from "./announcements.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -60,6 +61,11 @@ const apiGateway = createApiGateway({ accounts, dir: process.env.CIRO_WORKSPACE_
   upstreamUrl: apiBase + "/" + apiPath.replace(/^\/+/, ""), apiKey, models, configured });
 app.use("/v1", apiGateway.v1);
 app.use("/api/apiconsole", apiGateway.consoleRouter);
+// Announcements pushed to installed apps without an update. Only the signed-in owner of an
+// account-enabled server publishes; apps also read the central feed.
+const announcements = createAnnouncements({ dir: process.env.CIRO_WORKSPACE_DATA_DIR || ".ciro-runtime",
+  canEdit: (req) => req.principal?.mode === "session" });
+app.use("/api/announcements", announcements.router);
 
 // Version of the deployed web app, so open pages can offer a refresh after an upgrade.
 const appVersion = (() => {

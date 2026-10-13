@@ -55,6 +55,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import Announcements from "./components/Announcements";
 import AndroidUpdate from "./components/AndroidUpdate";
 import ShareImage from "./components/ShareImage";
 import { useHoldToTalk } from "./lib/hold-to-talk";
@@ -1745,6 +1746,7 @@ export default function App() {
                 <p className="cx-temp-note">{t("此对话不会出现在历史记录中，也不会同步或用于记忆。离开后即删除。")}</p>
               </> : <h1>{t("让每一个想法，")}{language === "en" ? " " : ""}<em>{t("走得更远。")}</em></h1>}
               {!status.configured && !statusLoading && !temporaryMode && <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>}
+              {!temporaryMode && <Announcements t={t}/>}
             </section>
           ) : (
             <div className="messages" aria-live="polite" aria-busy={busy && generatingId === current.id}>

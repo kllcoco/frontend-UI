@@ -273,6 +273,19 @@ curl https://ciro.你的域名.com/v1/chat/completions \
 - 每个密钥的 CWU 用量和调用记录在 API 控制台查看；只记录元数据，不保存请求和回答内容。
 - 撤销密钥后立即失效。
 
+## 公告推送（不发版也能推送）
+
+- 服务器所有者登录后，在 设置 → 账户 → 公告推送 发布公告，已安装的网页版、桌面版、Android 版首页会显示（最长 30 分钟内，或下次打开时）。
+- 中心公告源：所有安装（包括只连本机的桌面版）还会读取 `CIRO_ANNOUNCEMENTS_URL`（默认本项目 main 分支的 `announcements.json`），格式为 JSON 数组：
+
+```json
+[{ "id": "pro-2026-10", "title": "专业版限时 8 折", "body": "本周内订阅立减 20%", "level": "promo",
+   "link": { "label": "立即查看", "url": "https://你的域名/pro" }, "platforms": ["android", "desktop", "web"],
+   "minVersion": "0.9.8", "end": "2026-10-20T00:00:00Z" }]
+```
+
+  `level` 可选 info / promo / warning；`platforms`、`minVersion`、`maxVersion`、`start`、`end` 都可省略。设为 `CIRO_ANNOUNCEMENTS_URL=off` 可关闭中心公告源。只显示纯文本和 https 链接。
+
 ## 常见问题
 
 - **页面提示“尚未连接真实 CIRO 推理服务”**：`.env` 中 `CIRO_API_BASE_URL` 为空或没有生效。Docker 需要 `docker restart ciro`，npm 需要在 `.env` 所在目录运行，或使用 `--env` 指定。

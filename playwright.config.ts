@@ -36,7 +36,7 @@ export default defineConfig({
       url: "http://127.0.0.1:8787/api/status",
       timeout: 30_000,
       reuseExistingServer: false,
-      env: { HOST: "127.0.0.1", CIRO_API_BASE_URL: "", CIRO_WORKSPACE_DATA_DIR: dataDir }
+      env: { HOST: "127.0.0.1", CIRO_API_BASE_URL: "", CIRO_WORKSPACE_DATA_DIR: dataDir, CIRO_ANNOUNCEMENTS_URL: "off" }
     },
     {
       command: "npm run dev",

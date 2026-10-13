@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search } from "lucide-react";
+import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -20,6 +20,8 @@ import BackupPanel from "./components/BackupPanel";
 import ViewBoundary from "./components/ViewBoundary";
 import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
+import AnnouncementEditor from "./components/AnnouncementEditor";
+import { loadAnnouncements } from "./lib/announcements";
 import MemoryManager from "./components/MemoryManager";
 import TeamCenter from "./components/TeamCenter";
 import type { BulkAction } from "./components/ConversationManager";
@@ -28,7 +30,7 @@ import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "general" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
+type Section = "announce" | "general" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -59,7 +61,7 @@ type SettingsProps = {
   onImport: (items: Conversation[]) => number;
   onImportProject: (file: File) => Promise<void>;
 };
-type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean };
+type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean; ownerOnly?: boolean };
 // Grouped so the most used pages come first; `keys` feeds the settings search.
 const sections: SectionInfo[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
@@ -78,6 +80,7 @@ const sections: SectionInfo[] = [
   { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true },
   { id: "notifications", label: "通知中心", icon: CalendarClock, group: "账户", keys: "通知 notifications", account: true },
   { id: "team", label: "团队", icon: Users, group: "账户", keys: "团队 成员 team" },
+  { id: "announce", label: "公告推送", icon: Megaphone, group: "账户", keys: "公告 推送 套餐 优惠 通知 announcement", ownerOnly: true },
   { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与扩展", keys: "权限 沙盒 审批 sandbox" },
   { id: "plugins", label: "插件管理", icon: PlugZap, group: "工作台与扩展", keys: "插件 plugin" },
   { id: "skills", label: "技能中心", icon: Sparkles, group: "工作台与扩展", keys: "技能 skill" },
@@ -127,7 +130,9 @@ export default function SettingsCenter({
   }, []);
   const touchOnly = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
   // Without accounts every account page shows the same notice, so only the first one is listed.
-  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly));
+  const [canAnnounce, setCanAnnounce] = useState(false);
+  useEffect(() => { loadAnnouncements().then((r) => setCanAnnounce(r.editable), () => setCanAnnounce(false)); }, []);
+  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce));
   const q = query.trim().toLowerCase();
   const matches = q ? visible.filter((item) => (t(item.label) + " " + item.label + " " + (item.keys || "")).toLowerCase().includes(q)) : visible;
   const openSection = (id: Section) => { setSection(id); setError(null); setListView(false); setQuery(""); };
@@ -216,6 +221,7 @@ export default function SettingsCenter({
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
           {section === "api-keys" && accountsOn && <ApiConsole t={t} locale={localeTag(language)}/>}
+          {section === "announce" && <AnnouncementEditor t={t}/>}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}
