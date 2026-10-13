@@ -1,7 +1,9 @@
 export type SessionSnapshot={
   enabled:boolean;authenticated:boolean;user:{
-    id:string;email:string;displayName:string;memoryEnabled:boolean;createdAt:string
+    id:string;email:string;displayName:string;memoryEnabled:boolean;createdAt:string;role?:"owner"|"user"
   }|null;csrf:string|null;mode:string|null;bootstrapAvailable:boolean;
+  /** Whether new people can create accounts on this server. */
+  registration?:"open"|"invite"|"closed";
 };
 export type AccountTab="account"|"subscription"|"api-keys"|"spending"|"notifications"|"memory"|"sync";
 /** Parses an API response. A page served instead of JSON (offline app, wrong server, proxy page) is an error,
@@ -33,7 +35,7 @@ export async function accountFetch(path:string,init:RequestInit={}):Promise<Resp
   const method=(init.method||"GET").toUpperCase();
   const headers=new Headers(init.headers);
   if(["POST","PUT","DELETE","PATCH"].includes(method)&&
-    !["/api/account/login","/api/account/bootstrap"].includes(path)){
+    !["/api/account/login","/api/account/bootstrap","/api/account/register"].includes(path)){
     const status=await getAccountSession();
     if(status.enabled){
       if(!status.authenticated)throw new Error("请先登录 Ciro 账户");
@@ -59,4 +61,10 @@ export function openVerifiedCheckout(url:string):void{
   if(candidate.protocol!=="https:"||!["checkout.stripe.com","billing.stripe.com"].includes(candidate.hostname))
     throw new Error("不可信的付款地址");
   window.location.assign(candidate.href);
+}
+/** "owner" runs this server (also the local, account-less mode); "user" is a registered member who
+    has their own chats, keys and sync but not the shared workbench, studio, plugins or billing. */
+export type AccountRole="owner"|"user";
+export function roleOf(s:SessionSnapshot|null):AccountRole{
+  return s?.enabled&&s.authenticated&&s.user?.role==="user"?"user":"owner";
 }

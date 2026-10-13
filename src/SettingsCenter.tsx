@@ -12,7 +12,7 @@ import { LANGUAGES, localeTag, translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
 import { notifyGranted, requestNotify } from "./lib/notify";
-import { getAccountSession } from "./lib/account-api";
+import { getAccountSession, roleOf } from "./lib/account-api";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
@@ -21,6 +21,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
 import AnnouncementEditor from "./components/AnnouncementEditor";
+import UserAdmin from "./components/UserAdmin";
 import AnnouncementList from "./components/AnnouncementList";
 import { loadAnnouncements } from "./lib/announcements";
 import MemoryManager from "./components/MemoryManager";
@@ -31,7 +32,7 @@ import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "announce" | "general" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
+type Section = "announce" | "users" | "general" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -62,7 +63,7 @@ type SettingsProps = {
   onImport: (items: Conversation[]) => number;
   onImportProject: (file: File) => Promise<void>;
 };
-type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean; ownerOnly?: boolean };
+type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean; ownerOnly?: boolean; ownerTools?: boolean };
 // Grouped so the most used pages come first; `keys` feeds the settings search.
 const sections: SectionInfo[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
@@ -76,17 +77,18 @@ const sections: SectionInfo[] = [
   { id: "sync", label: "跨设备同步", icon: RefreshCcw, group: "数据与同步", keys: "同步 sync", account: true },
   { id: "account", label: "账户与安全", icon: UserRound, group: "账户", keys: "登录 密码 账户 login password" },
   { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用 openai", account: true },
-  { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing" },
-  { id: "subscription", label: "订阅管理", icon: Wallet, group: "账户", keys: "订阅 subscription", account: true },
-  { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true },
+  { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing", ownerTools: true },
+  { id: "subscription", label: "订阅管理", icon: Wallet, group: "账户", keys: "订阅 subscription", account: true, ownerTools: true },
+  { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true, ownerTools: true },
   { id: "notifications", label: "通知中心", icon: CalendarClock, group: "账户", keys: "通知 notifications", account: true },
-  { id: "team", label: "团队", icon: Users, group: "账户", keys: "团队 成员 team" },
-  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与扩展", keys: "权限 沙盒 审批 sandbox" },
-  { id: "plugins", label: "插件管理", icon: PlugZap, group: "工作台与扩展", keys: "插件 plugin" },
-  { id: "skills", label: "技能中心", icon: Sparkles, group: "工作台与扩展", keys: "技能 skill" },
-  { id: "apps", label: "官方应用", icon: LayoutGrid, group: "工作台与扩展", keys: "应用 app" },
-  { id: "github", label: "GitHub 连接", icon: GitBranch, group: "工作台与扩展", keys: "github 仓库" },
-  { id: "schedules", label: "定时任务", icon: CalendarClock, group: "工作台与扩展", keys: "定时 计划 schedule" },
+  { id: "users", label: "用户管理", icon: Users, group: "账户", keys: "用户 注册 邀请码 停用 users invite", account: true, ownerOnly: true },
+  { id: "team", label: "团队", icon: Users, group: "账户", keys: "团队 成员 team", ownerTools: true },
+  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与扩展", keys: "权限 沙盒 审批 sandbox", ownerTools: true },
+  { id: "plugins", label: "插件管理", icon: PlugZap, group: "工作台与扩展", keys: "插件 plugin", ownerTools: true },
+  { id: "skills", label: "技能中心", icon: Sparkles, group: "工作台与扩展", keys: "技能 skill", ownerTools: true },
+  { id: "apps", label: "官方应用", icon: LayoutGrid, group: "工作台与扩展", keys: "应用 app", ownerTools: true },
+  { id: "github", label: "GitHub 连接", icon: GitBranch, group: "工作台与扩展", keys: "github 仓库", ownerTools: true },
+  { id: "schedules", label: "定时任务", icon: CalendarClock, group: "工作台与扩展", keys: "定时 计划 schedule", ownerTools: true },
   { id: "shortcuts", label: "快捷键", icon: Keyboard, group: "其他", keys: "快捷键 键盘 shortcut", desktopOnly: true },
   { id: "announce", label: "公告", icon: Megaphone, group: "其他", keys: "公告 推送 套餐 优惠 通知 announcement 消息" },
   { id: "security", label: "隐私与安全", icon: ShieldCheck, group: "其他", keys: "隐私 安全 privacy" },
@@ -124,16 +126,18 @@ export default function SettingsCenter({
   const [listView, setListView] = useState(() => isPhone() && !sections.some((item) => item.id === initialSection));
   const [query, setQuery] = useState("");
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
+  // Registered members don't see the server-wide tools (workbench, plugins, billing) — those are the owner's.
+  const [member, setMember] = useState(false);
   useEffect(() => {
     let alive = true;
-    getAccountSession().then((s) => { if (alive) setAccountsOn(Boolean(s.enabled)); }, () => { if (alive) setAccountsOn(false); });
+    getAccountSession().then((s) => { if (alive) { setAccountsOn(Boolean(s.enabled)); setMember(roleOf(s) === "user"); } }, () => { if (alive) setAccountsOn(false); });
     return () => { alive = false; };
   }, []);
   const touchOnly = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
   // Without accounts every account page shows the same notice, so only the first one is listed.
   const [canAnnounce, setCanAnnounce] = useState(false);
   useEffect(() => { loadAnnouncements().then((r) => setCanAnnounce(r.editable), () => setCanAnnounce(false)); }, []);
-  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce));
+  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && member));
   const q = query.trim().toLowerCase();
   const matches = q ? visible.filter((item) => (t(item.label) + " " + item.label + " " + (item.keys || "")).toLowerCase().includes(q)) : visible;
   const openSection = (id: Section) => { setSection(id); setError(null); setListView(false); setQuery(""); };
@@ -222,6 +226,7 @@ export default function SettingsCenter({
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
           {section === "api-keys" && accountsOn && <ApiConsole t={t} locale={localeTag(language)}/>}
+          {section === "users" && canAnnounce && <UserAdmin t={t} locale={localeTag(language)}/>}
           {section === "announce" && <>{canAnnounce && <AnnouncementEditor t={t}/>}<AnnouncementList t={t} locale={localeTag(language)}/></>}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}

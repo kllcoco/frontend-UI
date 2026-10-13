@@ -17,7 +17,7 @@ import {createRemoteAgent} from "./remote-agent.mjs";
 import {createApiGateway} from "./api-gateway.mjs";
 import {createAnnouncements} from "./announcements.mjs";
 
-// A single-owner JSON account store is intended to sit behind a loopback-only
+// The account service (one owner, optional registered users) is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
 assertPluginDeploymentSafe(process.env);
 const bindHost=process.env.HOST||"127.0.0.1";

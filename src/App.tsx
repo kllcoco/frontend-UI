@@ -5,7 +5,7 @@ import {
   ArrowDownToLine, Columns2, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
   GitBranch, Layers, LayoutGrid, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
-  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, ImageDown, AudioLines, Users
+  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, ImageDown, AudioLines, Users, MonitorSmartphone, LockKeyhole
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -26,7 +26,8 @@ import type { SyncItem, SyncKind } from "./lib/sync";
 import type { CompareAnswer } from "./types";
 import { loadPrompts, savePrompts } from "./lib/prompts";
 import type { SavedPrompt } from "./lib/prompts";
-import { accountApi, accountFetch, getAccountSession, invalidateAccountSession } from "./lib/account-api";
+import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
+import RemoteWork from "./components/RemoteWork";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
@@ -224,6 +225,9 @@ export default function App() {
   const canDictate = useMemo(speechInputSupported, []);
   const canSpeak = useMemo(speechOutputSupported, []);
   const [session, setSession] = useState<SessionSnapshot | null>(null);
+  // Registered members of a hosted server get their own chats, keys, sync and work mode; the shared
+  // workbench, studio and plugins belong to the server owner.
+  const member = roleOf(session) === "user";
   const [unread, setUnread] = useState(0);
   const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
   const customUrlRef = useRef<string | null>(null);
@@ -555,7 +559,7 @@ export default function App() {
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
   // Scheduled tasks: poll the server's result feed and raise a notification for anything new.
   useEffect(() => {
-    if (!status.configured && statusLoading) return;
+    if ((!status.configured && statusLoading) || member) return;
     const KEY = "ciro.schedule-seen.v1";
     let seen = "";
     try { seen = localStorage.getItem(KEY) || ""; } catch { /* storage off */ }
@@ -582,7 +586,7 @@ export default function App() {
     const onVisible = () => { if (!document.hidden) void poll(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { stopped = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
-  }, [status.configured, statusLoading]);
+  }, [status.configured, statusLoading, member]);
   // Phone gestures: swipe right/left to open/close the sidebar, swipe sheets down to dismiss them.
   useSidebarSwipe(sidebarOpen, setSidebarOpen, () => Boolean(settingsSection || voiceOpen || lightbox || paletteOpen));
   useSheetSwipe();
@@ -1468,12 +1472,14 @@ export default function App() {
     { id: "sync", label: t("跨设备同步"), icon: <Cloud size={16}/>, run: () => openStudio("sync") }
   ];
 
-  const navItems: { tab: WorkbenchTab; label: string; icon: LucideIcon }[] = [
+  const navItems: { tab: WorkbenchTab; label: string; icon: LucideIcon }[] = member
+    ? [{ tab: "remote", label: "工作模式", icon: MonitorSmartphone }]
+    : [
     { tab: "studio", label: "融合工作台", icon: Layers },
     { tab: "goals", label: "协作空间", icon: Workflow },
     { tab: "plugins", label: "插件中心", icon: PlugZap }
   ];
-  const moreItems: { tab: WorkbenchTab; label: string; icon: LucideIcon }[] = [
+  const moreItems: { tab: WorkbenchTab; label: string; icon: LucideIcon }[] = member ? [] : [
     { tab: "ide", label: "代码工作区", icon: Code2 },
     { tab: "research", label: "研究工作台", icon: Search },
     { tab: "knowledge", label: "知识与文件", icon: FileText },
@@ -1562,11 +1568,11 @@ export default function App() {
               onClick={() => openStudio(tab)} aria-label={t(label)} title={t(label)}>
               <Icon size={17}/><span>{t(label)}</span>
             </button>)}
-          <button className="cx-nav-item cx-more-toggle" onClick={() => { setMoreOpen((v) => !v); if (sidebarCollapsed) setSidebarCollapsed(false); }}
+          {moreItems.length > 0 && <button className="cx-nav-item cx-more-toggle" onClick={() => { setMoreOpen((v) => !v); if (sidebarCollapsed) setSidebarCollapsed(false); }}
             aria-expanded={moreOpen} title={t("更多工具")}>
             <LayoutGrid size={17}/><span>{t("更多工具")}</span>
             <ChevronRight size={14} className={moreOpen ? "cx-chev cx-chev--open" : "cx-chev"}/>
-          </button>
+          </button>}
           <div className={moreOpen && !sidebarCollapsed ? "cx-more cx-more--open" : "cx-more"}>
             <div className="cx-more-inner">
               {moreItems.map(({ tab, label, icon: Icon }) =>
@@ -1638,7 +1644,13 @@ export default function App() {
         {sidebarCollapsed && <button className="cx-icon cx-float-expand" onClick={() => setSidebarCollapsed(false)} aria-label={t("展开侧栏")}><PanelLeftOpen size={18}/></button>}
         <div className="cx-studio-scroll" key={studioTab}>
           <ViewBoundary t={t} resetKey={studioTab} onHome={createNew}>
-          {ACCOUNT_TABS.includes(studioTab)
+          {member && !ACCOUNT_TABS.includes(studioTab)
+            ? studioTab === "remote"
+              ? <section className="wb-root"><div className="wb-body"><RemoteWork t={t}/></div></section>
+              : <div className="cx-owner-only"><LockKeyhole size={28}/><h2>{t("仅服务器所有者可用")}</h2>
+                  <p>{t("这里是整台服务器共用的工具，由服务器所有者管理。你的对话、密钥、同步和工作模式不受影响。")}</p>
+                  <button type="button" onClick={createNew}>{t("返回对话")}</button></div>
+            : ACCOUNT_TABS.includes(studioTab)
             ? <div className="acc-workspace"><AccountCenter key={studioTab} language={language} section={studioTab as AccountTab}/></div>
             : STUDIO_TABS.includes(studioTab)
               ? <div className="stu-workspace"><StudioCenter key={studioTab} language={language} section={studioTab as StudioTab}

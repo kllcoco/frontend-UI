@@ -12,6 +12,9 @@ export function isMobileShell(): boolean {
 export function isRemoteMobile(): boolean {
   return /CiroMobile\//.test(navigator.userAgent) && window.location.origin !== LOCAL_ORIGIN;
 }
+/** The company's hosted Ciro server, set at build time (VITE_CIRO_OFFICIAL_SERVER, e.g. https://ciro.example.com).
+    Empty until the official domain exists; apps then offer it as the one-tap default. */
+export const OFFICIAL_SERVER = ((import.meta.env.VITE_CIRO_OFFICIAL_SERVER as string | undefined) || "").trim().replace(/\/+$/, "");
 export function savedServer(): string | null {
   try { return localStorage.getItem(KEY); } catch { return null; }
 }

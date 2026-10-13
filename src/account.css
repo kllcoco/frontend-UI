@@ -86,3 +86,5 @@
  .acc-spend-cards,.acc-sync-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .acc-list-line,.acc-notification{align-items:flex-start;flex-wrap:wrap}
  .acc-list-line .acc-secondary,.acc-notification .acc-secondary{margin-left:auto}}
+.acc-link{border:0;background:none;color:#5fb98a;font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
+.acc-login .acc-muted{margin-top:-6px}

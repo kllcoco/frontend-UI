@@ -273,6 +273,26 @@ curl https://ciro.你的域名.com/v1/chat/completions \
 - 每个密钥的 CWU 用量和调用记录在 API 控制台查看；只记录元数据，不保存请求和回答内容。
 - 撤销密钥后立即失效。
 
+## 多用户：一台服务器给所有人用
+
+适合以公司身份运营一台官方服务器，所有用户都注册、登录到这台服务器。
+
+```bash
+CIRO_ACCOUNTS_ENABLED=true
+CIRO_DEPLOYMENT_MODE=multi-user
+CIRO_PUBLIC_ORIGIN=https://你的域名          # 必须是 https，由反向代理终止 TLS
+CIRO_REGISTRATION=invite                    # closed / invite / open
+CIRO_BOOTSTRAP_TOKEN=至少24位随机字符串
+CIRO_API_KEY_PEPPER=至少24位随机字符串
+CIRO_ACCOUNT_DATA_KEY=$(openssl rand -base64 32)
+```
+
+- 第一个账户（用初始化口令创建）是**服务器所有者**：只有所有者能发布公告、管理用户、使用工作台 / 融合工作台 / 插件 / 账单。
+- 其他人在 设置 → 账户与安全 里注册。每个人的对话同步、API 密钥与用量、记忆、通知、工作模式电脑互相隔离。
+- `invite` 模式下，所有者在 设置 → 用户管理 生成邀请码（7 天有效，只能用一次）；也可以停用或删除用户（删除会清掉他的同步数据、密钥和记忆）。
+- 已有的单人服务器升级后数据自动迁移，原账户成为所有者，登录状态不变。
+- 应用默认服务器：发布时设置仓库变量 `CIRO_OFFICIAL_SERVER=https://你的域名`，Android 版首次打开会出现“连接官方服务器”按钮。
+
 ## 公告推送（不发版也能推送）
 
 - 服务器所有者登录后，在 设置 → 账户 → 公告推送 发布公告，已安装的网页版、桌面版、Android 版首页会显示（最长 30 分钟内，或下次打开时）。

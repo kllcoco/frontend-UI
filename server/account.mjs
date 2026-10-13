@@ -60,8 +60,13 @@ function parseCookies(req){
   return cookies;
 }
 function publicOwner(owner){
-  return owner?{id:owner.id,email:owner.email,displayName:owner.displayName,
+  return owner?{id:owner.id,email:owner.email,displayName:owner.displayName,role:owner.role==="owner"?"owner":"user",
     createdAt:owner.createdAt,memoryEnabled:owner.memoryEnabled===true}:null;
+}
+/** Who may create an account: "closed" (only the owner, via bootstrap), "invite" (with a code) or "open". */
+export function registrationMode(env){
+  const v=(env.CIRO_REGISTRATION||"closed").trim().toLowerCase();
+  return ["open","invite"].includes(v)?v:"closed";
 }
 function publicSubscription(store,env){
   const data=store.get().subscription;
@@ -189,24 +194,28 @@ function validateSnapshot(value){
 }
 export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   const enabled=env.CIRO_ACCOUNTS_ENABLED==="true";
+  const registration=registrationMode(env);
   const dataDir=dir||env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime";
   const store=createAccountStore(dataDir);
   let syncDb=null;
-  const syncStore=()=>syncDb||(syncDb=createSyncStore(dataDir));
+  const syncStore=()=>syncDb||(syncDb=createSyncStore(dataDir,store.owner()?.id||null));
   const router=express.Router();
-  function issueSession(res,owner){
+  const userOf=p=>store.user(p.id);
+  const live=u=>u&&!u.disabledAt;
+  function issueSession(res,user){
     const raw=token(),csrf=token(),id=randomUUID(),expiresAt=Date.now()+COOKIE_MAX_AGE;
     store.change("account.session.created",s=>{
-      s.sessions=s.sessions.filter(x=>x.expiresAt>Date.now()).slice(-60);
-      s.sessions.push({id,hash:hash(raw),csrf,expiresAt,createdAt:new Date().toISOString()});
+      const now=Date.now();
+      const others=s.sessions.filter(x=>x.expiresAt>now&&x.userId!==user.id);
+      const mine=s.sessions.filter(x=>x.expiresAt>now&&x.userId===user.id).slice(-30);
+      s.sessions=[...others,...mine,{id,userId:user.id,hash:hash(raw),csrf,expiresAt,createdAt:new Date().toISOString()}];
+      const u=s.users.find(x=>x.id===user.id);if(u)u.lastSeenAt=new Date().toISOString();
     });
     res.setHeader("Set-Cookie",sessionCookie(null,env,raw));
     return {csrf,id};
   }
   function principal(req){
-    if(!enabled)return {mode:"local",id:"local",scopes:["*"]};
-    const owner=store.get().owner;
-    if(!owner)return null;
+    if(!enabled)return {mode:"local",id:"local",role:"owner",scopes:["*"]};
     const bearer=req.get("authorization")||"";
     if(bearer.startsWith("Bearer ciro_sk_")){
       const pepper=env.CIRO_API_KEY_PEPPER;
@@ -215,16 +224,20 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       const digest=createHmac("sha256",pepper).update(presented).digest("hex");
       const key=store.get().apiKeys.find(x=>x.hash===digest&&!x.revokedAt&&
         (!x.expiresAt||x.expiresAt>Date.now()));
-      return key?{id:owner.id,mode:"api-key",scopes:key.scopes,keyId:key.id}:null;
+      const user=key&&store.user(key.userId);
+      return live(user)?{id:user.id,role:user.role,mode:"api-key",scopes:key.scopes,keyId:key.id}:null;
     }
     const raw=parseCookies(req)[SESSION_COOKIE];
     if(!raw)return null;
     const session=store.get().sessions.find(x=>x.hash===hash(raw)&&x.expiresAt>Date.now());
-    return session?{id:owner.id,mode:"session",sessionId:session.id,csrf:session.csrf,scopes:["*"]}:null;
+    const user=session&&store.user(session.userId);
+    return live(user)?{id:user.id,role:user.role,mode:"session",sessionId:session.id,csrf:session.csrf,scopes:["*"]}:null;
   }
+  // Server-wide tools (workbench, studio, plugins) act on shared state, so only the owner uses them.
+  const OWNER_ONLY=/^\/(workbench|studio|plugins)(\/|$)/;
   function guard(req,res,next){
     try{
-      if(!enabled){req.principal={mode:"local",id:"local",scopes:["*"]};return next();}
+      if(!enabled){req.principal={mode:"local",id:"local",role:"owner",scopes:["*"]};return next();}
       if(req.path==="/status")return next();
       // Work mode: paired computers authenticate with their own device token inside the remote router.
       if(req.path==="/remote/pair"||req.path.startsWith("/remote/device/"))return next();
@@ -248,6 +261,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       } else if(["POST","PUT","PATCH","DELETE"].includes(req.method)){
         if(!equal(req.get("x-ciro-csrf"),p.csrf))return res.status(403).json({error:"CSRF token required"});
       }
+      if(p.role!=="owner"&&OWNER_ONLY.test(req.path))return res.status(403).json({error:"Only the server owner can use this"});
       req.principal=p;next();
     }catch(e){res.status(e.statusCode||400).json({error:e.message});}
   }
@@ -261,8 +275,12 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     confirmOrigin(req,env);
     if(["POST","PUT","PATCH","DELETE"].includes(req.method)&&!equal(req.get("x-ciro-csrf"),p.csrf))
       throw bad("CSRF token required",403);
-    return fn(req,res,p);
+    return fn(req,res,p,userOf(p));
   })(req,res);
+  const ownerSession=fn=>protectedSession((req,res,p,u)=>{
+    if(u.role!=="owner")throw bad("Only the server owner can do this",403);
+    return fn(req,res,p,u);
+  });
   const guardedRead=fn=>(req,res)=>wrapped(async(req,res)=>{
     if(!enabled)throw bad("Accounts are disabled",503);
     const p=principal(req);if(!p)throw bad("Please sign in",401);
@@ -272,80 +290,107 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       throw bad("API key scope denied",403);
     if(p.mode==="session"&&isWrite&&!equal(req.get("x-ciro-csrf"),p.csrf))
       throw bad("CSRF token required",403);
-    return fn(req,res,p);
+    return fn(req,res,p,userOf(p));
   })(req,res);
   router.use((req,res,next)=>{
     res.set("Cache-Control","no-store");next();
   });
   router.get("/session",(req,res)=>{
     const p=principal(req);
-    res.json({enabled,authenticated:enabled&&Boolean(p),user:enabled&&p?publicOwner(store.get().owner):null,
+    res.json({enabled,authenticated:enabled&&Boolean(p),user:enabled&&p?publicOwner(userOf(p)):null,
       mode:p?.mode||null,csrf:p?.mode==="session"?p.csrf:null,
-      bootstrapAvailable:enabled&&!store.get().owner&&typeof env.CIRO_BOOTSTRAP_TOKEN==="string"&&env.CIRO_BOOTSTRAP_TOKEN.length>=24});
+      registration:enabled&&store.owner()?registration:"closed",
+      bootstrapAvailable:enabled&&!store.owner()&&typeof env.CIRO_BOOTSTRAP_TOKEN==="string"&&env.CIRO_BOOTSTRAP_TOKEN.length>=24});
   });
+  async function newUser(body,role){
+    const email=validateEmail(body?.email),displayName=validateName(body?.displayName);
+    const pw=validatePassword(body?.password),salt=randomBytes(16).toString("base64");
+    return {id:randomUUID(),email,displayName,role,passwordHash:await passwordHash(pw,salt),salt,
+      memoryEnabled:false,createdAt:new Date().toISOString(),disabledAt:null};
+  }
   router.post("/bootstrap",wrapped(async(req,res)=>{
     if(!enabled)throw bad("Enable CIRO_ACCOUNTS_ENABLED first",503);
     confirmOrigin(req,env);
-    if(store.get().owner)throw bad("Account already initialized",409);
+    if(store.owner())throw bad("Account already initialized",409);
     const secret=checkSecret(env.CIRO_BOOTSTRAP_TOKEN,"Bootstrap token");
     if(!equal(req.body?.bootstrapToken,secret))throw bad("Bootstrap authorization failed",401);
-    const email=validateEmail(req.body.email),displayName=validateName(req.body.displayName);
-    const pw=validatePassword(req.body.password),salt=randomBytes(16).toString("base64");
-    const passwordHashValue=await passwordHash(pw,salt);
+    const user=await newUser(req.body,"owner");
     store.change("account.bootstrap",s=>{
-      if(s.owner)throw bad("Account already initialized",409);
-      s.owner={id:randomUUID(),email,displayName,passwordHash:passwordHashValue,salt,
-        memoryEnabled:false,createdAt:new Date().toISOString()};
+      if(s.users.some(x=>x.role==="owner"))throw bad("Account already initialized",409);
+      if(s.users.some(x=>x.email===user.email))throw bad("This email is already registered",409);
+      s.users.push(user);
     });
-    const session=issueSession(res,store.get().owner);
-    res.status(201).json({authenticated:true,user:publicOwner(store.get().owner),csrf:session.csrf});
+    const session=issueSession(res,user);
+    res.status(201).json({authenticated:true,user:publicOwner(user),csrf:session.csrf});
+  }));
+  router.post("/register",wrapped(async(req,res)=>{
+    if(!enabled)throw bad("Accounts are disabled",503);
+    confirmOrigin(req,env);
+    if(!store.owner())throw bad("This server is not set up yet",409);
+    if(registration==="closed")throw bad("Registration is closed on this server",403);
+    const clear=ipLimit(req);
+    const code=typeof req.body?.inviteCode==="string"?req.body.inviteCode.trim().toUpperCase():"";
+    const invite=registration==="invite"?store.get().invites.find(x=>x.code===code&&!x.usedAt&&x.expiresAt>Date.now()):null;
+    if(registration==="invite"&&!invite)throw bad("Invalid or used invite code",403);
+    const user=await newUser(req.body,"user");
+    if(store.get().users.length>=Number(env.CIRO_MAX_USERS||100000))throw bad("This server is not accepting new accounts",403);
+    store.change("account.registered",s=>{
+      if(s.users.some(x=>x.email===user.email))throw bad("This email is already registered",409);
+      s.users.push(user);
+      if(invite){const i=s.invites.find(x=>x.code===invite.code);i.usedAt=new Date().toISOString();i.usedBy=user.id;}
+    });
+    clear();
+    const session=issueSession(res,user);
+    res.status(201).json({authenticated:true,user:publicOwner(user),csrf:session.csrf});
   }));
   router.post("/login",wrapped(async(req,res)=>{
     if(!enabled)throw bad("Accounts are disabled",503);
     confirmOrigin(req,env);const clear=ipLimit(req);
-    const owner=store.get().owner;
-    if(typeof req.body?.email!=="string"||typeof req.body?.password!=="string"||
-      !owner||!equal(req.body.email.toLowerCase(),owner.email)||
-      !(await passwordMatches(req.body.password,owner)))throw bad("Invalid credentials",401);
+    const email=typeof req.body?.email==="string"?req.body.email.toLowerCase():"";
+    const user=store.get().users.find(x=>equal(email,x.email));
+    if(!user||typeof req.body?.password!=="string"||!(await passwordMatches(req.body.password,user)))
+      throw bad("Invalid credentials",401);
+    if(user.disabledAt)throw bad("This account has been disabled",403);
     clear();
-    const session=issueSession(res,owner);
-    res.json({authenticated:true,user:publicOwner(owner),csrf:session.csrf});
+    const session=issueSession(res,user);
+    res.json({authenticated:true,user:publicOwner(user),csrf:session.csrf});
   }));
   router.post("/logout",protectedSession((_req,res,p)=>{
     store.change("account.logout",s=>{s.sessions=s.sessions.filter(x=>x.id!==p.sessionId);});
     res.setHeader("Set-Cookie",SESSION_COOKIE+"=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
     res.json({ok:true});
   }));
-  router.get("/profile",protectedSession((_req,res)=>{
-    res.json({user:publicOwner(store.get().owner),
-      subscription:publicSubscription(store,env),
-      sessions:store.get().sessions.filter(x=>x.expiresAt>Date.now()).map(x=>({id:x.id,createdAt:x.createdAt,expiresAt:x.expiresAt}))});
+  router.get("/profile",protectedSession((_req,res,p,u)=>{
+    res.json({user:publicOwner(u),
+      subscription:u.role==="owner"?publicSubscription(store,env):publicSubscription({get:()=>({subscription:{}})},{}),
+      sessions:store.get().sessions.filter(x=>x.userId===u.id&&x.expiresAt>Date.now()).map(x=>({id:x.id,createdAt:x.createdAt,expiresAt:x.expiresAt}))});
   }));
-  router.post("/profile",protectedSession((req,res)=>{
+  router.post("/profile",protectedSession((req,res,p,u)=>{
     const displayName=validateName(req.body?.displayName);
-    store.change("account.profile.update",s=>{s.owner.displayName=displayName;});
-    res.json({user:publicOwner(store.get().owner)});
+    store.change("account.profile.update",()=>{u.displayName=displayName;});
+    res.json({user:publicOwner(u)});
   }));
-  router.post("/password",protectedSession(async(req,res,p)=>{
+  router.post("/password",protectedSession(async(req,res,p,u)=>{
     const old=validatePassword(req.body?.currentPassword),next=validatePassword(req.body?.newPassword);
-    if(!(await passwordMatches(old,store.get().owner)))throw bad("Current password incorrect",403);
+    if(!(await passwordMatches(old,u)))throw bad("Current password incorrect",403);
     const salt=randomBytes(16).toString("base64"),newHash=await passwordHash(next,salt);
     store.change("account.password.changed",s=>{
-      s.owner.salt=salt;s.owner.passwordHash=newHash;
-      s.sessions=s.sessions.filter(x=>x.id===p.sessionId);
-      s.apiKeys.forEach(x=>{x.revokedAt=new Date().toISOString();});
+      u.salt=salt;u.passwordHash=newHash;
+      s.sessions=s.sessions.filter(x=>x.userId!==u.id||x.id===p.sessionId);
+      s.apiKeys.forEach(x=>{if(x.userId===u.id&&!x.revokedAt)x.revokedAt=new Date().toISOString();});
     });
     res.json({ok:true,otherSessionsRevoked:true,apiKeysRevoked:true});
   }));
-  router.post("/sessions/revoke",protectedSession((req,res,p)=>{
+  router.post("/sessions/revoke",protectedSession((req,res,p,u)=>{
     if(req.body?.allOthers!==true)throw bad("Confirm allOthers=true");
-    store.change("account.sessions.revoked",s=>{s.sessions=s.sessions.filter(x=>x.id===p.sessionId);});
+    store.change("account.sessions.revoked",s=>{s.sessions=s.sessions.filter(x=>x.userId!==u.id||x.id===p.sessionId);});
     res.json({ok:true});
   }));
-  router.get("/api-keys",protectedSession((_req,res)=>{
-    res.json({keys:store.get().apiKeys.map(({hash,...safe})=>safe),scopes:[...SCOPES]});
+  const safeKey=({hash,userId,...safe})=>safe;
+  router.get("/api-keys",protectedSession((_req,res,p,u)=>{
+    res.json({keys:store.get().apiKeys.filter(x=>x.userId===u.id).map(safeKey),scopes:[...SCOPES]});
   }));
-  router.post("/api-keys",protectedSession((req,res)=>{
+  router.post("/api-keys",protectedSession((req,res,p,u)=>{
     checkSecret(env.CIRO_API_KEY_PEPPER,"API key pepper");
     const name=validateName(req.body?.name);
     const scopes=req.body?.scopes;
@@ -354,130 +399,188 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const days=req.body?.expiresDays??90;
     if(!Number.isInteger(days)||days<1||days>365)throw bad("API key expiration must be 1-365 days");
     const raw="ciro_sk_"+token();
-    const entry={id:randomUUID(),name,hash:createHmac("sha256",env.CIRO_API_KEY_PEPPER).update(raw).digest("hex"),
+    const entry={id:randomUUID(),userId:u.id,name,hash:createHmac("sha256",env.CIRO_API_KEY_PEPPER).update(raw).digest("hex"),
       prefix:raw.slice(0,15),scopes:[...new Set(scopes)],createdAt:new Date().toISOString(),
       expiresAt:Date.now()+days*86400000,revokedAt:null};
     store.change("account.api_key.created",s=>{
-      if(s.apiKeys.filter(x=>!x.revokedAt).length>=25)throw bad("Too many active API keys",409);
+      if(s.apiKeys.filter(x=>x.userId===u.id&&!x.revokedAt).length>=25)throw bad("Too many active API keys",409);
       s.apiKeys.push(entry);
     });
-    res.status(201).json({key:raw,record:(({hash,...safe})=>safe)(entry)});
+    res.status(201).json({key:raw,record:safeKey(entry)});
   }));
-  router.post("/api-keys/:id/revoke",protectedSession((req,res)=>{
-    const entry=store.get().apiKeys.find(x=>x.id===req.params.id);
+  router.post("/api-keys/:id/revoke",protectedSession((req,res,p,u)=>{
+    const entry=store.get().apiKeys.find(x=>x.id===req.params.id&&x.userId===u.id);
     if(!entry)throw bad("API key not found",404);
     store.change("account.api_key.revoked",()=>{
       entry.revokedAt=new Date().toISOString();
     });
     res.json({revoked:true,id:entry.id});
   }));
-  router.get("/notifications",protectedSession((_req,res)=>{
-    const rows=store.get().notifications.slice().reverse();
+  const myNotes=u=>store.get().notifications.filter(x=>x.userId===u.id);
+  router.get("/notifications",protectedSession((_req,res,p,u)=>{
+    const rows=myNotes(u).reverse().map(({userId,...x})=>x);
     res.json({notifications:rows,unread:rows.filter(x=>!x.readAt).length});
   }));
-  router.post("/notifications/:id/read",protectedSession((req,res)=>{
-    const entry=store.get().notifications.find(x=>x.id===req.params.id);
+  router.post("/notifications/:id/read",protectedSession((req,res,p,u)=>{
+    const entry=myNotes(u).find(x=>x.id===req.params.id);
     if(!entry)throw bad("Notification not found",404);
     store.change("notification.read",()=>{entry.readAt=new Date().toISOString();});
     res.json({ok:true});
   }));
-  router.post("/notifications/read-all",protectedSession((_req,res)=>{
-    store.change("notifications.read_all",s=>{for(const x of s.notifications){if(!x.readAt)x.readAt=new Date().toISOString();}});
+  router.post("/notifications/read-all",protectedSession((_req,res,p,u)=>{
+    store.change("notifications.read_all",()=>{for(const x of myNotes(u)){if(!x.readAt)x.readAt=new Date().toISOString();}});
     res.json({ok:true});
   }));
-  function notify({type="info",title,body,refId=null}){
-    if(!store.get().owner)return;
+  /** Notifies one user (default: the server owner, who runs the workbench and billing). */
+  function notify({type="info",title,body,refId=null,userId}){
+    const user=userId?store.user(userId):store.owner();
+    if(!user)return;
     if(!["info","warning","success"].includes(type)||typeof title!=="string"||typeof body!=="string")return;
     store.change("notification.created",s=>{
-      s.notifications.push({id:randomUUID(),type,title:title.slice(0,130),body:body.slice(0,500),
+      s.notifications.push({id:randomUUID(),userId:user.id,type,title:title.slice(0,130),body:body.slice(0,500),
         refId,createdAt:new Date().toISOString(),readAt:null});
-      s.notifications=s.notifications.slice(-MAX_NOTIFICATIONS);
+      const mine=s.notifications.filter(x=>x.userId===user.id);
+      if(mine.length>MAX_NOTIFICATIONS){const drop=new Set(mine.slice(0,mine.length-MAX_NOTIFICATIONS));s.notifications=s.notifications.filter(x=>!drop.has(x));}
     });
   }
-  router.get("/memories",protectedSession((_req,res)=>{
-    const owner=store.get().owner;
-    const memories=store.get().memories.map(x=>({id:x.id,category:x.category,createdAt:x.createdAt,
-      content:unsealJSON(x.encrypted,env,"ciro-memory:"+owner.id+":"+x.id)}));
-    res.json({enabled:owner.memoryEnabled===true,memories});
+  const memAad=(u,id)=>"ciro-memory:"+u.id+":"+id;
+  const myMemories=u=>store.get().memories.filter(x=>x.userId===u.id);
+  router.get("/memories",protectedSession((_req,res,p,u)=>{
+    const memories=myMemories(u).map(x=>({id:x.id,category:x.category,createdAt:x.createdAt,
+      content:unsealJSON(x.encrypted,env,memAad(u,x.id))}));
+    res.json({enabled:u.memoryEnabled===true,memories});
   }));
-  router.post("/memories/preferences",protectedSession((req,res)=>{
+  router.post("/memories/preferences",protectedSession((req,res,p,u)=>{
     if(typeof req.body?.enabled!=="boolean")throw bad("Boolean enabled required");
     if(req.body.enabled)encryptionKey(env);
-    store.change("memory.preference",s=>{s.owner.memoryEnabled=req.body.enabled;});
+    store.change("memory.preference",()=>{u.memoryEnabled=req.body.enabled;});
     res.json({enabled:req.body.enabled});
   }));
-  router.post("/memories",protectedSession((req,res)=>{
+  router.post("/memories",protectedSession((req,res,p,u)=>{
     const content=req.body?.content,category=req.body?.category||"general";
     if(typeof content!=="string"||!content.trim()||content.length>1500)throw bad("Memory must contain 1-1500 characters");
     if(!["general","style","project"].includes(category))throw bad("Invalid memory category");
-    if(store.get().memories.length>=MAX_MEMORIES)throw bad("Memory limit reached",409);
-    const id=randomUUID(),owner=store.get().owner;
-    const encrypted=sealJSON(content.trim(),env,"ciro-memory:"+owner.id+":"+id);
-    store.change("memory.created",s=>{s.memories.push({id,category,encrypted,createdAt:new Date().toISOString()});});
+    if(myMemories(u).length>=MAX_MEMORIES)throw bad("Memory limit reached",409);
+    const id=randomUUID();
+    const encrypted=sealJSON(content.trim(),env,memAad(u,id));
+    store.change("memory.created",s=>{s.memories.push({id,userId:u.id,category,encrypted,createdAt:new Date().toISOString()});});
     res.status(201).json({id,content:content.trim(),category});
   }));
-  router.delete("/memories/:id",protectedSession((req,res)=>{
+  router.delete("/memories/:id",protectedSession((req,res,p,u)=>{
     const before=store.get().memories.length;
-    store.change("memory.deleted",s=>{s.memories=s.memories.filter(x=>x.id!==req.params.id);});
+    store.change("memory.deleted",s=>{s.memories=s.memories.filter(x=>!(x.id===req.params.id&&x.userId===u.id));});
     res.json({deleted:before!==store.get().memories.length});
   }));
   function memoryContext(req){
     if(!enabled)return "";
-    const p=principal(req),owner=store.get().owner;
-    if(p?.mode!=="session"||!owner?.memoryEnabled)return "";
-    return store.get().memories.slice(-30).map(x=>unsealJSON(x.encrypted,env,"ciro-memory:"+owner.id+":"+x.id))
+    const p=principal(req),u=p&&userOf(p);
+    if(p?.mode!=="session"||!u?.memoryEnabled)return "";
+    return myMemories(u).slice(-30).map(x=>unsealJSON(x.encrypted,env,memAad(u,x.id)))
       .filter(x=>typeof x==="string").join("\n").slice(0,8000);
   }
-  router.get("/sync",guardedRead((_req,res)=>{
-    const s=store.get().sync,owner=store.get().owner;
-    const snapshot=s.encrypted?unsealJSON(s.encrypted,env,"ciro-sync:"+owner.id):null;
+  const blankSync={version:0,encrypted:null,updatedAt:null};
+  router.get("/sync",guardedRead((_req,res,p,u)=>{
+    const s=store.get().syncs[u.id]||blankSync;
+    const snapshot=s.encrypted?unsealJSON(s.encrypted,env,"ciro-sync:"+u.id):null;
     res.json({version:s.version,updatedAt:s.updatedAt,snapshot});
   }));
-  router.put("/sync",guardedRead((req,res)=>{
+  router.put("/sync",guardedRead((req,res,p,u)=>{
     if(!Number.isSafeInteger(req.body?.baseVersion)||req.body.baseVersion<0)throw bad("Invalid baseVersion");
-    const state=store.get().sync;
+    const state=store.get().syncs[u.id]||blankSync;
     if(state.version!==req.body.baseVersion)
       return res.status(409).json({error:"Sync conflict; refresh and reconcile first",currentVersion:state.version});
-    const data=validateSnapshot(req.body.snapshot),owner=store.get().owner;
-    const enc=sealJSON(data,env,"ciro-sync:"+owner.id);
-    store.change("sync.snapshot.updated",s=>{s.sync.version++;s.sync.encrypted=enc;s.sync.updatedAt=new Date().toISOString();});
-    res.json({version:store.get().sync.version,updatedAt:store.get().sync.updatedAt});
+    const data=validateSnapshot(req.body.snapshot);
+    const enc=sealJSON(data,env,"ciro-sync:"+u.id);
+    store.change("sync.snapshot.updated",s=>{
+      const cur=s.syncs[u.id]||{...blankSync};
+      s.syncs[u.id]={version:cur.version+1,encrypted:enc,updatedAt:new Date().toISOString()};
+    });
+    res.json({version:store.get().syncs[u.id].version,updatedAt:store.get().syncs[u.id].updatedAt});
   }));
   // Incremental sync (v2): per-item encrypted rows with tombstones; see server/sync-store.mjs.
-  const syncAad=key=>"ciro-sync2:"+store.get().owner.id+":"+key;
-  const syncRow=r=>({key:r.key,kind:r.kind,id:r.item_id,rev:Number(r.rev),mtime:Number(r.mtime),deleted:!!r.deleted,
-    data:r.deleted||!r.payload?null:unsealJSON(JSON.parse(r.payload),env,syncAad(r.key))});
-  router.get("/sync/v2/changes",guardedRead((req,res)=>{
+  const syncAad=(u,key)=>"ciro-sync2:"+u.id+":"+key;
+  const syncRow=u=>r=>({key:r.key,kind:r.kind,id:r.item_id,rev:Number(r.rev),mtime:Number(r.mtime),deleted:!!r.deleted,
+    data:r.deleted||!r.payload?null:unsealJSON(JSON.parse(r.payload),env,syncAad(u,r.key))});
+  router.get("/sync/v2/changes",guardedRead((req,res,p,u)=>{
     const since=Number(req.query.since||0);
     if(!Number.isSafeInteger(since)||since<0)throw bad("Invalid since");
-    const db=syncStore(),rows=db.since(since,SYNC_LIMITS.pageItems+1);
+    const db=syncStore(),rows=db.since(u.id,since,SYNC_LIMITS.pageItems+1);
     const page=rows.slice(0,SYNC_LIMITS.pageItems);
-    res.json({rev:page.length?Number(page.at(-1).rev):Math.max(since,db.rev()),latest:db.rev(),
-      more:rows.length>SYNC_LIMITS.pageItems,count:db.count(),items:page.map(syncRow)});
+    res.json({rev:page.length?Number(page.at(-1).rev):Math.max(since,db.rev(u.id)),latest:db.rev(u.id),
+      more:rows.length>SYNC_LIMITS.pageItems,count:db.count(u.id),items:page.map(syncRow(u))});
   }));
-  router.post("/sync/v2/push",guardedRead((req,res)=>{
+  router.post("/sync/v2/push",guardedRead((req,res,p,u)=>{
     const input=req.body?.items;
     if(!Array.isArray(input)||input.length>SYNC_LIMITS.batchItems)throw bad("Invalid sync batch");
     const items=input.map(x=>{
       if(!x||!SYNC_KINDS.has(x.kind)||typeof x.id!=="string"||!x.id||x.id.length>120||
         !Number.isSafeInteger(x.mtime)||x.mtime<0||typeof x.deleted!=="boolean")throw bad("Invalid sync item");
       if(!x.deleted&&(!x.data||typeof x.data!=="object"||Array.isArray(x.data)))throw bad("Invalid sync item data");
-      const payload=x.deleted?null:JSON.stringify(sealJSON(x.data,env,syncAad(x.kind+":"+x.id)));
+      const payload=x.deleted?null:JSON.stringify(sealJSON(x.data,env,syncAad(u,x.kind+":"+x.id)));
       if(payload&&payload.length>SYNC_LIMITS.itemBytes*1.4)throw bad("Sync item too large");
       return {...x,key:x.kind+":"+x.id,payload};
     });
     const db=syncStore();
-    if(db.total()+items.length>SYNC_LIMITS.totalItems)throw bad("Sync storage is full",413);
+    if(db.total(u.id)+items.length>SYNC_LIMITS.totalItems)throw bad("Sync storage is full",413);
     // Older edits never overwrite newer ones; equal mtime lets the latest writer win.
-    const results=db.write(items,(item,existing)=>existing&&Number(existing.mtime)>item.mtime?null:{payload:item.payload});
-    res.json({rev:db.rev(),count:db.count(),
+    const results=db.write(u.id,items,(item,existing)=>existing&&Number(existing.mtime)>item.mtime?null:{payload:item.payload});
+    res.json({rev:db.rev(u.id),count:db.count(u.id),
       accepted:results.filter(r=>r.accepted).map(r=>({key:r.item.key,rev:r.rev})),
-      rejected:results.filter(r=>!r.accepted).map(r=>syncRow(r.existing))});
+      rejected:results.filter(r=>!r.accepted).map(r=>syncRow(u)(r.existing))});
   }));
+  // User management for the server owner: list, disable / enable, remove, and invite codes.
+  const adminUser=x=>({id:x.id,email:x.email,displayName:x.displayName,role:x.role==="owner"?"owner":"user",
+    createdAt:x.createdAt,lastSeenAt:x.lastSeenAt||null,disabled:Boolean(x.disabledAt),
+    apiKeys:store.get().apiKeys.filter(k=>k.userId===x.id&&!k.revokedAt).length});
+  router.get("/admin/users",ownerSession((_req,res)=>{
+    res.json({users:store.get().users.map(adminUser),registration,
+      invites:store.get().invites.filter(x=>!x.usedAt&&x.expiresAt>Date.now())});
+  }));
+  const target=(req,u)=>{
+    const x=store.user(req.params.id);
+    if(!x)throw bad("User not found",404);
+    if(x.id===u.id||x.role==="owner")throw bad("The server owner cannot be changed here",409);
+    return x;
+  };
+  router.post("/admin/users/:id",ownerSession((req,res,p,u)=>{
+    const x=target(req,u);
+    if(typeof req.body?.disabled!=="boolean")throw bad("Boolean disabled required");
+    store.change(req.body.disabled?"admin.user.disabled":"admin.user.enabled",s=>{
+      x.disabledAt=req.body.disabled?new Date().toISOString():null;
+      if(req.body.disabled)s.sessions=s.sessions.filter(y=>y.userId!==x.id);
+    });
+    res.json({user:adminUser(x)});
+  }));
+  router.delete("/admin/users/:id",ownerSession((req,res,p,u)=>{
+    const x=target(req,u);
+    store.change("admin.user.deleted",s=>{
+      s.users=s.users.filter(y=>y.id!==x.id);
+      for(const k of ["sessions","apiKeys","memories","notifications"])s[k]=s[k].filter(y=>y.userId!==x.id);
+      delete s.syncs[x.id];
+    });
+    syncStore().removeUser(x.id);
+    res.json({deleted:true});
+  }));
+  router.post("/admin/invites",ownerSession((req,res)=>{
+    const days=req.body?.days??7;
+    if(!Number.isInteger(days)||days<1||days>90)throw bad("Invite expiry must be 1-90 days");
+    const code=randomBytes(6).toString("base64url").toUpperCase().replace(/[^A-Z0-9]/g,"X").slice(0,8);
+    const invite={code,createdAt:new Date().toISOString(),expiresAt:Date.now()+days*86400000,usedAt:null};
+    store.change("admin.invite.created",s=>{
+      s.invites=s.invites.filter(x=>!x.usedAt&&x.expiresAt>Date.now()).slice(-199);
+      s.invites.push(invite);
+    });
+    res.status(201).json({invite});
+  }));
+  router.delete("/admin/invites/:code",ownerSession((req,res)=>{
+    store.change("admin.invite.deleted",s=>{s.invites=s.invites.filter(x=>x.code!==req.params.code);});
+    res.json({ok:true});
+  }));
+  // Stripe subscription: the server owner's own plan for this deployment.
   const hasStripe=()=>publicSubscription(store,env).configured;
-  router.post("/subscription/checkout",protectedSession(async(_req,res)=>{
+  router.post("/subscription/checkout",ownerSession(async(_req,res,p,owner)=>{
     if(!hasStripe())throw bad("Stripe subscription is not configured",503);
-    const owner=store.get().owner,sub=store.get().subscription;
+    const sub=store.get().subscription;
     const origin=env.CIRO_PUBLIC_ORIGIN.replace(/\/+$/,"");
     const params={
       mode:"subscription","line_items[0][price]":env.CIRO_STRIPE_PRICE_ID,
@@ -489,7 +592,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const session=await stripeCall(env,"checkout/sessions",params,fetchFn);
     res.json({url:session.url,id:session.id});
   }));
-  router.post("/subscription/portal",protectedSession(async(_req,res)=>{
+  router.post("/subscription/portal",ownerSession(async(_req,res)=>{
     if(!hasStripe())throw bad("Stripe portal is not configured",503);
     const customer=store.get().subscription.customerId;
     if(!customer)throw bad("No verified Stripe customer; checkout first",409);
@@ -500,7 +603,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   }));
   router.post("/subscription/webhook",wrapped((req,res)=>{
     const event=verifyStripeEvent(req,env);
-    const payload=event.data?.object||{},owner=store.get().owner;
+    const payload=event.data?.object||{},owner=store.owner();
     if(!owner)return res.status(202).json({ignored:true});
     if(store.get().webhookEvents.includes(event.id))return res.json({received:true,duplicate:true});
     const sub=store.get().subscription;
@@ -532,10 +635,13 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     if(subscription)notify({type:"info",title:"Stripe subscription updated",body:"Verified subscription status: "+payload.status});
     res.json({received:true,applied:Boolean(checkout||subscription)});
   }));
-  /** The server owner, signed in through the browser (API keys and paired devices never count). */
+  /** The server owner (the account created first), signed in through the browser — API keys and paired devices never count. */
   function isOwner(req){
-    const p=req.principal,owner=store.get().owner;
-    return Boolean(enabled&&p&&p.mode==="session"&&owner&&p.id===owner.id&&owner.role!=="member");
+    const p=req.principal;
+    if(!enabled||!p||p.mode!=="session")return false;
+    return store.user(p.id)?.role==="owner";
   }
-  return {router,guard,store,principal,memoryContext,notify,enabled,isOwner};
+  /** API key ids that belong to the signed-in user (for the API console). */
+  const keyIdsOf=userId=>new Set(store.get().apiKeys.filter(x=>x.userId===userId).map(x=>x.id));
+  return {router,guard,store,principal,memoryContext,notify,enabled,isOwner,keyIdsOf};
 }

@@ -18,6 +18,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Official hosted server offered as the default in the apps; set the repository variable once the domain exists.
+  VITE_CIRO_OFFICIAL_SERVER: ${{ vars.CIRO_OFFICIAL_SERVER }}
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
   CHECKOUT_REF: ${{ github.sha }}
 

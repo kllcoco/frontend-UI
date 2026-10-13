@@ -47,6 +47,7 @@ export default function AccountCenter({language,section}:Props){
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const [email,setEmail]=useState(""),[password,setPassword]=useState(""),
     [bootstrap,setBootstrap]=useState(""),[displayName,setDisplayName]=useState("");
+  const [registering,setRegistering]=useState(false),[invite,setInvite]=useState("");
   const [oldPassword,setOldPassword]=useState(""),[newPassword,setNewPassword]=useState("");
   const [keyName,setKeyName]=useState(""),[keyDays,setKeyDays]=useState("90"),
     [keyScopes,setKeyScopes]=useState<string[]>(["chat:invoke"]),[newSecret,setNewSecret]=useState("");
@@ -112,9 +113,11 @@ export default function AccountCenter({language,section}:Props){
   }
   async function signIn(e:FormEvent<HTMLFormElement>,initial:boolean){
     e.preventDefault();
+    const signup=!initial&&registering;
     await action(async()=>{
-      await accountApi(initial?"/bootstrap":"/login","POST",{
-        email,password,...(initial?{bootstrapToken:bootstrap,displayName}:{})
+      await accountApi(initial?"/bootstrap":signup?"/register":"/login","POST",{
+        email,password,...(initial?{bootstrapToken:bootstrap,displayName}:{}),
+        ...(signup?{displayName,...(session?.registration==="invite"?{inviteCode:invite}:{})}:{})
       });
       await refreshAuthAfterLogin();
       void syncNow();
@@ -157,16 +160,21 @@ export default function AccountCenter({language,section}:Props){
       <h3>{t("账户尚未启用")}</h3><p>{t("要启用跨设备服务，请在服务器上配置账户系统。")}</p>
       <p>{t("当前是本地预览，不会伪造登录状态。")}</p></div>}
     {!loading&&session?.enabled&&!auth&&<div className="acc-card acc-login">
-      <LogIn size={26}/><h3>{t(session.bootstrapAvailable?"初始化管理员账户":"登录 Ciro")}</h3>
-      <p>{t(session.bootstrapAvailable?"使用服务端配置的一次性初始化口令。":"需要先登录才能管理此页面。")}</p>
+      <LogIn size={26}/><h3>{t(session.bootstrapAvailable?"初始化管理员账户":registering?"注册 Ciro 账户":"登录 Ciro")}</h3>
+      <p>{t(session.bootstrapAvailable?"使用服务端配置的一次性初始化口令。":registering?"注册后，你的对话、密钥和同步数据只属于你自己。":"需要先登录才能管理此页面。")}</p>
       <form onSubmit={e=>void signIn(e,session.bootstrapAvailable)}>
         <label>{t("邮箱")}<input required type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label>
-        {session.bootstrapAvailable&&<label>{t("显示名称")}<input required value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>}
-        <label>{t("登录密码")}<input required type="password" minLength={12} autoComplete={session.bootstrapAvailable?"new-password":"current-password"} value={password}
+        {(session.bootstrapAvailable||registering)&&<label>{t("显示名称")}<input required maxLength={80} value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>}
+        <label>{t("登录密码")}<input required type="password" minLength={12} autoComplete={session.bootstrapAvailable||registering?"new-password":"current-password"} value={password}
           onChange={e=>setPassword(e.target.value)}/></label>
+        {(session.bootstrapAvailable||registering)&&<small className="acc-muted">{t("密码至少 12 位")}</small>}
+        {registering&&session.registration==="invite"&&<label>{t("邀请码")}<input required autoComplete="off" maxLength={12} value={invite} onChange={e=>setInvite(e.target.value)}/></label>}
         {session.bootstrapAvailable&&<label>{t("初始化口令")}<input required type="password" autoComplete="off" value={bootstrap} onChange={e=>setBootstrap(e.target.value)}/></label>}
-        <button className="acc-primary" type="submit" disabled={busy}>{t(session.bootstrapAvailable?"创建账户":"登录")}</button>
+        <button className="acc-primary" type="submit" disabled={busy}>{t(session.bootstrapAvailable?"创建账户":registering?"注册":"登录")}</button>
       </form>
+      {!session.bootstrapAvailable&&session.registration&&session.registration!=="closed"&&
+        <button type="button" className="acc-link" onClick={()=>{setRegistering(v=>!v);setError("");}}>
+          {t(registering?"已有账户？登录":"没有账户？注册")}</button>}
     </div>}
     {!loading&&auth&&section==="account"&&<>
       <section className="acc-card"><div className="acc-section-title"><UserCircle size={19}/><h3>{t("账户与安全")}</h3></div>

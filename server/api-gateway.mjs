@@ -146,11 +146,14 @@ export function createApiGateway({ accounts, dir, upstreamUrl, apiKey, models, c
     if (req.principal?.mode !== "session" && req.principal?.mode !== "local") return res.status(403).json({ error: "Browser session required" });
     const today = now().toISOString().slice(0, 10);
     const daysBack = (n) => Array.from({ length: n }, (_, i) => new Date(now().getTime() - (n - 1 - i) * 86_400_000).toISOString().slice(0, 10));
-    const keys = Object.fromEntries(Object.entries(data.keys).map(([id, k]) => {
+    // Each user sees only their own keys (the server's local mode has a single user).
+    const own = req.principal.mode === "local" || !accounts.keyIdsOf ? null : accounts.keyIdsOf(req.principal.id);
+    const mine = (id) => !own || own.has(id);
+    const keys = Object.fromEntries(Object.entries(data.keys).filter(([id]) => mine(id)).map(([id, k]) => {
       const sum = (list) => list.reduce((a, d) => { const x = k.days[d]; if (x) { a.calls += x.calls; a.errors += x.errors; a.cwu += x.cwu; a.gwu += x.gwu; } return a; }, { calls: 0, errors: 0, cwu: 0, gwu: 0 });
       return [id, { today: sum([today]), last30: sum(daysBack(30)), daily: daysBack(14).map((d) => ({ day: d, cwu: k.days[d]?.cwu || 0, calls: k.days[d]?.calls || 0 })) }];
     }));
-    res.set("Cache-Control", "no-store").json({ keys, log: data.log.slice(0, 100), models, baseUrlPath: "/v1", configured, accountsEnabled: Boolean(accounts.enabled) });
+    res.set("Cache-Control", "no-store").json({ keys, log: data.log.filter((x) => mine(x.keyId)).slice(0, 100), models, baseUrlPath: "/v1", configured, accountsEnabled: Boolean(accounts.enabled) });
   });
   return { v1, consoleRouter, record };
 }

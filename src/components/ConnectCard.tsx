@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PlugZap, Server, Settings2 } from "lucide-react";
-import { connectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "../lib/mobile";
+import { OFFICIAL_SERVER, connectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "../lib/mobile";
 
 /** Welcome-screen card shown until a model service is connected, with the next step for this platform. */
 export default function ConnectCard({ t, onOpenModels }: { t: (s: string) => string; onOpenModels: () => void }) {
@@ -15,7 +15,10 @@ export default function ConnectCard({ t, onOpenModels }: { t: (s: string) => str
   return <div className="cx-connect" role="region" aria-label={t("连接模型")}>
     <div className="cx-connect-head"><PlugZap size={18}/><strong>{t("还差一步：连接模型")}</strong></div>
     {phoneApp ? <>
-      <p>{t("填写你的 Ciro 服务器地址（部署 Ciro 的网址），连接后就能正常对话。")}</p>
+      {OFFICIAL_SERVER && <><p>{t("使用 Ciro 官方服务器：注册或登录后即可对话，聊天记录可在你的设备间同步。")}</p>
+        <div className="cx-connect-row"><button type="button" onClick={() => connectServer(OFFICIAL_SERVER)}><Server size={16}/>{t("连接官方服务器")}</button></div>
+        <small>{t("或者连接你自己的服务器：")}</small></>}
+      {!OFFICIAL_SERVER && <p>{t("填写你的 Ciro 服务器地址（部署 Ciro 的网址），连接后就能正常对话。")}</p>}
       <form className="cx-connect-row" onSubmit={(e) => { e.preventDefault(); connect(); }}>
         <input value={server} onChange={(e) => { setServer(e.target.value); setError(""); }} inputMode="url" autoCapitalize="off" autoCorrect="off"
           placeholder="https://ciro.example.com" aria-label={t("Ciro 服务器地址")}/>
