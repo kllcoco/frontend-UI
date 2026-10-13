@@ -39,6 +39,26 @@ const modules:{id:StudioTab;name:string;desc:string;icon:LucideIcon;gate:keyof S
   {id:"marketplace",name:"官方应用与技能",desc:"可信签名目录",icon:Layers,gate:"marketplace"},
   {id:"devices",name:"跨平台终端",desc:"浏览器 PWA",icon:TabletSmartphone,gate:"devices"}
 ];
+// What each entry can actually do on this server right now (from /api/studio/capabilities), not a fixed list.
+type ModuleLevel="ok"|"partial"|"off"|"unknown";
+function serviceState(x:NativeService|undefined):{level:ModuleLevel;label:string}{
+  if(!x)return {level:"unknown",label:"检测中…"};
+  return x.configured?(x.verified?{level:"ok",label:"可用"}:{level:"partial",label:"已配置，待验证"}):{level:"off",label:"未连接"};
+}
+function moduleState(id:string,caps:StudioCapabilities|null):{level:ModuleLevel;label:string}{
+  if(!caps)return {level:"unknown",label:"检测中…"};
+  switch(id){
+    case "thinking":return serviceState(caps.thinking.provider);
+    case "research":return serviceState(caps.research);
+    case "media":return serviceState(caps.media);
+    case "compute":return serviceState(caps.compute.modelControl);
+    case "ide":return caps.ide.sandboxExecution.configured?{level:"ok",label:"可用"}:{level:"partial",label:"可编辑，运行需连接"};
+    case "knowledge":return caps.knowledge.embedding.configured?{level:"ok",label:"可用"}:{level:"partial",label:"本地搜索可用"};
+    case "marketplace":return caps.marketplace.remoteRegistry.configured?{level:"ok",label:"可用"}:{level:"partial",label:"内置目录可用"};
+    case "library":case "devices":return {level:"ok",label:"可用"};
+    default:return {level:"unknown",label:"未知"};
+  }
+}
 function Status({ready,language}: {ready:boolean;language:Language}){
   const t=(s:string)=>studioTranslate(language,s);
   return <span className={ready?"stu-status stu-status--ready":"stu-status"}>
@@ -341,11 +361,11 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </button>
         {modules.map(item=>{
           const Icon=item.icon;
-          const ready=["ide","knowledge","library","devices","marketplace"].includes(item.id);
+          const state=moduleState(item.id,caps);
           return <button className="stu-module" key={item.id} onClick={()=>onNavigate(item.id)}>
             <span className="stu-module-icon"><Icon size={24}/></span>
             <strong>{t(item.name)}</strong><p>{t(item.desc)}</p>
-            <span className="stu-mini-state">{ready?t("已具备"):t("待连接")}</span>
+            <span className={"stu-mini-state stu-mini-state--"+state.level}>{t(state.label)}</span>
             <ChevronRight size={16} className="stu-module-arrow"/>
           </button>;
         })}

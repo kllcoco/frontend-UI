@@ -1,14 +1,14 @@
 /* CIRO account settings V0.6: responsive white/emerald account operations */
 .acc-root{width:100%;max-width:920px;min-height:200px;margin:0 auto;color:#254b35}
 .acc-head{margin:2px 0 22px}
-.acc-eyebrow{font-size:10px;letter-spacing:1px;display:flex;gap:8px;color:#3c9966;align-items:center;font-weight:700}
+.acc-eyebrow{font-size:11.5px;letter-spacing:1px;display:flex;gap:8px;color:#3c9966;align-items:center;font-weight:700}
 .acc-head h2{font-size:23px;letter-spacing:-.45px;margin:12px 0 5px;color:#244b34}
 .acc-head p{font-size:11px;color:#80988a;margin:0}
 .acc-card{background:#fff;border:1px solid #e0eee5;border-radius:15px;padding:22px;margin-bottom:16px}
 .acc-card h3{font-size:14px;color:#2f6041;margin:0 0 9px}
 .acc-section-title{display:flex;align-items:center;gap:10px;color:#3a8e5b;margin-bottom:18px}
 .acc-section-title h3{margin:0;flex:1}
-.acc-section-title .acc-secondary{font-size:10px;padding:8px 10px}
+.acc-section-title .acc-secondary{font-size:11.5px;padding:8px 10px}
 .acc-card input:not([type="checkbox"]),.acc-card select,.acc-card textarea{
   box-sizing:border-box;background:#fff;border:1px solid #dce9df;border-radius:10px;
   padding:11px 12px;color:#2e5040;font:12px/1.6 inherit;outline:none;min-width:0;width:100%}
@@ -49,7 +49,7 @@
 .acc-state{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:23px;background:#f4faf5;border:1px solid #e5f1e7;border-radius:12px}
 .acc-state>span{font-size:11px;color:#779884}
 .acc-state>strong{font-size:18px;color:#327c4d}
-.acc-state>small{font-size:10px;color:#9dac9c}
+.acc-state>small{font-size:11.5px;color:#9dac9c}
 .acc-label{max-width:470px}
 .acc-label-title{font-size:11px;color:#577960}
 .acc-checkbox{display:flex;align-items:center;gap:9px;font-size:11px;color:#658473;padding:8px 0}
@@ -64,15 +64,15 @@
 .acc-list-line:last-child,.acc-notification:last-child{border-bottom:0}
 .acc-list-line>div,.acc-notification>div{min-width:0;flex:1}
 .acc-list-line strong,.acc-notification strong{font-size:12px;color:#3f654b;overflow-wrap:anywhere}
-.acc-list-line small,.acc-notification small{display:block;color:#9bac9e;font-size:10px;margin-top:6px}
-.acc-list-line .acc-secondary,.acc-notification .acc-secondary{font-size:10px;flex:none}
+.acc-list-line small,.acc-notification small{display:block;color:#9bac9e;font-size:11.5px;margin-top:6px}
+.acc-list-line .acc-secondary,.acc-notification .acc-secondary{font-size:11.5px;flex:none}
 .acc-notification p{font-size:11px;color:#779182;margin:8px 0;overflow-wrap:anywhere}
 .acc-notification--unread{background:#f6fbf7;margin:0 -12px;padding:14px 12px;border-radius:9px}
 .acc-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;
   color:#4d765a;font-size:12px;border-bottom:1px solid #e7ede7;margin-bottom:17px}
 .acc-spend-cards,.acc-sync-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:23px}
 .acc-spend-cards>div,.acc-sync-grid>div{display:flex;flex-direction:column;gap:9px;padding:13px;background:#f4f9f5;border:1px solid #e4f0e7;border-radius:10px}
-.acc-spend-cards span,.acc-sync-grid small{font-size:10px;color:#799883}
+.acc-spend-cards span,.acc-sync-grid small{font-size:11.5px;color:#799883}
 .acc-spend-cards strong,.acc-sync-grid strong{font-size:17px;color:#397e53}
 :root[data-theme="dark"] .acc-root,:root[data-theme="dark"] .acc-head h2,
 :root[data-theme="dark"] .acc-card h3,:root[data-theme="dark"] .acc-list-line strong{color:#d8e5dc}

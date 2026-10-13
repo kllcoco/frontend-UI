@@ -308,7 +308,7 @@ test("custom instructions save in browser and can be enabled independently of ag
 test("billing dashboard shows honest unconfigured usage and saves budget preferences", async ({page})=>{
   await waitForPreview(page);
   await go(page,"账单与用量");
-  await expect(page.locator(".com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
+  await expect(page.locator(".wb-nav-item--active",{hasText:"账单与用量"})).toBeVisible();
   await expect(page.getByText("暂无真实用量记录")).toBeVisible();
   await expect(page.getByText("无收费服务接入")).toBeVisible();
   await page.screenshot({path:imageDir+"/24-billing-usage.png",fullPage:true,animations:"disabled"});
@@ -329,7 +329,7 @@ test("billing dashboard shows honest unconfigured usage and saves budget prefere
 test("first-party application directory supports search, persistent pinning and real navigation",async ({page})=>{
   await waitForPreview(page);
   await go(page,"官方应用");
-  await expect(page.locator(".com-page-head").getByRole("heading",{name:"官方应用"})).toBeVisible();
+  await expect(page.locator(".wb-nav-item--active",{hasText:"官方应用"})).toBeVisible();
   await expect(page.locator(".com-app-card")).toHaveCount(8);
   await page.screenshot({path:imageDir+"/26-official-apps.png",fullPage:true,animations:"disabled"});
   await page.getByRole("button",{name:"收藏: Ciro GitHub"}).click();
@@ -347,7 +347,7 @@ test("first-party application directory supports search, persistent pinning and 
 test("skills catalog enables reviewed manifests without pretending a runner exists",async ({page})=>{
   await waitForPreview(page);
   await go(page,"技能中心");
-  await expect(page.locator(".com-page-head").getByRole("heading",{name:"技能中心"})).toBeVisible();
+  await expect(page.locator(".wb-nav-item--active",{hasText:"技能中心"})).toBeVisible();
   await expect(page.locator(".com-skill")).toHaveCount(7);
   await expect(page.getByText("技能尚不能执行").first()).toBeVisible();
   await page.screenshot({path:imageDir+"/27-skill-library.png",fullPage:true,animations:"disabled"});
@@ -373,7 +373,7 @@ test("billing, apps and skills also appear in settings and slash navigation",asy
   await page.locator('button[aria-label="关闭设置"]:visible').click();
   await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("/billing");
   await page.getByRole("button",{name:"发送消息"}).click();
-  await expect(page.locator(".com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
+  await expect(page.locator(".wb-nav-item--active",{hasText:"账单与用量"})).toBeVisible();
 });
 
 test("billing and app catalog translate into English without mobile viewport overflow",async ({page})=>{
@@ -382,7 +382,7 @@ test("billing and app catalog translate into English without mobile viewport ove
   await setLanguage(page,"en");
   await page.getByRole("button",{name:"Open sidebar"}).click();
   await go(page,"Billing & usage");
-  await expect(page.locator(".com-page-head").getByRole("heading",{name:"Billing & usage"})).toBeVisible();
+  await expect(page.locator(".wb-nav-item--active",{hasText:"Billing & usage"})).toBeVisible();
   await page.screenshot({path:imageDir+"/29-billing-mobile-en.png",fullPage:true,animations:"disabled"});
   const dimensions=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,win:window.innerWidth}));
   expect(dimensions.doc).toBeLessThanOrEqual(dimensions.win+1);

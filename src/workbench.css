@@ -1,10 +1,10 @@
 /* CIRO Workbench V0.4 — white/emerald command center.
    Follows the same global light/dark theme; scoped to wb-* classes. */
-.wb-root{--wb-ink:#1c3326;--wb-muted:#789183;--wb-line:#e1ede5;--wb-card:#fff;--wb-soft:#f4f9f5;
+.wb-root{--wb-ink:#1c3326;--wb-muted:#5d7767;--wb-line:#e1ede5;--wb-card:#fff;--wb-soft:#f4f9f5;
   --wb-accent:#1e8252;--wb-bg:#fff;
   display:flex;flex-direction:column;min-height:0;height:100%;width:100%;color:var(--wb-ink);background:var(--wb-bg);overflow:hidden}
 .wb-header{display:flex;justify-content:space-between;align-items:center;padding:27px 34px 18px;flex:0 0 auto}
-.wb-overline{font-size:10px;font-weight:700;letter-spacing:1.35px;color:#519b70;display:flex;align-items:center;gap:7px;margin-bottom:10px}
+.wb-overline{font-size:11.5px;font-weight:700;letter-spacing:1.35px;color:#519b70;display:flex;align-items:center;gap:7px;margin-bottom:10px}
 .wb-header h1{font-size:25px;letter-spacing:-.55px;margin:0 0 8px;font-weight:720;color:#1d3b2b}
 .wb-header p{font-size:12px;color:#6a8775;margin:0}
 .wb-refresh{display:flex;gap:7px;align-items:center;background:#edf6ef;color:#257849;font-size:11px;padding:9px 12px;border-radius:9px}
@@ -39,7 +39,7 @@
 .wb-editor textarea:focus{border-color:#8dcca4;box-shadow:0 0 0 3px rgba(56,148,82,.1)}
 .wb-goal-form .wb-label textarea{min-height:95px}
 .wb-form-bottom{display:flex;align-items:center;justify-content:space-between;gap:18px}
-.wb-form-bottom p{font-size:10px;color:#8aa091;line-height:1.5;margin:0}
+.wb-form-bottom p{font-size:11.5px;color:#8aa091;line-height:1.5;margin:0}
 .wb-primary,.wb-secondary{display:inline-flex;justify-content:center;align-items:center;gap:7px;border-radius:9px;
   padding:10px 13px;white-space:nowrap;font-size:11px;transition:background .16s}
 .wb-primary{background:#238657;color:#fff;border:1px solid #238657}
@@ -51,7 +51,7 @@
 .wb-phase{display:flex;flex-direction:column;align-items:center;gap:7px;padding:18px 8px 12px;border:1px solid #e5eee6;border-radius:12px;position:relative;background:#fff}
 .wb-phase-icon{display:flex;align-items:center;justify-content:center;height:35px;width:35px;border:1px solid #dcece2;background:#eef8f1;border-radius:11px;color:#328857}
 .wb-phase strong{font-size:11px;color:#345e42}
-.wb-phase small{font-size:10px;color:#8ba491}
+.wb-phase small{font-size:11.5px;color:#8ba491}
 .wb-phase-next{position:absolute;right:-13px;top:29px;color:#8bb89a;z-index:2}
 .wb-block-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:15px 0 16px}
 .wb-block-title h2{font-size:17px;color:#22412d;margin:0 0 6px}
@@ -65,11 +65,11 @@
 .wb-goal-info{min-width:0;flex:1}
 .wb-goal-info>strong{font-size:12px;color:#294832}
 .wb-goal-info p{font-size:11px;color:#78917c;line-height:1.55;margin:6px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.wb-goal-info small{font-size:10px;color:#9aab9d}
-.wb-badge{font-size:10px;color:#a1762a;background:#f9f1e3;border:1px solid #f0e2cb;border-radius:20px;padding:6px 9px;white-space:nowrap}
+.wb-goal-info small{font-size:11.5px;color:#9aab9d}
+.wb-badge{font-size:11.5px;color:#a1762a;background:#f9f1e3;border:1px solid #f0e2cb;border-radius:20px;padding:6px 9px;white-space:nowrap}
 .wb-badge--success{color:#258050;background:#e9f7ed;border-color:#d4eddc}
 .wb-goal-actions{margin-top:13px;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
-.wb-goal-actions .wb-secondary{padding:7px 10px;font-size:10px}
+.wb-goal-actions .wb-secondary{padding:7px 10px;font-size:11.5px}
 .wb-danger{color:#bb5752}
 .wb-goal-details{margin-top:16px;border-top:1px solid #e7eee8;padding-top:13px}
 .wb-detail-block{margin-top:15px}
@@ -79,11 +79,11 @@
   display:flex;align-items:center;justify-content:center;font-size:11px}
 .wb-task-line div{display:flex;flex-direction:column;gap:5px}
 .wb-task-line strong{font-size:11px;color:#285039}
-.wb-task-line small{font-size:10px;color:#8a9f8c}
-.wb-event{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;color:#74907b;font-size:10px;padding:7px 0;border-bottom:1px solid #f1f4f1;margin:0}
+.wb-task-line small{font-size:11.5px;color:#8a9f8c}
+.wb-event{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;color:#74907b;font-size:11.5px;padding:7px 0;border-bottom:1px solid #f1f4f1;margin:0}
 .wb-event time{font-variant-numeric:tabular-nums;color:#a0b3a5}
 .wb-event strong{color:#408260}
-.wb-evidence{display:flex;align-items:center;gap:9px;color:#3d895a;font-size:10px;margin:9px 0;flex-wrap:wrap}
+.wb-evidence{display:flex;align-items:center;gap:9px;color:#3d895a;font-size:11.5px;margin:9px 0;flex-wrap:wrap}
 .wb-evidence code{color:#68977b}
 .wb-evidence small{color:#99aa9b}
 .wb-approvals{margin-top:26px;border-top:1px solid #e7efe8;padding-top:15px}
@@ -92,8 +92,8 @@
 .wb-approval-icon{background:#fbf1df;color:#b08647;width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center}
 .wb-approval>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
 .wb-approval strong{font-size:11px;color:#46533f;overflow-wrap:anywhere}
-.wb-approval small{font-size:9px;color:#a79b83}
-.wb-approval .wb-secondary,.wb-approval .wb-primary{font-size:10px;padding:8px}
+.wb-approval small{font-size:11px;color:#a79b83}
+.wb-approval .wb-secondary,.wb-approval .wb-primary{font-size:11.5px;padding:8px}
 .wb-footnote{display:flex;align-items:center;gap:9px;color:#7e9584;background:#f5f9f5;
   padding:13px 15px;border:1px solid #e7efe6;border-radius:11px;font-size:11px;line-height:1.55;margin-top:20px}
 .wb-footnote svg{flex:none;color:#54916b}
@@ -129,10 +129,10 @@
 .wb-field-row>input{flex:1}
 .wb-muted{color:#8fa392;font-size:11px;line-height:1.6}
 .wb-tags{display:flex;gap:7px;flex-wrap:wrap}
-.wb-tags>button{background:#eff7f1;color:#2e8152;border:1px solid #d9e9dd;border-radius:9px;font-size:10px;padding:7px 9px}
+.wb-tags>button{background:#eff7f1;color:#2e8152;border:1px solid #d9e9dd;border-radius:9px;font-size:11.5px;padding:7px 9px}
 .wb-verified{display:flex;gap:8px;align-items:center;color:#268452;font-size:11px;margin:12px 0!important}
 .wb-inline-code{display:inline-block;background:#f2f6f3;border:1px solid #e0e9e2;color:#55785f;
-  padding:8px 10px;border-radius:7px;font-size:10px}
+  padding:8px 10px;border-radius:7px;font-size:11.5px}
 .wb-grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .wb-actions{display:flex;gap:8px;margin:13px 0}
 .wb-editor{border-top:1px solid #e7ede6;padding-top:17px;margin-top:14px}
@@ -145,7 +145,7 @@
 .wb-plugin>div:nth-child(2){flex:1;min-width:0}
 .wb-plugin h3{font-size:13px;color:#2e5941;margin:0 0 6px}
 .wb-plugin p{font-size:11px;color:#789080;margin:0 0 7px;line-height:1.5}
-.wb-plugin small{font-size:10px;color:#98a99c}
+.wb-plugin small{font-size:11.5px;color:#98a99c}
 .wb-plugin-side{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .wb-schedule-form{display:flex;flex-direction:column;gap:14px}
 .wb-schedule-list{display:flex;flex-direction:column;gap:9px}
@@ -153,8 +153,8 @@
 .wb-schedule>svg{color:#3d915a;flex:none}
 .wb-schedule>div{flex:1;min-width:0}
 .wb-schedule strong{font-size:12px;color:#36563e}
-.wb-schedule p{font-size:10px;color:#829886;line-height:1.45;margin:5px 0}
-.wb-schedule small{font-size:10px;color:#96a999}
+.wb-schedule p{font-size:11.5px;color:#829886;line-height:1.45;margin:5px 0}
+.wb-schedule small{font-size:11.5px;color:#96a999}
 .wb-icon-danger{background:#fff3f1;color:#b65e56;padding:9px;border-radius:9px}
 .wb-error-line{font-size:11px;color:#b35247;display:flex;gap:7px;align-items:center}
 .wb-root--embedded{height:auto;overflow:visible;background:transparent}
@@ -193,7 +193,7 @@
   .wb-nav{padding:0 12px 11px;gap:3px}.wb-nav-item{padding:9px 10px;font-size:11px}
   .wb-hero{padding:18px 15px}.wb-form-bottom{flex-direction:column;align-items:stretch}
   .wb-pipeline{grid-template-columns:repeat(5,minmax(0,1fr))}.wb-phase{gap:5px}
-  .wb-phase strong{font-size:9px}.wb-phase small{font-size:8px}.wb-phase-icon{width:29px;height:29px}
+  .wb-phase strong{font-size:11px}.wb-phase small{font-size:8px}.wb-phase-icon{width:29px;height:29px}
   .wb-phase-next{display:none}.wb-mode-grid{gap:8px}.wb-mode{padding:12px;min-height:130px}
   .wb-approval{flex-wrap:wrap}.wb-field-row{flex-wrap:wrap}.wb-field-row input{flex-basis:100%}
   .wb-schedule{flex-wrap:wrap}.wb-plugin{align-items:flex-start}.wb-plugin-side{align-items:stretch}

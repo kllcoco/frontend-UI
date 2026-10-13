@@ -54,6 +54,7 @@ import FindBar from "./components/FindBar";
 import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
+import ConnectCard from "./components/ConnectCard";
 import CanvasPanel from "./components/CanvasPanel";
 import VoiceMode from "./components/VoiceMode";
 import { addMemory, listMemories, localMemoriesForChat, removeMemory } from "./lib/memory";
@@ -167,6 +168,7 @@ export default function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [rowMenuUp, setRowMenuUp] = useState(false);
   const [topMore, setTopMore] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [canvasId, setCanvasId] = useState<string | null>(null);
@@ -438,8 +440,11 @@ export default function App() {
       if (plusOpen && !plusRef.current?.contains(target)) setPlusOpen(false);
       if (modelOpen && !modelRef.current?.contains(target)) setModelOpen(false);
     };
+    // Esc closes the open menu too (keyboard users had no way out of the model menu).
+    const esc = (event: KeyboardEvent) => { if (event.key === "Escape") { setPlusOpen(false); setModelOpen(false); } };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
   }, [plusOpen, modelOpen]);
   useEffect(() => {
     if (!rowMenuId) return;
@@ -1421,9 +1426,14 @@ export default function App() {
           <span>{chat.title}</span>
           {generatingId === chat.id && <span className="cx-row-spinner" aria-label={t("正在生成")}/>}
         </button>}
-      <button className="cx-row-more" onClick={() => { setMoveMenuId(null); setRowMenuId((id) => id === chat.id ? null : chat.id); }}
+      <button className="cx-row-more" onClick={(e) => {
+        // Open upward when the row is near the bottom so the menu is never cut off by the list.
+        const r = e.currentTarget.getBoundingClientRect();
+        const list = e.currentTarget.closest(".cx-history, .cx-sidebar")?.getBoundingClientRect();
+        setRowMenuUp(((list?.bottom ?? window.innerHeight) - r.bottom) < 330 && r.top > 330);
+        setMoveMenuId(null); setRowMenuId((id) => id === chat.id ? null : chat.id); }}
         aria-label={t("管理对话：") + chat.title} title={t("更多操作")}><MoreHorizontal size={16}/></button>
-      {rowMenuId === chat.id && <div className="cx-row-menu" role="menu">
+      {rowMenuId === chat.id && <div className={rowMenuUp ? "cx-row-menu cx-row-menu--up" : "cx-row-menu"} role="menu">
         <button role="menuitem" onClick={() => togglePin(chat)}>{chat.pinned ? <PinOff size={15}/> : <Pin size={15}/>} {t(chat.pinned ? "取消置顶" : "置顶")}</button>
         <button role="menuitem" onClick={() => startRename(chat)}><Pencil size={15}/> {t("重命名")}</button>
         <button role="menuitem" aria-expanded={moveMenuId === chat.id} onClick={() => setMoveMenuId((id) => id === chat.id ? null : chat.id)}>
@@ -1658,6 +1668,7 @@ export default function App() {
                 <h1>{t("临时对话")}</h1>
                 <p className="cx-temp-note">{t("此对话不会出现在历史记录中，也不会同步或用于记忆。离开后即删除。")}</p>
               </> : <h1>{t("让每一个想法，")}{language === "en" ? " " : ""}<em>{t("走得更远。")}</em></h1>}
+              {!status.configured && !statusLoading && !temporaryMode && <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>}
             </section>
           ) : (
             <div className="messages" aria-live="polite" aria-busy={busy && generatingId === current.id}>
@@ -1878,11 +1889,14 @@ export default function App() {
                     {composerMode === "goal" ? <Target size={14}/> : composerMode === "image" ? <ImagePlus size={14}/> : <ListChecks size={14}/>}
                     <span>{t(composerMode === "goal" ? "目标模式" : composerMode === "image" ? "生成图片" : "计划模式")}</span><X size={13}/>
                   </button>}
-                  {composerMode === "chat" && compareModels.length >= 2 && <button type="button" className="cx-mode-pill cx-mode-pill--compare" onClick={(e) => { e.stopPropagation(); setComparePicker(true); }}
-                    aria-label={t("对比模型") + "：" + compareModels.join(" / ")}>
-                    <Columns2 size={14}/><span>{compareModels.join(" · ")}</span><em>{compareModels.length}</em>
-                    <X size={13} role="button" aria-label={t("退出对比")} onClick={(e) => { e.stopPropagation(); setCompareModels([]); }}/>
-                  </button>}
+                  {composerMode === "chat" && compareModels.length >= 2 && <span className="cx-mode-pair">
+                    <button type="button" className="cx-mode-pill cx-mode-pill--compare" onClick={(e) => { e.stopPropagation(); setComparePicker(true); }}
+                      aria-label={t("对比模型") + "：" + compareModels.join(" / ")}>
+                      <Columns2 size={14}/><span>{compareModels.join(" · ")}</span><em>{compareModels.length}</em>
+                    </button>
+                    <button type="button" className="cx-mode-pill-x" aria-label={t("退出对比")} title={t("退出对比")}
+                      onClick={(e) => { e.stopPropagation(); setCompareModels([]); }}><X size={13}/></button>
+                  </span>}
                   {comparePicker && <div className="cx-compare-pick" role="dialog" aria-label={t("选择要对比的模型")} onClick={(e) => e.stopPropagation()}>
                     <strong>{t("选择 2–3 个模型")}</strong>
                     {status.models.map((m) => { const on = compareModels.includes(m);

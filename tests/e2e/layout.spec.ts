@@ -60,6 +60,49 @@ async function overflow(page: Page, where: string): Promise<string[]> {
   return found.map((x) => where + ": " + x);
 }
 
+/** Buttons, links and inputs that are on screen but can't be clicked because something covers them
+ *  (another element, or a clipping parent). Ones that the current top layer covers on purpose
+ *  (behind an open dialog, menu or drawer scrim) and ones scrolled out of their scroller are skipped. */
+async function covered(page: Page, where: string): Promise<string[]> {
+  const found = await page.evaluate(() => {
+    const W = window.innerWidth, H = window.innerHeight, out: string[] = [];
+    const layer = ".sc-backdrop,.sp-backdrop,[role=dialog],[role=menu],.um-menu,.td-pop,.cx-plus-menu,.cx-sheet-scrim,.td-scrim,.cx-scrim,.cx-topmore-scrim,.mobile-scrim,.cx-model-menu,.cx-sidebar--open,.cx-lightbox,.vm-root,.cv-root,.cx-compare-pick";
+    const describe = (el: Element) => {
+      const c = typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "";
+      const label = el.getAttribute("aria-label") || (el.textContent || "").trim().slice(0, 24);
+      return el.tagName.toLowerCase() + c + (label ? "[" + label + "]" : "");
+    };
+    for (const el of Array.from(document.querySelectorAll("button:not([disabled]),a[href],input:not([type=hidden]):not([type=file]),select,textarea,[role=switch]"))) {
+      const s = getComputedStyle(el);
+      if (s.display === "none" || s.visibility === "hidden" || s.pointerEvents === "none" || Number(s.opacity) === 0) continue;
+      if (el.closest("[aria-hidden='true'], .sr-only, .cx-skip, .cx-sidebar:not(.cx-sidebar--open)") && W <= 760) continue;
+      if (el.closest("[aria-hidden='true'], .sr-only, .cx-skip")) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      const x = r.left + r.width / 2, y = r.top + Math.min(r.height / 2, 12);
+      if (x < 0 || y < 0 || x > W || y > H) continue;
+      // Scrolled out of a scroll container: reachable by scrolling, not a defect.
+      let hidden = false;
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const ps = getComputedStyle(p);
+        if (!/(auto|scroll)/.test(ps.overflowX + ps.overflowY)) continue;
+        const c = p.getBoundingClientRect();
+        if (x < c.left || x > c.right || y < c.top || y > c.bottom) { hidden = true; break; }
+      }
+      if (hidden) continue;
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || hit === el || el.contains(hit) || hit.contains(el) && hit.tagName === "LABEL") continue;
+      if (el.closest("label") && el.closest("label")!.contains(hit)) continue;
+      // Covered by the current top layer on purpose (the element itself is not part of it).
+      const top = hit.closest(layer);
+      if (top && !top.contains(el)) continue;
+      out.push(describe(el) + " covered by " + describe(hit));
+    }
+    return out.slice(0, 8);
+  });
+  return found.map((x) => where + ": " + x);
+}
+
 async function openNav(page: Page, mobile: boolean) {
   if (mobile && !(await page.locator(".cx-sidebar--open").count())) { await page.locator(".cx-mobile-menu:visible, .wb-mobile-top button:visible").first().click(); await page.waitForTimeout(350); }
 }
@@ -77,7 +120,12 @@ for (const size of SIZES) {
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     const issues: string[] = [];
-    const check = async (where: string) => { await page.waitForTimeout(250); const found = await overflow(page, where); if (found.length) console.log("OVERFLOW", where, found.slice(0, 4).join(" ;; ")); issues.push(...found); };
+    const check = async (where: string) => {
+      await page.waitForTimeout(250);
+      const found = [...await overflow(page, where), ...await covered(page, where)];
+      if (found.length) console.log("LAYOUT", where, found.slice(0, 4).join(" ;; "));
+      issues.push(...found);
+    };
 
     await check("home");
     await page.locator(".td-chip").click(); await check("thinking slider"); await closeAll(page);

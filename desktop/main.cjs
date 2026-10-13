@@ -338,6 +338,9 @@ ipcMain.handle("ciro:export-pdf", async (_event, name) => {
   void shell.showItemInFolder(target.filePath);
   return true;
 });
+// First-run card: open the model connection settings (.env) from the welcome screen.
+ipcMain.on("ciro:open-config", () => { shell.openPath(path.join(dataDir(), ".env")); });
+
 ipcMain.handle("ciro:pick-folder", async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const result = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });

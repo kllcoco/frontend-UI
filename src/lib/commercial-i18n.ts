@@ -333,6 +333,10 @@ const english:ReadOnlyMap = new Map([
     "Reload"
   ],
   [
+    "正在加载…",
+    "Loading…"
+  ],
+  [
     "操作成功",
     "Saved"
   ],

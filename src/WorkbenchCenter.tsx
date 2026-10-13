@@ -10,7 +10,7 @@ import {
   Activity, ArrowRight, CalendarClock, Check, CheckCircle2, CircleAlert, Clock3,
   ClipboardCheck, Code2, FileCode2, GitBranch, GitCommitHorizontal, LockKeyhole,
   Pause, Play, PlugZap, Plus, RefreshCcw, Search, ShieldAlert, ShieldCheck,
-  Sparkles, Trash2, Users, WandSparkles, X, Zap, Wallet, Grid2X2, Blocks
+  Sparkles, Trash2, Users, X, Zap, Wallet, Grid2X2, Blocks
 } from "lucide-react";
 import type { Language } from "./lib/i18n";
 import { workbenchTranslate } from "./lib/workbench-i18n";
@@ -175,8 +175,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
   const runtime=state?.capabilities.runtime;
   return <section className={embedded?"wb-root wb-root--embedded":"wb-root"} aria-label={t("自主协作工作台")}>
     {!embedded&&<header className="wb-header">
-      <div><span className="wb-overline"><WandSparkles size={13}/> CIRO AGENT WORKBENCH</span>
-        <h1>{t("自主协作工作台")}</h1>
+      <div><h1>{t("自主协作工作台")}</h1>
         <p>{t("把想法交给 Ciro，把成果带回来。")}</p></div>
       <button type="button" className="wb-refresh" title={t("刷新")} onClick={()=>void w.refresh()}><RefreshCcw size={16}/>{t("刷新")}</button>
     </header>}

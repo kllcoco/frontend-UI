@@ -464,8 +464,10 @@ export default function SettingsCenter({
           {section === "security" && <>
             <SettingBlock title={t("隐私边界")}>
               <div className="sc-security-line"><ShieldCheck size={19}/><div><strong>{t("模型密钥保留在服务端")}</strong><p>{t("前端只向本项目的 API 代理发消息，不会把 CIRO_API_KEY 存到浏览器。")}</p></div></div>
-              <div className="sc-security-line"><Database size={19}/><div><strong>{t("对话本机保存")}</strong><p>{t("历史记录存储在此浏览器；连接后端后，发送的消息会传给你配置的推理服务。")}</p></div></div>
-              <div className="sc-security-line"><Code2 size={19}/><div><strong>{t("尚未提供公网账号安全体系")}</strong><p>{t("当前 MVP 没有登录、限流或计费安全网关，不应直接暴露到公网。")}</p></div></div>
+              <div className="sc-security-line"><Database size={19}/><div><strong>{t("对话保存在本设备")}</strong><p>{t("历史记录保存在此浏览器或应用里；开启跨设备同步后，会逐条加密保存在你的 Ciro 服务器上。发送的消息会交给服务器配置的推理服务处理。")}</p></div></div>
+              {accountsOn === true && <div className="sc-security-line"><UserRound size={19}/><div><strong>{t("已开启账户登录")}</strong><p>{t("这台服务器需要登录后才能使用；同步数据与记忆在服务器上加密保存，API 密钥只保存哈希。")}</p></div></div>}
+              {accountsOn === false && <div className="sc-security-line"><Code2 size={19}/><div><strong>{t("这台服务器没有开启账户")}</strong><p>{t("能打开这个网址的人都可以使用它和它的模型额度。只在自己电脑或内网使用没问题；放到公网请开启账户并使用 HTTPS（见部署教程）。")}</p></div></div>}
+              <div className="sc-security-line"><ShieldCheck size={19}/><div><strong>{t("工作模式只碰你允许的文件夹")}</strong><p>{t("远程控制电脑时，只能访问你在电脑上手动添加的文件夹；写入文件和运行命令默认需要你在手机上逐次批准。")}</p></div></div>
             </SettingBlock>
           </>}
 
@@ -474,7 +476,7 @@ export default function SettingsCenter({
               <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v{__APP_VERSION__}</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
-              <SettingRow title={t("推理能力")} description={t("实际能力以服务端正式验收为准")}><span className="sc-static-value">{t("待接入")}</span></SettingRow>
+              <SettingRow title={t("推理服务")} description={status.configured ? t("当前使用的模型：") + model : t("还没有连接推理服务，在“模型设置”里查看连接方法")}><span className="sc-static-value">{status.configured ? t("已连接") : t("未连接")}</span></SettingRow>
             </SettingBlock>
           </>}
         </ViewBoundary></div>

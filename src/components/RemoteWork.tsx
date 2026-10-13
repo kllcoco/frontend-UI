@@ -144,13 +144,15 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
       </div>}
       {devices?.length === 0 && !pairCode && <p className="rw-muted">{t("还没有电脑。在电脑上的 Ciro → 协作空间 → 工作模式 登录同一个账号，或点击“添加电脑”获取配对码。")}</p>}
       {!!devices?.length && <div className="rw-devices" role="radiogroup" aria-label={t("选择电脑")}>
-        {devices.map((d) => <button type="button" role="radio" aria-checked={d.id === deviceId} key={d.id}
-          className={d.id === deviceId ? "rw-device rw-device--on" : "rw-device"} onClick={() => setDeviceId(d.id)}>
-          <span className={d.online ? "rw-dot rw-dot--on" : "rw-dot"}/>
-          <span><strong>{d.name}</strong><small>{d.online ? t("在线") : t("离线")} · {d.connected ? t("已连接") : t("未连接")} · {d.folders.length} {t("个文件夹")}</small></span>
-          <span className="rw-device-del" role="button" aria-label={t("移除") + " " + d.name} onClick={(e) => { e.stopPropagation();
-            if (window.confirm(t("从账号中移除这台电脑？之后需要在电脑上重新登录或配对。"))) void act(async () => { await cloud("/devices/" + d.id, "DELETE"); await refreshDevices(); }); }}><Trash2 size={14}/></span>
-        </button>)}
+        {devices.map((d) => <div className="rw-device-row" key={d.id}>
+          <button type="button" role="radio" aria-checked={d.id === deviceId}
+            className={d.id === deviceId ? "rw-device rw-device--on" : "rw-device"} onClick={() => setDeviceId(d.id)}>
+            <span className={d.online ? "rw-dot rw-dot--on" : "rw-dot"}/>
+            <span><strong>{d.name}</strong><small>{d.online ? t("在线") : t("离线")} · {d.connected ? t("已连接") : t("未连接")} · {d.folders.length} {t("个文件夹")}</small></span>
+          </button>
+          <button type="button" className="rw-device-del" aria-label={t("移除") + " " + d.name} title={t("移除")} onClick={() => {
+            if (window.confirm(t("从账号中移除这台电脑？之后需要在电脑上重新登录或配对。"))) void act(async () => { await cloud("/devices/" + d.id, "DELETE"); await refreshDevices(); }); }}><Trash2 size={15}/></button>
+        </div>)}
       </div>}
       {device && !device.connected && <div className="rw-connect">
         <QrCode size={22}/>

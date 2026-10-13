@@ -223,10 +223,17 @@ export default function CommercialCenter({language,section,onNavigate}:Props){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const mounted=useRef(true);
+  const [loadingState,setLoadingState]=useState(true);
+  // Loads (or reloads after a failure); a failed retry shows the error and the retry button again.
+  async function load(){
+    setLoadingState(true);setError("");
+    try{const s=await commercialApi<CommerceState>("/state");if(mounted.current)setState(s);}
+    catch(e){if(mounted.current)setError(e instanceof Error?e.message:String(e));}
+    finally{if(mounted.current)setLoadingState(false);}
+  }
   useEffect(()=>{
     mounted.current=true;
-    commercialApi<CommerceState>("/state").then(s=>{if(mounted.current)setState(s);})
-      .catch(e=>{if(mounted.current)setError(e instanceof Error?e.message:String(e));});
+    void load();
     return ()=>{mounted.current=false;};
   },[]);
   async function refresh(){
@@ -241,9 +248,9 @@ export default function CommercialCenter({language,section,onNavigate}:Props){
   }
   return <section className="com-root" aria-label={t(section==="billing"?"账单与用量":section==="apps"?"官方应用":"技能中心")}>
     {error&&<div className="com-error" role="alert"><CircleAlert size={17}/>{error}
-      <button onClick={()=>{setError("");void refresh();}}><RefreshCcw size={15}/>{t("重新加载")}</button></div>}
+      <button disabled={loadingState} onClick={()=>void (state?refresh().catch(e=>setError(e instanceof Error?e.message:String(e))):load())}><RefreshCcw size={15}/>{t("重新加载")}</button></div>}
     {notice&&<p className="com-success" role="status"><CheckCircle2 size={15}/>{notice}</p>}
-    {!state&&!error&&<div className="com-empty"><Activity size={24}/>{t("本地管理")}</div>}
+    {!state&&!error&&<div className="com-empty"><Activity size={24}/>{t(loadingState?"正在加载…":"本地管理")}</div>}
     {state&&section==="billing"&&<BillingPage key={state.billing.period+"-"+state.billing.monthlyBudgetMicros}
       state={state} language={language} save={call} loading={busy}/>}
     {state&&section==="apps"&&<AppsPage state={state} language={language} call={call} onNavigate={onNavigate}/>}

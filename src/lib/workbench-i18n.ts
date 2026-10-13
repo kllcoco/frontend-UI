@@ -19,6 +19,7 @@ const english: Readonly<Record<string,string>> = {
   "独立验证器已配置": "Independent verifier configured",
   "目标与项目": "Goals & projects",
   "权限与沙盒": "Permissions & sandbox",
+  "工作模式": "Work mode",
   "GitHub 仓库": "GitHub repositories",
   "插件中心": "Plugins",
   "定时任务": "Scheduled tasks",
