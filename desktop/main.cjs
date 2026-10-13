@@ -271,6 +271,8 @@ function toPet(channel, payload) { if (petVisible()) petWindow.webContents.send(
 let petDrag = null, petDragTimer = null;
 function movePetUnderCursor() {
   if (!petDrag || !petWindow || petWindow.isDestroyed()) return;
+  // The page never said "end" (reloaded or crashed mid-drag): stop following the cursor after a while.
+  if (Date.now() - petDrag.at > 60_000) { petDrag = null; if (petDragTimer) { clearInterval(petDragTimer); petDragTimer = null; } return; }
   const cursor = screen.getCursorScreenPoint(), b = petWindow.getBounds();
   const x = Math.round(cursor.x - petDrag.dx), y = Math.round(cursor.y - petDrag.dy);
   if (b.x !== x || b.y !== y) petWindow.setPosition(x, y);
@@ -280,7 +282,7 @@ ipcMain.on("ciro:pet-drag", (_event, phase) => {
   if (!petWindow || petWindow.isDestroyed()) return;
   if (phase === "start") {
     const b = petWindow.getBounds(), cursor = screen.getCursorScreenPoint();
-    petDrag = { dx: cursor.x - b.x, dy: cursor.y - b.y };
+    petDrag = { dx: cursor.x - b.x, dy: cursor.y - b.y, at: Date.now() };
     // Native cursor polling stays smooth even when moving the transparent window pauses DOM pointermove events.
     if (petDragTimer) clearInterval(petDragTimer);
     petDragTimer = setInterval(movePetUnderCursor, 16);

@@ -105,6 +105,8 @@ export function createApiGateway({ accounts, dir, upstreamUrl, apiKey, models, c
     const log = (status, meter, error) => { if (meter?.cwu > 0) { try { accounts.cwu?.charge(p.id, meter.cwu, undefined, "api"); } catch (e) { console.error("[ciro] CWU charge failed:", e.message); } }
       return record(p.keyId, { model: payload.model, status, ms: Date.now() - started,
       cwu: meter?.cwu || 0, gwu: meter?.gwu || 0, stream: payload.stream, ...(error ? { error: String(error).slice(0, 160) } : {}) }); };
+    // Kept outside the try: a stream cut short (client gone, upstream error) is still charged for what was metered.
+    let meter = null;
     try {
       const upstream = await fetch(upstreamUrl, { method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: "Bearer " + apiKey } : {}) },
@@ -118,7 +120,7 @@ export function createApiGateway({ accounts, dir, upstreamUrl, apiKey, models, c
       if (payload.stream && type.includes("event-stream") && upstream.body) {
         res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });
         res.flushHeaders();
-        const meter = sseMeter();
+        meter = sseMeter();
         for await (const chunk of upstream.body) { meter.push(chunk); if (res.writableEnded) break; res.write(chunk); }
         res.end();
         return log(200, meter.result());
@@ -136,8 +138,8 @@ export function createApiGateway({ accounts, dir, upstreamUrl, apiKey, models, c
       }
       res.json(json);
     } catch (e) {
-      if (controller.signal.aborted) return log(499, null, "client closed the connection");
-      log(502, null, e.message);
+      if (controller.signal.aborted) return log(499, meter?.result() ?? null, "client closed the connection");
+      log(502, meter?.result() ?? null, e.message);
       if (!res.headersSent) fail(res, 502, "Could not reach the model service: " + e.message, "upstream_error");
       else res.end();
     }

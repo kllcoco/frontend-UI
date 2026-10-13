@@ -55,9 +55,10 @@ export function createMediaRouter({ apiBase, apiKey, env = process.env, fetchFn 
         body: JSON.stringify({ model: env.CIRO_TTS_MODEL || "tts-1", voice: env.CIRO_TTS_VOICE || "alloy", input: text, response_format: "mp3" })
       });
       if (!upstream.ok) return fail(res, 502, "语音合成失败 (HTTP " + upstream.status + ")");
+      const audio = Buffer.from(await upstream.arrayBuffer());
       bill(req, "speech", Math.ceil(text.length / 1000));
       res.set({ "Content-Type": upstream.headers.get("content-type") || "audio/mpeg", "Cache-Control": "no-store" });
-      res.send(Buffer.from(await upstream.arrayBuffer()));
+      res.send(audio);
     } catch (error) { fail(res, 502, "无法连接语音合成服务：" + error.message); }
   });
 
@@ -79,6 +80,7 @@ export function createMediaRouter({ apiBase, apiKey, env = process.env, fetchFn 
         else if (typeof item.url === "string" && /^https:\/\//.test(item.url)) {
           // Inline remote results so they survive URL expiry and never leak the upstream host to the browser.
           const img = await fetchFn(item.url);
+          if (!img.ok) continue;
           const buf = Buffer.from(await img.arrayBuffer());
           if (buf.length < 15_000_000) images.push("data:" + (img.headers.get("content-type") || "image/png") + ";base64," + buf.toString("base64"));
         }

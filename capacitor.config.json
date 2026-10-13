@@ -4,7 +4,7 @@
   "webDir": "dist",
   "android": {
     "allowMixedContent": true,
-    "appendUserAgent": "CiroMobile/0.10.3",
+    "appendUserAgent": "CiroMobile/0.10.4",
     "backgroundColor": "#f8f5ef"
   },
   "server": {

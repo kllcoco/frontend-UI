@@ -74,6 +74,8 @@ export function taskChanges(text: string, existing: CiroTask[], now = Date.now()
     const repeat = REPEATS.includes(v.repeat as TaskRepeat) ? v.repeat as TaskRepeat : "none";
     // A time already passed today for a repeating task starts at its next turn.
     if (at <= now - 60_000) { if (repeat === "none") continue; at = nextRun({ next: at, repeat }, now) ?? at; }
+    // A weekday task asked on a weekend starts on Monday.
+    if (repeat === "weekdays") { const d = new Date(at); while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1); at = d.getTime(); }
     out.push({ kind: "add", task: { id: Math.random().toString(36).slice(2, 10), title, prompt: String(v.prompt || "").trim().slice(0, 2000),
       next: at, repeat, createdAt: now } });
   }

@@ -275,7 +275,7 @@ export default function App() {
   // ?view=studio links: the tools close again for customers once we know who is here.
   useEffect(() => {
     if (member && studioOpen && !["remote", ...ACCOUNT_TABS].includes(studioTab)) setStudioOpen(false);
-  }, [operator, statusLoading, studioOpen, studioTab]);
+  }, [member, studioOpen, studioTab]);
   const [unread, setUnread] = useState(0);
   const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
   const customUrlRef = useRef<string | null>(null);
@@ -815,7 +815,7 @@ export default function App() {
     const useWeb = webSearchOn && Boolean(status.webSearch);
     if (useWeb) patchMessage(conversationId, assistantId, { webSearch: true });
     const started = Date.now();
-    let thoughtDone = false;
+    let thoughtDone = false, failed = false;
     // While Ciro is in the background the pet tells you how the reply is going (steps, length, done).
     let lastStep = "", lastStepAt = 0;
     // The reply itself also streams into her bubble (Settings → 桌宠 → 同步显示回答).
@@ -910,6 +910,7 @@ export default function App() {
         showNotify(t("Ciro 已回答") + " · " + title, answer.replace(/[#*`>|_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 140), conversationId, () => setActiveId(conversationId));
       }
     } catch (error) {
+      failed = true;
       if (controller.signal.aborted) {
         if (!answer) patchMessage(conversationId, assistantId, { content: t("生成已停止。") });
         if (mirror) petStream({ id: assistantId, text: clean(answer) || t("生成已停止。"), done: true });
@@ -931,7 +932,8 @@ export default function App() {
       setBusy(false);
       syncVersion(conversationId, assistantId);
     }
-    return answer;
+    // A timed task that broke off is not "done" (runTask reports it as not finished).
+    return failed && opts?.task ? "" : answer;
   }
 
   /** Small side request to the configured model (titles, follow-up suggestions). */

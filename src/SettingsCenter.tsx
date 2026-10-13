@@ -167,7 +167,7 @@ export default function SettingsCenter({
     let alive = true;
     getAccountSession().then((s) => { if (alive) { setAccountsOn(Boolean(s.enabled)); setMember(roleOf(s) === "user");
       setOwnerSignedIn(Boolean(s.enabled && s.authenticated && s.user?.role === "owner"));
-      setMemberSignedIn(Boolean(s.enabled && s.authenticated && s.user?.role !== "owner")); } }, () => { if (alive) setAccountsOn(false); });
+      setMemberSignedIn(roleOf(s) === "user"); } }, () => { if (alive) setAccountsOn(false); });
     return () => { alive = false; };
   }, []);
   const touchOnly = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
