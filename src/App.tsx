@@ -2081,7 +2081,7 @@ export default function App() {
       {lightbox && <div className="cx-lightbox" role="dialog" aria-modal="true" aria-label={t("查看图片")} onClick={() => setLightbox(null)}>
         <img src={lightbox} alt=""/><button type="button" className="cx-icon" aria-label={t("关闭")}><X size={20}/></button></div>}
       {toast && <div className="toast" role="status" key={toast}><Check size={16}/> {toast}</div>}
-      {newVersion && <div className="cx-update" role="status">
+      {newVersion && <div className="cx-update cx-update--web" role="status">
         <Sparkles size={16}/><span>{t("Ciro 已更新到")} v{newVersion}</span>
         <button type="button" className="cx-btn cx-btn--primary" onClick={() => window.location.reload()}>{t("刷新")}</button>
         <button type="button" className="cx-icon" aria-label={t("稍后")} onClick={() => setUpdateDismissed(newVersion)}><X size={15}/></button>

@@ -923,10 +923,9 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 .cx-mode-pill--compare em{display:none;font-style:normal;font-weight:700}
 @media (max-width:760px){.cx-mode-pill--compare span{display:none}.cx-mode-pill--compare em{display:inline}}
 /* New version notice */
-.cx-update{position:fixed;right:20px;bottom:20px;z-index:110;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;border:1px solid var(--cx-line);border-radius:14px;background:var(--cx-raised);box-shadow:var(--cx-shadow);font-size:13.5px;animation:cx-pop .2s var(--cx-ease)}
-.cx-update>svg{color:var(--cx-accent)}
-.cx-update .cx-btn{height:32px}
-@media (max-width:760px){.cx-update{left:12px;right:12px;bottom:calc(96px + var(--sa-bottom))}}
+.cx-update--web{position:fixed;right:20px;bottom:20px;z-index:110;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px;border:1px solid var(--cx-line);border-radius:14px;background:var(--cx-raised);box-shadow:var(--cx-shadow);font-size:13.5px;animation:cx-pop .2s var(--cx-ease)}
+.cx-update--web>svg{color:var(--cx-accent)}
+.cx-update--web .cx-btn{height:32px}
 /* ── Mobile composer: ChatGPT/Claude-style ───────────── */
 .cx-sheet-scrim{display:none}
 @media (max-width:760px){
@@ -967,7 +966,6 @@ html[data-desktop] .cx-topbar button,html[data-desktop] .cx-brand button,html[da
 :root[data-theme] .shv-head{padding-top:calc(10px + var(--sa-top))}
 @media (max-width:760px){
   .sp-backdrop{padding-top:calc(10vh + var(--sa-top))}
-  .cx-update{bottom:calc(96px + var(--sa-bottom))}
   .toast{bottom:calc(110px + var(--sa-bottom))}
 }
 /* Thinking depth: bottom sheet on phones (the anchored popover ran off-screen) */
@@ -1476,3 +1474,6 @@ html.ciro-quick,html.ciro-quick body{background:var(--cx-bg)}
 .ann-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 0;color:var(--cx-muted)}
 .ann-empty p{margin:0;font-size:13.5px}
 .ann-when{display:block;margin-top:4px;font-size:12px;color:var(--cx-muted)}
+/* "Ciro was updated" notice: a slim bar at the top, never over the composer. */
+.cx-update.cx-update--web{position:fixed;top:calc(var(--sa-top) + 62px);left:50%;transform:translateX(-50%);bottom:auto;right:auto;z-index:56;
+  width:min(460px,calc(100% - 24px));margin:0;box-sizing:border-box;box-shadow:var(--cx-shadow);padding:8px 8px 8px 12px}
