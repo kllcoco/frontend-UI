@@ -47,7 +47,9 @@ test("owner invites, member registers in the app, sees only their own space; own
   await member.reload();
   await member.keyboard.press("Control+,");
   const nav = member.locator(".sc-nav");
-  await expect(nav.getByRole("button", { name: "API 控制台" })).toBeVisible();
+  // Members are customers: their CWU balance is there, the developer API console is not.
+  await expect(nav.getByRole("button", { name: "CWU 额度" })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "API 控制台" })).toHaveCount(0);
   await expect(nav.getByRole("button", { name: "插件管理" })).toHaveCount(0);
   await expect(nav.getByRole("button", { name: "用户管理" })).toHaveCount(0);
   await expect(nav.getByRole("button", { name: "账单与用量" })).toHaveCount(0);

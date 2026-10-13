@@ -83,6 +83,10 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState("");
 
+  // `t` may be a new function each render: read it through a ref so the callbacks (and the effect that connects a
+  // pending QR link once) stay stable.
+  const tRef = useRef(t);
+  tRef.current = t;
   const refreshLocal = useCallback(async () => { try { setLocalState(await local("/status")); } catch { setLocalState(null); } }, []);
   const refreshDevices = useCallback(async () => {
     try {
@@ -90,13 +94,13 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
       setDevices(list); setCloudError("");
       setDeviceId((id) => id && list.some((d) => d.id === id) ? id : list.find((d) => d.connected && d.online)?.id || list.find((d) => d.online)?.id || list[0]?.id || "");
       return list;
-    } catch (e) { setDevices(null); setCloudError(friendly(t, e)); return null; }
-  }, [t]);
+    } catch (e) { setDevices(null); setCloudError(friendly(tRef.current, e)); return null; }
+  }, []);
   const connected = useCallback(async (d: Device) => {
-    setDeviceId(d.id); setNotice(t("已连接到") + " " + d.name); setScanning(false); setTyping(false); setTyped("");
+    setDeviceId(d.id); setNotice(tRef.current("已连接到") + " " + d.name); setScanning(false); setTyping(false); setTyped("");
     sessionStorage.removeItem(PENDING);
     await refreshDevices();
-  }, [refreshDevices, t]);
+  }, [refreshDevices]);
   const connectWith = useCallback(async (payload: { device?: string; nonce?: string; code?: string }) => {
     setError("");
     try {
@@ -104,8 +108,8 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
         ? await cloud<{ device: Device }>("/connect", "POST", { code: payload.code })
         : await cloud<{ device: Device }>("/devices/" + encodeURIComponent(payload.device!) + "/connect", "POST", { nonce: payload.nonce });
       await connected(device);
-    } catch (e) { setError(friendly(t, e)); }
-  }, [connected, t]);
+    } catch (e) { setError(friendly(tRef.current, e)); }
+  }, [connected]);
   const onScan = useCallback((text: string) => {
     setScanning(false);
     const target = parseConnect(text);
