@@ -1336,8 +1336,28 @@ export default function App() {
   // The task timer: one due task at a time, never while a reply is being written; repeating ones move to their next turn,
   // one-offs are removed. Missed while the app was closed: still run if less than 12 hours late.
   useEffect(() => {
+    // Several windows / tabs of Ciro share the task list: one of them (the leader) runs the timer, the rest stand by
+    // and take over within ~40 s if it closes. Picking and moving a due task also happens under a Web Lock where
+    // available, so no task runs twice.
+    const me = Math.random().toString(36).slice(2);
+    const LEAD = "ciro.tasks-leader.v1";
+    const leading = () => {
+      try {
+        const now = Date.now(), cur = JSON.parse(localStorage.getItem(LEAD) || "null") as { id: string; at: number } | null;
+        if (cur && cur.id !== me && now - cur.at < 40_000) return false;
+        localStorage.setItem(LEAD, JSON.stringify({ id: me, at: now }));
+        return (JSON.parse(localStorage.getItem(LEAD) || "null") as { id: string } | null)?.id === me;
+      } catch { return true; }
+    };
+    const resign = () => { try { if ((JSON.parse(localStorage.getItem(LEAD) || "null") as { id: string } | null)?.id === me) localStorage.removeItem(LEAD); } catch { /* storage off */ } };
+    window.addEventListener("pagehide", resign);
+    const locks = (navigator as Navigator & { locks?: { request: (name: string, opts: { ifAvailable: boolean }, cb: (lock: unknown) => void) => Promise<unknown> } }).locks;
     const tick = () => {
-      if (busyRef.current) return;
+      if (busyRef.current || !leading()) return;
+      if (locks) void locks.request("ciro-task-timer", { ifAvailable: true }, (lock) => { if (lock) pickDue(); }).catch(() => undefined);
+      else pickDue();
+    };
+    const pickDue = () => {
       const now = Date.now();
       const list = loadTasks();
       const due = list.filter((x) => x.next <= now).sort((a, b) => a.next - b.next)[0];
@@ -1348,7 +1368,7 @@ export default function App() {
     };
     const first = window.setTimeout(tick, 4000);
     const timer = window.setInterval(tick, 15_000);
-    return () => { window.clearTimeout(first); window.clearInterval(timer); };
+    return () => { window.clearTimeout(first); window.clearInterval(timer); window.removeEventListener("pagehide", resign); resign(); };
   }, []);
 
   const voiceRef = useRef(voiceCommand);

@@ -16,6 +16,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -48,6 +49,9 @@ final class PetOverlay {
     // Fixed window origin for one drag gesture; pointer deltas are totals, not per-frame ticks.
     private boolean dragging = false;
     private int dragStartX, dragStartY;
+    // Where the finger is on the physical screen (MotionEvent raw coordinates), read natively: the page's own
+    // coordinates move with the window while it is dragged, so they cannot be trusted for the window position.
+    private float downRawX = Float.NaN, downRawY = Float.NaN, lastRawX, lastRawY;
     volatile boolean enabled;
 
     PetOverlay(Activity activity) {
@@ -112,7 +116,7 @@ final class PetOverlay {
         return new Rect(0, 0, m.widthPixels, m.heightPixels);
     }
 
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface", "ClickableViewAccessibility"})
     void show() {
         if (view != null || !enabled || !allowed()) return;
         wm = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
@@ -127,6 +131,15 @@ final class PetOverlay {
         ws.setAllowFileAccess(false);
         ws.setAllowContentAccess(false);
         view.addJavascriptInterface(new Host(), "CiroPetHost");
+        view.setOnTouchListener((v, e) -> {
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_DOWN) { downRawX = lastRawX = e.getRawX(); downRawY = lastRawY = e.getRawY(); }
+            else if (a == MotionEvent.ACTION_MOVE) {
+                lastRawX = e.getRawX(); lastRawY = e.getRawY();
+                if (dragging) followFinger();
+            }
+            return false; // the page still gets every touch (taps, pats, pinch)
+        });
         view.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) { return asset(request.getUrl()); }
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) { return true; }
@@ -236,6 +249,14 @@ final class PetOverlay {
         activity.startActivity(intent);
     }
 
+    /** During a drag the window follows the finger: start position plus how far the finger moved since it went down. */
+    private void followFinger() {
+        if (view == null || Float.isNaN(downRawX)) return;
+        params.x = dragStartX + Math.round(lastRawX - downRawX);
+        params.y = dragStartY + Math.round(lastRawY - downRawY);
+        apply();
+    }
+
     /** window.CiroPetHost: what the pet page asks the app to do. */
     private final class Host {
         /** Walking sends per-frame increments. Dragging sends total displacement from the gesture origin. */
@@ -254,12 +275,14 @@ final class PetOverlay {
                 dragStartX = params.x;
                 dragStartY = params.y;
                 dragging = true;
+                followFinger(); // catch up with the distance moved before the page called it a drag
             });
         }
         @JavascriptInterface public void dragTo(double dx, double dy) {
             if (!Double.isFinite(dx) || !Double.isFinite(dy)) return;
             main.post(() -> {
                 if (view == null || !dragging) return;
+                if (!Float.isNaN(downRawX)) { followFinger(); return; } // native finger position wins
                 params.x = dragStartX + Math.round(dx * density());
                 params.y = dragStartY + Math.round(dy * density());
                 apply();
