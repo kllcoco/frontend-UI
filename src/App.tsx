@@ -247,7 +247,9 @@ export default function App() {
     window.addEventListener("ciro-dev-mode", on);
     return () => window.removeEventListener("ciro-dev-mode", on);
   }, []);
-  const operator = dev || Boolean(status.setupHints) || Boolean(session?.enabled && session.authenticated && session.user?.role === "owner");
+  // A signed-in member is a customer even on a server with setup hints on.
+  const operator = dev || (Boolean(status.setupHints) && !(session?.enabled && session.authenticated && session.user?.role !== "owner"))
+    || Boolean(session?.enabled && session.authenticated && session.user?.role === "owner");
   // Everyone else is a customer: chat, account, memory, sync, work mode — nothing of the server's plumbing.
   const member = !operator;
   const operatorRef = useRef(operator);

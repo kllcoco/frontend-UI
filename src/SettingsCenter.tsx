@@ -162,17 +162,20 @@ export default function SettingsCenter({
   // Registered members don't see the server-wide tools (workbench, plugins, billing) — those are the owner's.
   const [member, setMember] = useState(false);
   const [ownerSignedIn, setOwnerSignedIn] = useState(false);
+  const [memberSignedIn, setMemberSignedIn] = useState(false);
   useEffect(() => {
     let alive = true;
     getAccountSession().then((s) => { if (alive) { setAccountsOn(Boolean(s.enabled)); setMember(roleOf(s) === "user");
-      setOwnerSignedIn(Boolean(s.enabled && s.authenticated && s.user?.role === "owner")); } }, () => { if (alive) setAccountsOn(false); });
+      setOwnerSignedIn(Boolean(s.enabled && s.authenticated && s.user?.role === "owner"));
+      setMemberSignedIn(Boolean(s.enabled && s.authenticated && s.user?.role !== "owner")); } }, () => { if (alive) setAccountsOn(false); });
     return () => { alive = false; };
   }, []);
   const touchOnly = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
   // Without accounts every account page shows the same notice, so only the first one is listed.
   const [canAnnounce, setCanAnnounce] = useState(false);
   useEffect(() => { loadAnnouncements().then((r) => setCanAnnounce(r.editable), () => setCanAnnounce(false)); }, []);
-  const operator = ownerSignedIn || dev || Boolean(status.setupHints);
+  // A signed-in member is a customer even on a server with setup hints on.
+  const operator = ownerSignedIn || dev || (Boolean(status.setupHints) && !memberSignedIn);
   const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && !operator)
     && !(item.operator && !operator));
   const q = query.trim().toLowerCase();
