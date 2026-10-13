@@ -85,8 +85,8 @@ final class PhoneActions {
 
     private static String start(Context ctx, Intent intent, String missing) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        if (intent.resolveActivity(ctx.getPackageManager()) == null) return missing == null ? "missing" : missing;
-        ctx.startActivity(intent);
+        // Started directly: on Android 11+ resolveActivity() hides apps not listed in <queries> (settings pages…).
+        try { ctx.startActivity(intent); } catch (android.content.ActivityNotFoundException e) { return missing == null ? "missing" : missing; }
         return "ok";
     }
 

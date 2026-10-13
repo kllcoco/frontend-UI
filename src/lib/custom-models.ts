@@ -52,8 +52,9 @@ export function normalizeBaseUrl(raw: string): string {
 }
 
 type Msg = ChatMessage & { imageUrls?: string[] };
-function toOpenAI(messages: Msg[], instructions?: CustomInstructions) {
+function toOpenAI(messages: Msg[], instructions?: CustomInstructions, system?: string) {
   const out: { role: string; content: unknown }[] = [];
+  if (system) out.push({ role: "system", content: system });
   if (instructions?.enabled && (instructions.about.trim() || instructions.style.trim()))
     out.push({ role: "system", content: [instructions.about.trim() && "About the user: " + instructions.about.trim(), instructions.style.trim() && "How to answer: " + instructions.style.trim()].filter(Boolean).join("\n") });
   for (const m of messages) {
@@ -64,15 +65,14 @@ function toOpenAI(messages: Msg[], instructions?: CustomInstructions) {
   return out;
 }
 
-type StreamOpts = { messages: Msg[]; signal: AbortSignal; instructions?: CustomInstructions; onDelta: (text: string) => void; onReasoning?: (text: string) => void };
+type StreamOpts = { messages: Msg[]; signal: AbortSignal; instructions?: CustomInstructions; system?: string; onDelta: (text: string) => void; onReasoning?: (text: string) => void };
 
 /** Claude through the official SDK (direct browser access, the user's own key). */
 async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void> {
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey: model.apiKey, baseURL: model.baseUrl.replace(/\/v1$/, ""), dangerouslyAllowBrowser: true });
-  const system = opts.instructions?.enabled && (opts.instructions.about.trim() || opts.instructions.style.trim())
-    ? [opts.instructions.about.trim() && "About the user: " + opts.instructions.about.trim(), opts.instructions.style.trim() && "How to answer: " + opts.instructions.style.trim()].filter(Boolean).join("\n")
-    : undefined;
+  const system = [opts.system, opts.instructions?.enabled && opts.instructions.about.trim() && "About the user: " + opts.instructions.about.trim(),
+    opts.instructions?.enabled && opts.instructions.style.trim() && "How to answer: " + opts.instructions.style.trim()].filter(Boolean).join("\n") || undefined;
   const messages = opts.messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => {
     const images = (m.imageUrls || []).map((url) => /^data:(image\/[a-z+.-]+);base64,(.+)$/i.exec(url)).filter(Boolean)
       .map((x) => ({ type: "image" as const, source: { type: "base64" as const, media_type: x![1] as "image/png", data: x![2] } }));
@@ -81,7 +81,9 @@ async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void>
   // Adaptive thinking on the models that take it (Claude 4.6 and later); older ones run without.
   const adaptive = /claude-(opus|sonnet|fable|mythos)-(4-[6-9]|[5-9])|claude-haiku-[5-9]/.test(model.model);
   try {
-    const stream = client.messages.stream({ model: model.model, max_tokens: 64000, messages, ...(system ? { system } : {}),
+    // Output caps differ by model: 64K on current ones; older models reject a max_tokens above their own limit.
+    const maxTokens = adaptive ? 64000 : /claude-3-(opus|sonnet|haiku)/.test(model.model) ? 4096 : 8192;
+    const stream = client.messages.stream({ model: model.model, max_tokens: maxTokens, messages, ...(system ? { system } : {}),
       ...(adaptive ? { thinking: { type: "adaptive", display: "summarized" } as never } : {}) }, { signal: opts.signal });
     for await (const event of stream) {
       if (event.type !== "content_block_delta") continue;
@@ -106,7 +108,7 @@ export async function streamCustom(model: CustomModel, opts: StreamOpts): Promis
   try {
     res = await fetch(model.baseUrl + "/chat/completions", { method: "POST", signal: opts.signal,
       headers: { "Content-Type": "application/json", ...(model.apiKey ? { Authorization: "Bearer " + model.apiKey } : {}) },
-      body: JSON.stringify({ model: model.model, messages: toOpenAI(opts.messages, opts.instructions), stream: true }) });
+      body: JSON.stringify({ model: model.model, messages: toOpenAI(opts.messages, opts.instructions, opts.system), stream: true }) });
   } catch (e) {
     if (opts.signal.aborted) throw e;
     throw new Error("连不上「" + model.name + "」：请检查接口地址和网络（有些服务不允许从应用直接访问）。");

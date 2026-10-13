@@ -27,6 +27,12 @@ export const PET_PROMPT = "The user has your chibi avatar (Ciro) on their screen
   "optionally add ONE tag <pet mood=\"MOOD\" action=\"ACTION\">SHORT LINE</pet>; ACTION (optional) is one of wave, nod, shake, bow, jump, stretch, magic, spin, lookaround, yawn, hum, doze, tidy, giggle, sparkle, peek; MOOD is one of idle, happy, love, shy, angry, sad, think, work, sleep, wave, eat " +
   "and SHORT LINE is at most 20 characters she says in a speech bubble, in the user's language. Use it naturally to react to the conversation " +
   "(cheer after good news, wave when greeting, sleep when the user says good night); skip it when nothing fits. Never mention the tag.";
+export const TASK_PROMPT = (now, list) => "You can set timed tasks for the user inside the Ciro app (it runs them on time and the desktop pet reports back). Local time now: " + now + ". " +
+  "When the user asks for a reminder or something to be done at a time or on a schedule, confirm briefly in your reply and put at the very end " +
+  "<task>{\"title\":\"short name\",\"at\":\"YYYY-MM-DD HH:mm\",\"repeat\":\"none|hourly|daily|weekdays|weekly\",\"prompt\":\"...\"}</task>. " +
+  "\"prompt\" is what you will be asked to do when it is due (e.g. \"总结今天的科技新闻\"); leave it empty for a plain reminder. " +
+  "For \"in N minutes\" you may use \"inMinutes\":N instead of \"at\". To cancel: <task>{\"cancel\":\"title or id or all\"}</task>. " +
+  "Never mention the tag. Current tasks: " + (list.length ? list.map((x) => x.id + " 「" + x.title + "」 " + x.when + " " + x.repeat).join("; ") : "none") + ".";
 // Voice from the Android app: the model may operate the phone with fixed, whitelisted actions (the app executes them;
 // calls and messages only open a prepared screen the user confirms).
 export const PHONE_PROMPT = (now) => "The user is talking to you by voice through the Ciro Android app (wake word \"Ciro\") and you can operate their phone. " +
@@ -164,6 +170,15 @@ export function validateChat(input, availableModels, supportedModes=["fast"], fo
   if (input.phone) {
     const now = typeof input.phone.now === "string" ? input.phone.now.replace(/[^\p{L}\p{N} :\-+./]/gu, "").slice(0, 48) : "";
     sanitized.unshift({ role: "system", content: PHONE_PROMPT(now || "unknown") });
+  }
+  // Timed tasks (lib/tasks.ts): the model may set or cancel them with <task> tags; the app runs them on time.
+  if (input.tasks !== undefined) {
+    const t = input.tasks;
+    if (typeof t !== "object" || t === null || Array.isArray(t) || (t.list !== undefined && !Array.isArray(t.list))) throw new ValidationError("Invalid tasks flag");
+    const clean = (v, n) => String(v ?? "").replace(/[\u0000-\u001f<>]/g, " ").slice(0, n);
+    const now = clean(t.now, 48).replace(/[^\p{L}\p{N} :\-+./]/gu, "");
+    const list = (t.list || []).slice(0, 50).map((x) => ({ id: clean(x?.id, 12), title: clean(x?.title, 60), when: clean(x?.when, 24), repeat: clean(x?.repeat, 10) }));
+    sanitized.unshift({ role: "system", content: TASK_PROMPT(now || "unknown", list) });
   }
   if (input.webSearch === true && !webSearch) throw new ValidationError("Web search is not enabled on this server");
   return { model, messages: sanitized, stream: true,

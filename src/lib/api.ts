@@ -1,4 +1,5 @@
 import { customById, isCustomModel, streamCustom } from "./custom-models";
+import { taskPrompt } from "./tasks";
 import {accountFetch} from "./account-api";
 import type { ApiStatus, ChatMessage } from "../types";
 import type { CustomInstructions } from "./instructions";
@@ -39,6 +40,8 @@ type StreamOptions = {
   pet?: boolean;
   /** Spoken from the Android app: the model may operate the phone (<phone> tags); now = local time for "tomorrow 7:30". */
   phone?: { now: string };
+  /** Timed tasks: the model may set / cancel them with <task> tags (lib/tasks.ts). */
+  tasks?: { now: string; list: { id: string; title: string; when: string; repeat: string }[] };
   reasoning?:ReasoningRequest;
   project?:{name:string;instructions:string;files:{name:string;content:string}[]};
   signal: AbortSignal;
@@ -125,6 +128,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
     const custom = customById(options.model);
     if (!custom) throw new Error("这个自定义模型已被删除，请在模型菜单里重新选择。");
     return streamCustom(custom, { messages: options.messages, signal: options.signal, instructions: options.instructions,
+      system: options.tasks ? taskPrompt(options.tasks.now, options.tasks.list) : undefined,
       onDelta: options.onDelta, onReasoning: options.onReasoning });
   }
   // Usage arrives cumulatively (usually in the last chunk): keep the latest report and record it once.
@@ -140,7 +144,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
   }
 }
 
-async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet, phone }: StreamOptions): Promise<void> {
+async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet, phone, tasks }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -154,7 +158,8 @@ async function streamChatInner({ messages, model, instructions, reasoning, proje
       ...(webSearch?{webSearch:true}:{}),
       ...(memories?.length?{memories}:{}),
       ...(pet?{pet:true}:{}),
-      ...(phone?{phone}:{})
+      ...(phone?{phone}:{}),
+      ...(tasks?{tasks}:{})
     })
   });
 

@@ -234,9 +234,7 @@ app.post("/api/chat", async (req, res) => {
       res.write("data: [DONE]\n\n");
     }
     if (!res.writableEnded) res.end();
-    accounts.cwu?.charge(payer, usedCwu(meteredTail));
   } catch (error) {
-    accounts.cwu?.charge(payer, usedCwu(meteredTail)); // what was generated before an interruption still counts
     if (controller.signal.aborted) return;
     if (!res.headersSent) {
       res.status(502).json({ error: "无法连接 CIRO 后端：" + error.message });
@@ -244,6 +242,9 @@ app.post("/api/chat", async (req, res) => {
       res.write("data: " + JSON.stringify({ error: { message: "CIRO 连接中断：" + error.message } }) + "\n\n");
       res.end();
     }
+  } finally {
+    // Charged once, also for what was generated before an interruption.
+    try { accounts.cwu?.charge(payer, usedCwu(meteredTail)); } catch (e) { console.error("[ciro] CWU charge failed:", e.message); }
   }
 });
 

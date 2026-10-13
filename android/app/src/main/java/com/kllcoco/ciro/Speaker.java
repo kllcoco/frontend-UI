@@ -38,7 +38,8 @@ final class Speaker {
         String t = text.length() > 600 ? text.substring(0, 600) : text;
         if (tts == null || !ready) { pending = t; return; }
         speaking = true;
-        tts.speak(t, TextToSpeech.QUEUE_FLUSH, new Bundle(), "ciro-" + System.nanoTime());
+        // Refused (no engine / bad state): no progress callbacks will come, so never leave the wake listener waiting.
+        if (tts.speak(t, TextToSpeech.QUEUE_FLUSH, new Bundle(), "ciro-" + System.nanoTime()) != TextToSpeech.SUCCESS) speaking = false;
     }
 
     static synchronized void stop() { if (tts != null) tts.stop(); speaking = false; }

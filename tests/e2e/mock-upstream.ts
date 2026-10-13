@@ -37,7 +37,11 @@ export function startMockModel(port: number): Promise<Server> {
       const plain = petOn && !memory && !/JSON|标题|title/i.test(last) ? base + ' <pet mood="love">我一直在这里</pet>' : base;
       // Voice from the Android app: the phone protocol is on; answer like the model would, with an action tag.
       const phoneOn = all.some((m) => m.role === "system" && m.content.includes("<phone>{JSON}</phone>"));
-      const text = phoneOn && /闹钟/.test(last) ? '好的，明早七点半叫你起床。<phone>{"action":"alarm","hour":7,"minute":30,"label":"起床"}</phone><phone>{"action":"format_disk"}</phone>' : plain;
+      // Timed tasks (lib/tasks.ts): asked for a reminder with the task protocol on, answer with a <task> tag.
+      const tasksOn = all.some((m) => m.role === "system" && m.content.includes("<task>{"));
+      const text = tasksOn && /提醒我喝水/.test(last) ? '好的，一分钟后提醒你。<task>{"title":"喝水","inMinutes":1,"prompt":"提醒我喝水，再说一句鼓励的话"}</task>'
+        : tasksOn && /取消/.test(last) ? '已经取消了。<task>{"cancel":"all"}</task>'
+        : phoneOn && /闹钟/.test(last) ? '好的，明早七点半叫你起床。<phone>{"action":"alarm","hour":7,"minute":30,"label":"起床"}</phone><phone>{"action":"format_disk"}</phone>' : plain;
       const cwu = model === "ciro-pro" ? 2500 : 1234;
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       for (const part of [text.slice(0, 6), text.slice(6)]) res.write("data: " + JSON.stringify({ choices: [{ delta: { content: part } }] }) + "\n\n");

@@ -33,6 +33,8 @@ import { accountApi, accountFetch, getAccountSession, invalidateAccountSession }
 import RemoteWork from "./components/RemoteWork";
 import DesktopPet from "./pet/DesktopPet";
 import { localNow, nativeVoice, phoneActions, runPhoneActions, stripPhoneTags } from "./lib/phone";
+import { CATCH_UP_MS, applyTaskChanges, loadTasks, nextRun, saveTasks, stripTaskTags, taskBrief, taskChanges, wantsTasks } from "./lib/tasks";
+import type { CiroTask } from "./lib/tasks";
 import { bubbleText as spokenText } from "./lib/pet";
 import { commandPet, nativePet, petCommand, petEnabled, petMirror, petProgress, petStream, setPetEnabled, stripPetTags } from "./lib/pet";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
@@ -764,9 +766,13 @@ export default function App() {
     ));
   }
 
-  async function generateReply(conversationId: string, history: ChatMessage[], projectId?: string, replace?: ChatMessage, opts?: { phone?: boolean }) {
-    // Text shown, mirrored and read aloud never contains the pet / phone tags.
-    const clean = (text: string) => stripPhoneTags(stripPetTags(text));
+  async function generateReply(conversationId: string, history: ChatMessage[], projectId?: string, replace?: ChatMessage, opts?: { phone?: boolean; task?: string }) {
+    // Text shown, mirrored and read aloud never contains the pet / phone / task tags.
+    const clean = (text: string) => stripTaskTags(stripPhoneTags(stripPetTags(text)));
+    // Timing asked for ("每天 8 点…", "半小时后提醒我…"): the model may set or cancel timed tasks (lib/tasks.ts).
+    const lastSaid = [...history].reverse().find((m) => m.role === "user")?.content || "";
+    const taskList = loadTasks();
+    const withTasks = !opts?.task && wantsTasks(lastSaid, taskList.length > 0);
     const assistantId = replace?.id ?? newId();
     const level = THINKING_LEVELS[thinkingLevel];
     const fresh: ChatMessage = { id: assistantId, role: "assistant", content: "", createdAt: Date.now(),
@@ -824,6 +830,7 @@ export default function App() {
         webSearch: useWeb,
         pet: petOnRef.current,
         ...(opts?.phone ? { phone: { now: localNow(language) } } : {}),
+        ...(withTasks ? { tasks: { now: localNow(language), list: taskBrief(taskList) } } : {}),
         usageKind: "chat", chatId: conversationId,
         onUsage: (usage) => patchMessage(conversationId, assistantId, { usage }),
         onSources: (found) => {
@@ -845,7 +852,7 @@ export default function App() {
         },
         onDelta: (text) => {
           answer += text;
-          if (mirror) petStream({ id: assistantId, text: clean(answer), onScreen: onScreen() });
+          if (mirror) petStream({ id: assistantId, text: clean(answer), onScreen: onScreen(), ...(opts?.task ? { title: opts.task } : {}) });
           else step(t("正在写回答") + "（" + clean(answer).length + " " + t("字") + "）");
           const patch: Partial<ChatMessage> = { content: clean(answer) };
           if (thought && !thoughtDone) { thoughtDone = true; patch.thinkingMs = Date.now() - started; }
@@ -856,8 +863,15 @@ export default function App() {
       const petCmd = petCommand(answer);
       // Spoken to the Android app: carry out the phone actions the model asked for (fixed list, see lib/phone.ts).
       const actions = opts?.phone ? phoneActions(answer) : [];
+      // Timed tasks the model set or cancelled: kept on this device, run by the task timer below.
+      const changes = withTasks ? taskChanges(answer, taskList) : [];
       if (petCmd || actions.length || answer !== clean(answer)) { answer = clean(answer); patchMessage(conversationId, assistantId, { content: answer }); }
       if (petCmd) commandPet(petCmd);
+      if (changes.length) {
+        saveTasks(applyTaskChanges(loadTasks(), changes));
+        const added = changes.flatMap((c) => c.kind === "add" ? [c.task.title] : []);
+        notify(added.length ? t("已设定定时任务：") + added.join("、") : t("已取消定时任务"));
+      }
       if (actions.length) {
         const results = runPhoneActions(actions);
         const failed = results.filter((r) => r !== "ok");
@@ -868,7 +882,7 @@ export default function App() {
       }
       if (!answer) throw new Error(t(operatorRef.current ? "接口未返回任何文本" : "没有收到回答，请重试"));
       applyCanvasReply(conversationId, answer);
-      if (preferencesRef.current.autoTitle && history.length === 1 && !opts?.phone) void autoTitle(conversationId, history[0].content, answer);
+      if (preferencesRef.current.autoTitle && history.length === 1 && !opts?.phone && !opts?.task) void autoTitle(conversationId, history[0].content, answer);
       const chatNow = conversationsRef.current.find((c) => c.id === conversationId);
       if (preferencesRef.current.memoryEnabled && preferencesRef.current.autoMemory && !chatNow?.temporary) {
         const said = [...history].reverse().find((m) => m.role === "user")?.content || "";
@@ -878,7 +892,7 @@ export default function App() {
         const question = [...history].reverse().find((m) => m.role === "user")?.content || "";
         void suggestFollowUps(conversationId, assistantId, question, answer);
       }
-      if (mirror) petStream({ id: assistantId, text: answer, done: true, onScreen: onScreen() });
+      if (mirror) petStream({ id: assistantId, text: answer, done: true, onScreen: onScreen(), ...(opts?.task ? { title: opts.task } : {}) });
       if (petOnRef.current && appInBackground() && !petCmd && !mirror) petProgress({ text: t("回答好了，回来看看吧"), done: true, ok: true, source: "chat" });
       if (preferencesRef.current.notifyOnComplete && appInBackground() && notifyGranted()) {
         const title = conversationsRef.current.find((c) => c.id === conversationId)?.title || "Ciro";
@@ -1276,6 +1290,54 @@ export default function App() {
     const spoken = spokenText(answer || (status.configured ? "" : t("暂时连不上 Ciro 服务，稍后再试吧。"))).split("\n\n")[0].slice(0, 400);
     if (spoken) nativeVoice()?.speak?.(spoken);
   }
+  /** A timed task is due: its prompt goes to Ciro in the task's own chat (or it is a plain reminder), and the pet comes
+   *  out to tell you the result; a system notification too when the app is in the background. */
+  async function runTask(task: CiroTask) {
+    const label = "⏰ " + task.title;
+    const tell = (text: string, ok = true) => {
+      if (petOnRef.current) petProgress({ text, done: true, ok, source: "schedule" });
+      else notify(text);
+      if (notifyGranted() && appInBackground()) showNotify(label, text, "task-" + task.id, () => task.conversationId && setActiveId(task.conversationId));
+    };
+    if (!task.prompt) {
+      if (petOnRef.current) { commandPet({ mood: "wave", action: "wave" }); petProgress({ text: label, attention: true, source: "schedule" }); }
+      tell(label);
+      return;
+    }
+    let id = task.conversationId || "";
+    const chat = conversationsRef.current.find((c) => c.id === id);
+    const now = Date.now();
+    const user: ChatMessage = { id: newId(), role: "user", content: task.prompt, createdAt: now };
+    if (!chat) {
+      id = newId();
+      saveTasks(loadTasks().map((x) => x.id === task.id ? { ...x, conversationId: id } : x));
+      setConversations((prev) => [{ id, title: label, createdAt: now, updatedAt: now, messages: [user] }, ...prev]);
+    } else setConversations((prev) => prev.map((c) => c.id === id ? { ...c, messages: [...c.messages, user], updatedAt: now } : c));
+    if (petOnRef.current) petProgress({ text: t("正在做定时任务：") + task.title, source: "schedule" });
+    const answer = await generateReply(id, [...(chat?.messages || []), user], undefined, undefined, { task: label });
+    saveTasks(loadTasks().map((x) => x.id === task.id ? { ...x, lastRun: now, lastResult: answer.slice(0, 300) } : x));
+    tell(answer ? "「" + task.title + "」" + t("完成了") + (petMirror() ? "" : "：" + answer.replace(/[#*`>|_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 40)) : "「" + task.title + "」" + t("没有完成"), Boolean(answer));
+  }
+  const runTaskRef = useRef(runTask);
+  runTaskRef.current = runTask;
+  // The task timer: one due task at a time, never while a reply is being written; repeating ones move to their next turn,
+  // one-offs are removed. Missed while the app was closed: still run if less than 12 hours late.
+  useEffect(() => {
+    const tick = () => {
+      if (busyRef.current) return;
+      const now = Date.now();
+      const list = loadTasks();
+      const due = list.filter((x) => x.next <= now).sort((a, b) => a.next - b.next)[0];
+      if (!due) return;
+      const next = nextRun(due, now);
+      saveTasks(next === null ? list.filter((x) => x.id !== due.id) : list.map((x) => x.id === due.id ? { ...x, next } : x));
+      if (now - due.next <= CATCH_UP_MS) void runTaskRef.current(due);
+    };
+    const first = window.setTimeout(tick, 4000);
+    const timer = window.setInterval(tick, 15_000);
+    return () => { window.clearTimeout(first); window.clearInterval(timer); };
+  }, []);
+
   const voiceRef = useRef(voiceCommand);
   voiceRef.current = voiceCommand;
   useEffect(() => {

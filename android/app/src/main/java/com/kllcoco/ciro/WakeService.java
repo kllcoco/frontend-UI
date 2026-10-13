@@ -136,7 +136,7 @@ public class WakeService extends Service {
             if (!m.find()) continue;
             // The command is whatever follows the wake word in the original text.
             Matcher inOriginal = WAKE.matcher(norm);
-            String rest = inOriginal.find() ? r.substring(inOriginal.end()) : r.substring(Math.min(r.length(), m.end()));
+            String rest = inOriginal.find() ? r.substring(Math.min(r.length(), inOriginal.end())) : r.substring(Math.min(r.length(), m.end()));
             rest = rest.replaceFirst("^[\\s,，。.!！?？、:：]+", "").trim();
             if (rest.length() >= 2) command(rest);
             else {

@@ -27,6 +27,7 @@ import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
 import { nativeVoice } from "./lib/phone";
 import CwuPanel from "./components/CwuPanel";
 import CustomModels from "./components/CustomModels";
+import TaskList from "./components/TaskList";
 import { devMode, setDevMode } from "./lib/operator";
 import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
@@ -296,6 +297,9 @@ export default function SettingsCenter({
               <SettingRow title={t("怎么和她相处")} description={t(window.ciroDesktop?.pet
                 ? "拖到屏幕边缘松手，她会躲进去只露出头，点她就出来；双指捏合、触控板缩放或在她身上滚动滚轮可以调整大小；关掉主窗口后她仍然留在桌面上。"
                 : "拖到屏幕边缘松手，她会躲进去只露出头，点她就出来；双指捏合可以调整大小。Android 应用切到后台后，她会浮在手机桌面上（需要允许“显示在其他应用上层”）。")}><span/></SettingRow>
+            </SettingBlock>
+            <SettingBlock title={t("定时任务")} subtitle={t("跟她说什么时候做什么，她会自己设好；到点后她去完成，再出来告诉你结果。")}>
+              <TaskList t={t} locale={localeTag(language)}/>
             </SettingBlock>
           </>}
           {section === "appearance" && <>

@@ -359,7 +359,11 @@ ipcMain.on("ciro:pet-progress", (_event, p) => petProgress(p));
 ipcMain.on("ciro:pet-quiet", (_event, on) => { savePet({ quiet: Boolean(on) }); toPet("ciro:pet-quiet", Boolean(on)); });
 // Work mode's "this computer" controls live on the local server; with the official service loaded in the window
 // the page reaches them through here (main-process requests carry no Origin, so the loopback-only checks pass).
-ipcMain.handle("ciro:local-api", async (_event, req) => {
+ipcMain.handle("ciro:local-api", async (event, req) => {
+  // Only Ciro's own pages (the official service or the local server), never a page navigated to elsewhere.
+  let from = "";
+  try { from = new URL(event.senderFrame?.url || "").origin; } catch { /* no frame */ }
+  if (!from || (from !== OFFICIAL && from !== serverOrigin)) return { status: 403, body: { error: "forbidden" } };
   const p = String(req?.path || "");
   if (!/^\/[a-z0-9/_-]{0,80}$/i.test(p) || !serverOrigin) return { status: 400, body: { error: "bad path" } };
   const post = req.body !== undefined;
@@ -547,7 +551,9 @@ function createWindow(route = "/") {
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(appOrigin()) && !url.startsWith(serverOrigin)) {
+    let origin = "";
+    try { origin = new URL(url).origin; } catch { /* not a URL */ }
+    if (origin !== new URL(appOrigin()).origin && (!serverOrigin || origin !== new URL(serverOrigin).origin)) {
       event.preventDefault();
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     }
@@ -624,7 +630,7 @@ function allowModelHosts() {
     const headers = { ...details.responseHeaders };
     for (const k of Object.keys(headers)) if (/^access-control-allow-/i.test(k)) delete headers[k];
     headers["Access-Control-Allow-Origin"] = ["*"];
-    headers["Access-Control-Allow-Headers"] = ["*"];
+    headers["Access-Control-Allow-Headers"] = ["*, Authorization"]; // "*" alone never covers Authorization (API keys)
     headers["Access-Control-Allow-Methods"] = ["GET, POST, OPTIONS"];
     callback(details.method === "OPTIONS" ? { responseHeaders: headers, statusLine: "HTTP/1.1 204 No Content" } : { responseHeaders: headers });
   });

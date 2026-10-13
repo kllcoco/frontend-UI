@@ -139,7 +139,7 @@ export default function AccountCenter({language,section}:Props){
     await action(async()=>{
       const phoneWay=byPhone&&!initial;
       await accountApi(initial?"/bootstrap":signup?"/register":"/login","POST",{
-        ...(phoneWay?{phone,smsCode,...(password?{password}:{})}:{email,password}),
+        ...(phoneWay?{phone,smsCode}:{email,password}),
         ...(initial?{bootstrapToken:bootstrap,displayName}:{}),
         ...(signup?{...(displayName?{displayName}:{}),...(session?.registration==="invite"?{inviteCode:invite}:{})}:{})
       });

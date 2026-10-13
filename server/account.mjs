@@ -630,7 +630,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       buy:cwuEnabled(env)&&Boolean(env.CIRO_STRIPE_SECRET_KEY)&&typeof env.CIRO_PUBLIC_ORIGIN==="string"});
   }));
   router.post("/cwu/checkout",protectedSession(async(req,res,_p,u)=>{
-    if(!cwuEnabled(env))throw bad("CWU purchases are not available",503);
+    if(!cwuEnabled(env)||typeof env.CIRO_PUBLIC_ORIGIN!=="string")throw bad("CWU purchases are not available",503);
     const pack=cwuPacks(env).find(x=>x.id===req.body?.pack);
     if(!pack)throw bad("Unknown CWU pack",400);
     const origin=env.CIRO_PUBLIC_ORIGIN.replace(/\/+$/,"");

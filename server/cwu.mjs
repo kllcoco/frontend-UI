@@ -52,14 +52,17 @@ export function createCwuLedger(store, env) {
     credit: (userId, amount, reason, ref) => amount > 0 && apply(userId, amount, reason, ref),
     charge: (userId, amount, ref) => cwuEnabled(env) && userId !== "local" && amount > 0 && apply(userId, -amount, "chat", ref),
     /** A purchase made elsewhere (e.g. the website) arrives with the account email only. */
-    userByEmail: (email) => state().users.find((x) => typeof email === "string" && x.email.toLowerCase() === email.trim().toLowerCase()) || null
+    userByEmail: (email) => (typeof email === "string" && email.trim() ? state().users.find((x) => typeof x.email === "string" && x.email && x.email.toLowerCase() === email.trim().toLowerCase()) : null) || null
   };
 }
 
 /** The CWU a reply used, from the usage the model reports (SSE tail or JSON body). */
 export function usedCwu(text) {
   let last = 0;
-  // Only inside a "usage" object, so a reply that merely mentions "cwu" is never charged by its text.
-  for (const m of String(text || "").matchAll(/"usage"\s*:\s*\{[^{}]*?"cwu"\s*:\s*([0-9]+(?:\.[0-9]+)?)/g)) last = Number(m[1]);
+  // Only after a "usage" key and only an unescaped "cwu" key: inside JSON strings quotes are escaped (\"cwu\"),
+  // so a reply that merely mentions "cwu" is never charged by its text; nested details before it are fine.
+  const s = String(text || ""), at = s.indexOf('"usage"');
+  if (at < 0) return 0;
+  for (const m of s.slice(at).matchAll(/(?<!\\)"cwu"\s*:\s*([0-9]+(?:\.[0-9]+)?)/g)) last = Number(m[1]);
   return Number.isFinite(last) ? last : 0;
 }
