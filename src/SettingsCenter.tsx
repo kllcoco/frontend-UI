@@ -20,7 +20,7 @@ import BackupPanel from "./components/BackupPanel";
 import ViewBoundary from "./components/ViewBoundary";
 import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
-import AnnouncementEditor from "./components/AnnouncementEditor";
+import AnnouncementEditor, { AnnouncementHelp } from "./components/AnnouncementEditor";
 import { loadAnnouncements } from "./lib/announcements";
 import MemoryManager from "./components/MemoryManager";
 import TeamCenter from "./components/TeamCenter";
@@ -80,7 +80,7 @@ const sections: SectionInfo[] = [
   { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true },
   { id: "notifications", label: "通知中心", icon: CalendarClock, group: "账户", keys: "通知 notifications", account: true },
   { id: "team", label: "团队", icon: Users, group: "账户", keys: "团队 成员 team" },
-  { id: "announce", label: "公告推送", icon: Megaphone, group: "账户", keys: "公告 推送 套餐 优惠 通知 announcement", ownerOnly: true },
+  { id: "announce", label: "公告推送", icon: Megaphone, group: "账户", keys: "公告 推送 套餐 优惠 通知 announcement" },
   { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与扩展", keys: "权限 沙盒 审批 sandbox" },
   { id: "plugins", label: "插件管理", icon: PlugZap, group: "工作台与扩展", keys: "插件 plugin" },
   { id: "skills", label: "技能中心", icon: Sparkles, group: "工作台与扩展", keys: "技能 skill" },
@@ -221,7 +221,7 @@ export default function SettingsCenter({
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
           {section === "api-keys" && accountsOn && <ApiConsole t={t} locale={localeTag(language)}/>}
-          {section === "announce" && <AnnouncementEditor t={t}/>}
+          {section === "announce" && (canAnnounce ? <AnnouncementEditor t={t}/> : <AnnouncementHelp t={t} accountsOn={accountsOn === true}/>)}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}

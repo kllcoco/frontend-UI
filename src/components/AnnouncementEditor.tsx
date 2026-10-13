@@ -54,3 +54,18 @@ export default function AnnouncementEditor({ t }: { t: (s: string) => string }) 
       <button type="button" className="cx-icon" aria-label={t("删除公告") + " " + a.title} onClick={() => void removeAnnouncement(a.id).then(refresh).then(() => window.dispatchEvent(new Event("ciro-announcements")))}><Trash2 size={15}/></button></div>)}
   </div>;
 }
+
+/** Shown when this device can't publish: how to get to the editor, and the central feed for every install. */
+export function AnnouncementHelp({ t, accountsOn }: { t: (s: string) => string; accountsOn: boolean }) {
+  return <div className="ann-editor">
+    <div className="ann-form">
+      <strong>{t("公告推送需要服务器所有者权限")}</strong>
+      <p className="api-muted">{accountsOn
+        ? t("请用服务器所有者账户登录（设置 → 账户与安全），登录后这里会出现发布公告的编辑器。")
+        : t("这台服务器（或桌面版自带的本机服务）没有开启账户，所以没有“所有者”，不能在这里发布。在你的公网服务器上开启账户（一键安装时填写域名即可）并用所有者账户登录网页版，就能在这里发布，推送到连接这台服务器的所有设备。")}</p>
+      <p className="api-muted">{t("想推送给所有安装（包括桌面版）？编辑项目仓库 main 分支里的 announcements.json，所有 Ciro 会在 30 分钟内读取。格式见部署教程“公告推送”。")}</p>
+      <button type="button" className="api-run" onClick={() => window.open("https://github.com/kllcoco/frontend-UI/blob/main/announcements.json", "_blank", "noopener,noreferrer")}>
+        <Megaphone size={15}/>{t("打开 announcements.json")}</button>
+    </div>
+  </div>;
+}

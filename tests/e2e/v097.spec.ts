@@ -137,3 +137,11 @@ test("Android app on the latest version: no banner; About → Check for updates 
   await page.getByRole("button", { name: "检查更新" }).click();
   await expect(page.getByText("已是最新版本")).toBeVisible();
 });
+
+test("announcements entry is always findable; without owner rights it explains how to publish", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "公告推送" }).click();
+  await expect(page.getByText("公告推送需要服务器所有者权限")).toBeVisible();
+  await expect(page.getByRole("button", { name: "打开 announcements.json" })).toBeVisible();
+});
