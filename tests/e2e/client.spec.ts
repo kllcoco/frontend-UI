@@ -46,7 +46,7 @@ test("appearance panel changes wallpaper and persists settings on reload", async
   await expect(page.getByRole("heading", { name: "外观与背景" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/02-settings-appearance.png", fullPage: true, animations: "disabled" });
 
-  await page.getByRole("button", { name: "北境极光" }).click();
+  await page.getByRole("button", { name: "金色星轨" }).click();
   const sliders = page.locator(".sc-slider-row input[type=range]");
   await setRange(sliders.nth(0), 65);
   await setRange(sliders.nth(1), 7);
@@ -57,7 +57,7 @@ test("appearance panel changes wallpaper and persists settings on reload", async
   await expect(page.locator(".wallpaper-image")).toHaveCSS("background-image", /aurora\.svg/);
   await page.reload({ waitUntil: "domcontentloaded" });
   await openSettings(page);
-  await expect(page.getByRole("button", { name: "北境极光" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "金色星轨" })).toHaveAttribute("aria-pressed", "true");
   await expect(sliders.nth(0)).toHaveValue("65");
   await expect(sliders.nth(1)).toHaveValue("7");
   await expect(sliders.nth(2)).toHaveValue("50");

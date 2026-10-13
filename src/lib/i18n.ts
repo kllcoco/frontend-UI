@@ -433,6 +433,7 @@ const translations: Readonly<Record<string,string>> = {
   "连接 Ciro 服务器": "Connect to a Ciro server",
   "手机端内置离线界面；连接你部署的 Ciro 服务器后即可使用真实模型、账户与同步。": "The app works offline; connect to your Ciro server for real models, accounts and sync.",
   "已连接": "Connected",
+  "未连接": "Not connected",
   "断开并使用离线模式": "Disconnect and use offline mode",
   "服务器地址": "Server address",
   "连接": "Connect",

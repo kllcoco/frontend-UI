@@ -171,5 +171,5 @@ test("when every way fails, the message says what happened instead of blaming th
   await page.keyboard.press("Control+,");
   await page.locator(".sc-nav").getByRole("button", { name: "关于 Ciro" }).click();
   await page.getByRole("button", { name: "检查更新" }).click();
-  await expect(page.getByText("GitHub 暂时限制了查询次数，请稍后再试")).toBeVisible();
+  await expect(page.getByText("GitHub 暂时限制了查询次数，请稍后再试").first()).toBeVisible();
 });
