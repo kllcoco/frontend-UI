@@ -72,7 +72,7 @@ void main() {
 }`;
 // Blinking never stretches the eyes: public/pet/eyes-closed.webp is the base picture with her closed eyes (taken
 // from the closed-eye artwork) painted in, and its alpha marks the eye areas; the shader cross-fades to it.
-const FRAG = `precision mediump float; uniform sampler2D img, closed; uniform float glow, blink, hasClosed; varying vec2 uv; varying vec2 pos; varying float vLayer;
+const FRAG = `precision mediump float; uniform sampler2D img, closed, smile; uniform float glow, blink, hasClosed, smiling, hasSmile; varying vec2 uv; varying vec2 pos; varying float vLayer;
 const vec2 SIZE = vec2(${W}.0, ${H}.0);
 void main() {
   vec4 c = texture2D(img, pos / SIZE); if (c.a < 0.004) discard;
@@ -86,6 +86,11 @@ void main() {
   if (hasClosed > 0.5 && blink > 0.01) {
     vec4 e = texture2D(closed, pos / SIZE);
     c.rgb = mix(c.rgb, e.rgb, blink * e.a);
+  }
+  // her smile (from the same closed-eye artwork), faded in when she is happy
+  if (hasSmile > 0.5 && smiling > 0.01) {
+    vec4 sm = texture2D(smile, pos / SIZE);
+    c.rgb = mix(c.rgb, sm.rgb, smiling * sm.a);
   }
   // the magic circle glows (warm gold) when she uses it
   float g = glow * exp(-dot((pos - vec2(450.0, 335.0)) / 42.0, (pos - vec2(450.0, 335.0)) / 42.0));
@@ -167,10 +172,10 @@ export default function LivePet({ src, mood, look, action }: {
     const u = (n: string) => gl.getUniformLocation(prog, n);
     const U = { t: u("t"), breath: u("breath"), head: u("head"), nodY: u("nodY"), sway: u("sway"), blink: u("blink"), lookX: u("lookX"), lookY: u("lookY"),
       armR: u("armR"), armL: u("armL"), orbSpin: u("orbSpin"), skirt: u("skirt"), ear: u("ear"), lift: u("lift"), squash: u("squash"), glow: u("glow"),
-      layer: u("layer"), img: u("img"), hasClosed: u("hasClosed") };
+      layer: u("layer"), img: u("img"), hasClosed: u("hasClosed"), smiling: u("smiling"), hasSmile: u("hasSmile") };
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    let ready = false, raf = 0, alive = true, hasClosed = false;
+    let ready = false, raf = 0, alive = true, hasClosed = false, hasSmile = false;
     const layers: (WebGLTexture | null)[] = [null, null, null];   // base, armL, armR
     const texture = (unit: number, url: string, done: (tex: WebGLTexture) => void) => {
       const im = new Image();
@@ -190,14 +195,16 @@ export default function LivePet({ src, mood, look, action }: {
     texture(2, dir + "armL.webp", (tex) => { layers[1] = tex; });
     texture(3, dir + "armR.webp", (tex) => { layers[2] = tex; });
     texture(1, dir + "eyes-closed.webp", () => { hasClosed = true; gl.uniform1i(gl.getUniformLocation(prog, "closed"), 1); });
+    texture(4, dir + "smile.webp", () => { hasSmile = true; gl.uniform1i(gl.getUniformLocation(prog, "smile"), 4); });
 
     // Smoothly eased parameters so changing mood or looking around never jumps.
-    const cur = { breath: 1, head: 0, nodY: 0, sway: 6, blink: 0, lx: 0, ly: 0 };
+    const cur = { breath: 1, head: 0, nodY: 0, sway: 6, blink: 0, lx: 0, ly: 0, smile: 0, joy: 0 };
     let nextBlink = performance.now() + 2500, blinkStart = -1;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // ?pet=1&blink=0.5 holds the closed-eye cross-fade at a fixed amount (only with eyes-closed.webp)
     const q = new URLSearchParams(window.location.search);
-    const forced = { blink: q.has("blink") ? Math.min(1, Math.max(0, Number(q.get("blink")) || 0)) : undefined };
+    const forced = { blink: q.has("blink") ? Math.min(1, Math.max(0, Number(q.get("blink")) || 0)) : undefined,
+      smile: q.has("smile") ? Math.min(1, Math.max(0, Number(q.get("smile")) || 0)) : undefined };
     const frame = (now: number) => {
       if (!alive) return;
       raf = requestAnimationFrame(frame);
@@ -221,7 +228,11 @@ export default function LivePet({ src, mood, look, action }: {
           if (k >= 1) { blinkStart = -1; nextBlink = now + (Math.random() < .2 ? 180 : 2200 + Math.random() * 4200); }
         }
       }
-      cur.blink = M.blink !== undefined ? ease(cur.blink, blinkTarget, .06) : blinkTarget;
+      const smiley = m === "happy" || m === "love" || m === "wave" || m === "eat";
+      cur.smile = ease(cur.smile, forced.smile ?? (smiley ? 1 : 0), .1);
+      // happy / love: a closed-eye smile (eyes shut softly, then open again while still smiling)
+      cur.joy = ease(cur.joy, m === "happy" || m === "love" ? 1 : 0, .12);
+      cur.blink = M.blink !== undefined ? ease(cur.blink, blinkTarget, .06) : Math.max(blinkTarget, cur.joy > .05 ? Math.min(1, cur.joy * 1.1) : 0);
       cur.breath = ease(cur.breath, M.breath); cur.nodY = ease(cur.nodY, M.nodY, .05); cur.sway = ease(cur.sway, M.sway, .05);
       const headTarget = M.headSpeed ? M.head * Math.sin(t * M.headSpeed) : M.head;
       cur.head = ease(cur.head, headTarget + (M.look ? 0 : l.x * .03), .06);
@@ -249,6 +260,7 @@ export default function LivePet({ src, mood, look, action }: {
       gl.uniform1f(U.ear, (pose.ear || 0) + (reduce ? 0 : Math.sin(t * 1.9) * 0.06));
       gl.uniform1f(U.lift, pose.lift || 0); gl.uniform1f(U.squash, pose.squash || 0);
       gl.uniform1f(U.blink, hasClosed ? forced.blink ?? cur.blink : 0); gl.uniform1f(U.hasClosed, hasClosed ? 1 : 0);
+      gl.uniform1f(U.smiling, hasSmile ? cur.smile : 0); gl.uniform1f(U.hasSmile, hasSmile ? 1 : 0);
       gl.uniform1f(U.lookX, cur.lx); gl.uniform1f(U.lookY, cur.ly);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       // base first, then the arms on top, each with its own texture
