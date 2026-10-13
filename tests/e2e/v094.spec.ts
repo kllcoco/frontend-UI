@@ -83,7 +83,7 @@ test("a newer server version offers a refresh", async ({ page }) => {
     await route.fulfill({ response: res, json: { ...(await res.json()), version: "99.0.0" } });
   });
   await page.goto("/");
-  const notice = page.getByRole("status").filter({ hasText: "Ciro 已更新到 v99.0.0" });
+  const notice = page.getByRole("status").filter({ hasText: "Ciro 已更新到 v99.0.0", visible: true });
   await expect(notice).toBeVisible();
   await notice.getByRole("button", { name: "稍后" }).click();
   await expect(notice).toHaveCount(0);

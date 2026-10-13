@@ -1502,3 +1502,7 @@ html.ciro-quick,html.ciro-quick body{background:var(--cx-bg)}
 .ua-user em.ua-off{background:rgba(239,68,68,.14);color:#ef6b6b}
 .ua-user--off{opacity:.7}
 .ua-actions{display:flex;gap:4px;flex-shrink:0}
+/* Wide screens show the update notice in the sidebar (in the flow, covering nothing); phones keep the slim top bar. */
+.cx-update--side .cx-update-x{background:none;padding:2px;color:inherit;opacity:.7}
+@media (min-width:761px){.cx-update.cx-update--web{display:none}}
+@media (max-width:760px){.cx-update.cx-update--side{display:none}}

@@ -1624,6 +1624,11 @@ export default function App() {
           </div>)}
         </div>
 
+        {newVersion && <div className="cx-update cx-update--side" role="status">
+          <Sparkles size={15}/><span>{t("Ciro 已更新到")} v{newVersion}</span>
+          <button type="button" onClick={() => window.location.reload()}>{t("刷新")}</button>
+          <button type="button" className="cx-update-x" aria-label={t("稍后")} onClick={() => setUpdateDismissed(newVersion)}><X size={13}/></button>
+        </div>}
         {updateInfo && updateInfo.state !== "error" && <div className="cx-update" role="status">
           {updateInfo.state === "available" && <><Download size={15}/><span>{t("新版本")} {updateInfo.version} {t("可用")}</span>
             <button type="button" onClick={() => { desktop()?.updateAction?.("download"); setUpdateInfo({ state: "downloading", percent: 0, version: updateInfo.version }); }}>{t("更新")}</button></>}
