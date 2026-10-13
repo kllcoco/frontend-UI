@@ -7,6 +7,10 @@ import { join } from "node:path";
 /** OpenAI-compatible mock model: echoes the model name and reports native CWU usage in the last chunk. */
 export function startMockModel(port: number): Promise<Server> {
   const server = createServer((req, res) => {
+    // Also stands in for a provider the user adds under 我的模型 (called straight from the page).
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
     let body = "";
     req.on("data", (c) => { body += c; });
     req.on("end", () => {

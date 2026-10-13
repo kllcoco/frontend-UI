@@ -24,6 +24,7 @@
     "pack:npm": "node scripts/pack-npm.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "dotenv": "^16.4.7",
     "electron-updater": "^6.8.9",
     "express": "^4.21.2",

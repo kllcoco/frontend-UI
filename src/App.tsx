@@ -1,3 +1,5 @@
+import { CUSTOM_PREFIX, customById, isCustomModel, loadCustomModels, shareModelHosts } from "./lib/custom-models";
+import type { CustomModel } from "./lib/custom-models";
 import { localeTag } from "./lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from "react";
@@ -317,6 +319,15 @@ export default function App() {
   const activeProject = current ? currentProject : viewProject;
   const displayName = session?.user?.displayName || profile.displayName || t("本地访客");
   const [cwu, setCwu] = useState<number | null>(null);
+  // Your own API models (Settings → 模型设置).
+  const [customModels, setCustomModels] = useState<CustomModel[]>(loadCustomModels);
+  useEffect(() => { shareModelHosts(); }, []);
+  useEffect(() => {
+    const on = () => setCustomModels(loadCustomModels());
+    window.addEventListener("ciro-custom-models", on);
+    return () => window.removeEventListener("ciro-custom-models", on);
+  }, []);
+  const modelLabel = (id: string) => isCustomModel(id) ? (customModels.find((m) => CUSTOM_PREFIX + m.id === id)?.name || id) : id === "ciro" ? "Ciro" : id;
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const plan = session?.enabled
@@ -328,7 +339,7 @@ export default function App() {
     try {
       const next = await getApiStatus();
       setStatus(next);
-      setModel((before) => next.models.includes(before) ? before : next.model);
+      setModel((before) => next.models.includes(before) || (isCustomModel(before) && customById(before)) ? before : next.model);
     } catch {
       setStatus(PREVIEW);
       setModel("ciro");
@@ -759,7 +770,7 @@ export default function App() {
     const assistantId = replace?.id ?? newId();
     const level = THINKING_LEVELS[thinkingLevel];
     const fresh: ChatMessage = { id: assistantId, role: "assistant", content: "", createdAt: Date.now(),
-      preview: !status.configured, depth: level?.id };
+      preview: !status.configured && !isCustomModel(model), depth: level?.id };
     const reply: ChatMessage = replace ? (() => {
       const versions = replace.versions?.length ? [...replace.versions] : [snapshot(replace)];
       versions.push(snapshot(fresh));
@@ -769,7 +780,7 @@ export default function App() {
       chat.id === conversationId ? { ...chat, messages: [...history, reply], updatedAt: Date.now() } : chat
     ));
 
-    if (!status.configured) {
+    if (!status.configured && !isCustomModel(model)) {
       patchMessage(conversationId, assistantId, { content: offlineText() });
       syncVersion(conversationId, assistantId);
       return "";
@@ -1851,7 +1862,7 @@ export default function App() {
             <div className="cx-model" ref={modelRef}>
               <button className="cx-model-trigger" onClick={() => setModelOpen((value) => !value)}
                 aria-expanded={modelOpen} aria-label={t("切换模型")}>
-                <span>{model === "ciro" ? "Ciro" : model}</span>
+                <span>{modelLabel(model)}</span>
                 <ChevronDown size={16} className={modelOpen ? "cx-chev cx-chev--down-open" : "cx-chev"}/>
               </button>
               {modelOpen && <div className="cx-model-menu">
@@ -1863,9 +1874,13 @@ export default function App() {
                     {item === model && <Check size={16} className="cx-model-check"/>}
                   </button>
                 ))}
-                {operator && <><div className="cx-menu-sep"/>
+                {customModels.length > 0 && <><div className="cx-menu-caption">{t("我的模型")}</div>
+                  {customModels.map((m) => <button key={m.id} className="cx-model-option" onClick={() => { setModel(CUSTOM_PREFIX + m.id); setModelOpen(false); }}>
+                    <Sparkles size={16}/><span><strong>{m.name}</strong><small>{m.model}</small></span>
+                    {CUSTOM_PREFIX + m.id === model && <Check size={16} className="cx-model-check"/>}</button>)}</>}
+                <div className="cx-menu-sep"/>
                 <button className="cx-model-option cx-model-link" onClick={() => { setModelOpen(false); setSettingsSection("models"); }}>
-                  <Settings2 size={16}/><span><strong>{t("模型与连接设置")}</strong></span></button></>}
+                  <Settings2 size={16}/><span><strong>{t(operator ? "模型与连接设置" : "添加我的模型（API）")}</strong></span></button>
               </div>}
             </div>
           </div>
@@ -1924,7 +1939,7 @@ export default function App() {
                 <h1>{t("临时对话")}</h1>
                 <p className="cx-temp-note">{t("此对话不会出现在历史记录中，也不会同步或用于记忆。离开后即删除。")}</p>
               </> : <h1>{t("让每一个想法，")}{language === "en" ? " " : ""}<em>{t("走得更远。")}</em></h1>}
-              {!status.configured && !statusLoading && !temporaryMode && (operator
+              {!status.configured && !statusLoading && !temporaryMode && !isCustomModel(model) && (operator
                 ? <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>
                 : <div className="cx-connect cx-connect--down" role="status"><strong>{t("暂时连不上 Ciro 服务")}</strong>
                     <p>{t("请检查网络后重试；如果一直这样，可能是服务正在维护，稍后再来。")}</p>

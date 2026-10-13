@@ -1,5 +1,5 @@
 // Ciro desktop shell: runs the bundled Node API + web UI on a private loopback port.
-const { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell } = require("electron");
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
@@ -609,7 +609,29 @@ ipcMain.on("ciro:open-external", (_event, url) => {
 
 app.on("second-instance", () => showWindow());
 
+// "我的模型": providers the user added by API. Some of them don't allow direct calls from an app page (CORS); for
+// exactly those hosts (sent by the page, http(s) only) the desktop app answers the CORS checks itself.
+let modelHosts = new Set();
+ipcMain.on("ciro:model-hosts", (_event, hosts) => {
+  modelHosts = new Set((Array.isArray(hosts) ? hosts : []).filter((h) => typeof h === "string" && /^https?:\/\/[^/\s]+$/i.test(h)).slice(0, 30));
+});
+function allowModelHosts() {
+  const filter = { urls: ["http://*/*", "https://*/*"] };
+  session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+    let origin = "";
+    try { origin = new URL(details.url).origin; } catch { /* not a URL */ }
+    if (!modelHosts.has(origin)) { callback({}); return; }
+    const headers = { ...details.responseHeaders };
+    for (const k of Object.keys(headers)) if (/^access-control-allow-/i.test(k)) delete headers[k];
+    headers["Access-Control-Allow-Origin"] = ["*"];
+    headers["Access-Control-Allow-Headers"] = ["*"];
+    headers["Access-Control-Allow-Methods"] = ["GET, POST, OPTIONS"];
+    callback(details.method === "OPTIONS" ? { responseHeaders: headers, statusLine: "HTTP/1.1 204 No Content" } : { responseHeaders: headers });
+  });
+}
+
 app.whenReady().then(async () => {
+  allowModelHosts();
   language = pickLanguage(app.getPreferredSystemLanguages?.() || [app.getLocale()]);
   buildMenu();
   try {

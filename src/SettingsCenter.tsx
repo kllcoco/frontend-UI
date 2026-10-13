@@ -26,6 +26,7 @@ import { nativePet, petEnabled, petMirror, petQuiet, petScale, resetPetPlace, se
 import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
 import { nativeVoice } from "./lib/phone";
 import CwuPanel from "./components/CwuPanel";
+import CustomModels from "./components/CustomModels";
 import { devMode, setDevMode } from "./lib/operator";
 import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
@@ -78,7 +79,7 @@ const sections: SectionInfo[] = [
   { id: "appearance", label: "外观与背景", icon: Palette, group: "常用", keys: "主题 深色 浅色 背景 壁纸 强调色 字体 theme dark" },
   { id: "pet", label: "桌宠", icon: PawPrint, group: "常用", keys: "桌宠 宠物 Q版 看板娘 pet mascot" },
   { id: "chat", label: "对话设置", icon: MessageSquare, group: "常用", keys: "通知 时间 紧凑 追问 标题 字号 notification" },
-  { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 服务器 连接 api model server", operator: true },
+  { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 API 接入 GPT Claude Gemini DeepSeek 通义 Kimi model" },
   { id: "instructions", label: "自定义指令", icon: FileText, group: "常用", keys: "指令 关于你 回答方式 instructions" },
   { id: "memory", label: "记忆管理", icon: Database, group: "常用", keys: "记忆 自动记忆 memory" },
   { id: "usage", label: "用量统计", icon: Activity, group: "数据与同步", keys: "用量 CWU GWU usage" },
@@ -430,7 +431,10 @@ export default function SettingsCenter({
           </>}
 
           {section === "models" && <>
-            {mobile && <SettingBlock title={t("连接 Ciro 服务器")} subtitle={t("手机端内置离线界面；连接你部署的 Ciro 服务器后即可使用真实模型、账户与同步。")}>
+            <SettingBlock title={t("我的模型")} subtitle={t("用 API 接入 GPT、Claude、Gemini、DeepSeek、通义千问、Kimi 等任意模型，在模型菜单里切换使用")}>
+              <CustomModels t={t} current={model} onUse={onModelChange}/>
+            </SettingBlock>
+            {mobile && operator && <SettingBlock title={t("连接 Ciro 服务器")} subtitle={t("手机端内置离线界面；连接你部署的 Ciro 服务器后即可使用真实模型、账户与同步。")}>
               {isRemoteMobile()
                 ? <div className="sc-model-status"><span className="sc-model-indicator sc-model-indicator--ready"/>
                     <div><strong>{t("已连接")}</strong><p>{window.location.origin}</p></div>
@@ -443,7 +447,7 @@ export default function SettingsCenter({
                   </div>}
               {error && <p className="sc-error" role="alert">{error}</p>}
             </SettingBlock>}
-            <SettingBlock title={t("模型连接")} subtitle={t("只显示后端实际提供的模型，不展示未经验证的能力")}>
+            {operator && <><SettingBlock title={t("模型连接")} subtitle={t("只显示后端实际提供的模型，不展示未经验证的能力")}>
               <div className="sc-model-status"><span className={status.configured ? "sc-model-indicator sc-model-indicator--ready" : "sc-model-indicator"}/>
                 <div><strong>{status.configured ? t("已读取服务端配置") : t("等待 CIRO 推理服务接入")}</strong>
                   <p>{status.configured ? t("地址已配置；实际推理连通性在发送消息时确认。") : t("目前是界面预览，不会生成虚假的模型回复。")}</p></div>
@@ -457,7 +461,7 @@ export default function SettingsCenter({
               <p className="sc-help-text">{t("在服务端项目根目录")} <code>.env</code> {t("配置 CIRO 推理服务。浏览器不会保存你的 API Key。")}</p>
               <pre className="sc-code">CIRO_API_BASE_URL=http://127.0.0.1:8000/v1{"\n"}CIRO_MODEL=ciro{"\n"}CIRO_API_PATH=/chat/completions</pre>
               <p className="sc-help-text">{t("当前代理使用兼容 Chat Completions 的协议。如果 CIRO 正式 API 不同，需要适配后端。")}</p>
-            </SettingBlock>
+            </SettingBlock></>}
           </>}
 
           {section === "chat" && <>

@@ -1,3 +1,4 @@
+import { customById, isCustomModel, streamCustom } from "./custom-models";
 import {accountFetch} from "./account-api";
 import type { ApiStatus, ChatMessage } from "../types";
 import type { CustomInstructions } from "./instructions";
@@ -119,6 +120,13 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
 }
 
 export async function streamChat(options: StreamOptions): Promise<void> {
+  // Your own model (Settings → 模型设置): straight to that provider, key from this device, not billed in CWU.
+  if (isCustomModel(options.model)) {
+    const custom = customById(options.model);
+    if (!custom) throw new Error("这个自定义模型已被删除，请在模型菜单里重新选择。");
+    return streamCustom(custom, { messages: options.messages, signal: options.signal, instructions: options.instructions,
+      onDelta: options.onDelta, onReasoning: options.onReasoning });
+  }
   // Usage arrives cumulatively (usually in the last chunk): keep the latest report and record it once.
   let usage: Usage | null = null;
   try {
