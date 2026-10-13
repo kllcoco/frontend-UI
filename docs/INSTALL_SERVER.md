@@ -256,6 +256,23 @@ sudo systemctl restart ciro      # 用了开机自启时；否则重新运行 ci
 
 电脑需要保持开机、Ciro 在运行（关闭窗口后会留在系统托盘）。电脑会主动连接服务器，不需要在家里路由器上开放端口。
 
+## 对外提供 API
+
+开启账户后，服务器自带与 OpenAI 兼容的接口，可以直接卖 API：
+
+1. 登录网页版 → 设置 → API 控制台，创建密钥（只显示一次）。
+2. 客户把 Base URL 设为 `https://你的域名/v1`，用这个密钥调用：
+
+```bash
+curl https://ciro.你的域名.com/v1/chat/completions \
+  -H "Authorization: Bearer ciro_sk_..." -H "Content-Type: application/json" \
+  -d '{"model": "ciro", "messages": [{"role": "user", "content": "你好"}]}'
+```
+
+- 支持 `stream: true`；OpenAI 官方 SDK（Python / Node）改 `base_url` 即可使用。
+- 每个密钥的 CWU 用量和调用记录在 API 控制台查看；只记录元数据，不保存请求和回答内容。
+- 撤销密钥后立即失效。
+
 ## 常见问题
 
 - **页面提示“尚未连接真实 CIRO 推理服务”**：`.env` 中 `CIRO_API_BASE_URL` 为空或没有生效。Docker 需要 `docker restart ciro`，npm 需要在 `.env` 所在目录运行，或使用 `--env` 指定。

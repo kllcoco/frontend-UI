@@ -89,8 +89,9 @@ export function findCitations(answer: string, attachText: string): Citation[] {
   }).filter((f) => f.sections.size);
   if (!files.length) return [];
   const seen = new Set<string>(), out: Citation[] = [];
-  for (const m of answer.matchAll(/第\s*(\d+)\s*(页|张幻灯片)|工作表\s*[「“"]?([^\s」”"，。,.；;）)\]】]+)/g)) {
-    const label = m[1] ? "第 " + m[1] + " " + m[2] : "工作表 " + m[3];
+  // Chinese or English citations: 第 3 页 / page 3, 第 2 张幻灯片 / slide 2, 工作表 销售 / sheet Sales.
+  for (const m of answer.matchAll(/第\s*(\d+)\s*(页|张幻灯片)|工作表\s*[「“"]?([^\s」”"，。,.；;）)\]】]+)|\b(page|slide)\s*(\d+)|\bsheet\s+["“]?([^\s"”,.;)\]]+)/gi)) {
+    const label = m[1] ? "第 " + m[1] + " " + m[2] : m[3] ? "工作表 " + m[3] : m[5] ? "第 " + m[5] + " " + (m[4].toLowerCase() === "page" ? "页" : "张幻灯片") : "工作表 " + m[6];
     // Prefer a file named right before the citation, else the first file that has this section.
     const before = answer.slice(Math.max(0, m.index! - 60), m.index);
     const file = files.find((f) => f.sections.has(label) && before.includes(f.name)) || files.find((f) => f.sections.has(label));

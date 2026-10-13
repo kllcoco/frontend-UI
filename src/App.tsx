@@ -5,7 +5,7 @@ import {
   ArrowDownToLine, Columns2, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
   GitBranch, Layers, LayoutGrid, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
-  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, AudioLines, Users
+  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, ImageDown, AudioLines, Users
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -55,6 +55,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import ShareImage from "./components/ShareImage";
 import { useHoldToTalk } from "./lib/hold-to-talk";
 import SourceCards from "./components/SourceCards";
 import { findCitations } from "./lib/office";
@@ -124,6 +125,10 @@ function exportMarkdown(chat: Conversation, language: Language) {
   URL.revokeObjectURL(url);
 }
 
+/** "第 3 页" → "page 3" etc. in English (labels come from the file markers). */
+function citeLabel(label: string, language: Language): string {
+  return language !== "en" ? label : label.replace(/^第 (\d+) 页$/, "page $1").replace(/^第 (\d+) 张幻灯片$/, "slide $1").replace(/^工作表 /, "sheet ");
+}
 /** What the model receives for a message: the typed text plus any attached file text. */
 function modelContent(m: ChatMessage): string {
   return m.attachText ? [m.content, m.attachText].filter(Boolean).join("\n\n---\n\n") : m.content;
@@ -180,6 +185,7 @@ export default function App() {
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
   }, [citation]);
+  const [shareImage, setShareImage] = useState<{ title: string; messages: ChatMessage[] } | null>(null);
   const [topMore, setTopMore] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [canvasId, setCanvasId] = useState<string | null>(null);
@@ -521,6 +527,7 @@ export default function App() {
     }
     if (topMore) { setTopMore(false); return true; }
     if (citation) { setCitation(null); return true; }
+    if (shareImage) { setShareImage(null); return true; }
     if (plusOpen || modelOpen || rowMenuId) { setPlusOpen(false); setModelOpen(false); setRowMenuId(null); return true; }
     if (settingsSection) {
       if ((window as unknown as { ciroSettingsBack?: () => boolean }).ciroSettingsBack?.()) return true;
@@ -1709,6 +1716,9 @@ export default function App() {
                   {!current.temporary && <button role="menuitem" onClick={() => { setTopMore(false); exportMarkdown(current, language); notify("已导出 Markdown"); }}>
                     <ArrowDownToLine size={16}/>{t("导出 Markdown")}</button>}
                   <button role="menuitem" onClick={() => { setTopMore(false); setFindOpen(true); }}><Search size={16}/>{t("在对话中查找")}</button>
+                  <button role="menuitem" onClick={() => { setTopMore(false); setShareImage({ title: current.title,
+                    messages: current.messages.filter((m) => !m.preview && m.content).slice(-8).map((m) => m.role === "user" ? { ...m, content: bubbleText(m, t("附件：")) } : m) }); }}>
+                    <ImageDown size={16}/>{t("生成分享图片")}</button>
                 </div></>}
             </div>}
             <button className="cx-icon" onClick={() => setSettingsSection("home")} title={t("设置")} aria-label={t("设置")}><Settings2 size={18}/></button>
@@ -1832,13 +1842,17 @@ export default function App() {
                       return cites.length ? <div className="cx-cites" aria-label={t("出处")}>
                         <span>{t("出处")}</span>
                         {cites.map((c) => <button type="button" key={c.file + c.label} onClick={() => setCitation(c)}>
-                          <FileText size={13}/>{c.file} · {c.label}</button>)}
+                          <FileText size={13}/>{c.file} · {citeLabel(c.label, language)}</button>)}
                       </div> : null;
                     })()}
                     {assistant && message.content && !isStreaming && <div className="message-actions">
                       {(message.versions?.length ?? 0) > 1 && <VersionNav t={t} index={message.versionIndex ?? message.versions!.length - 1}
                         total={message.versions!.length} disabled={busy} onGo={(i) => showVersion(message, i)}/>}
                       <button aria-label={t("复制回答")} title={t("复制回答")} onClick={() => void copyContent(body)}><Copy size={15}/></button>
+                      <button aria-label={t("分享为图片")} title={t("分享为图片")} onClick={() => {
+                        const asked = current.messages.slice(0, index).reverse().find((m) => m.role === "user");
+                        setShareImage({ title: current.title, messages: [...(asked ? [{ ...asked, content: bubbleText(asked, t("附件：")) }] : []), { ...message, content: body }] });
+                      }}><ImageDown size={15}/></button>
                       {canSpeak && <button aria-label={readAloud.speakingId === message.id ? t("停止朗读") : t("朗读")} title={readAloud.speakingId === message.id ? t("停止朗读") : t("朗读")}
                         className={readAloud.speakingId === message.id ? "is-on" : ""} onClick={() => readAloud.toggle(message.id, body)}>
                         {readAloud.speakingId === message.id ? <VolumeX size={15}/> : <Volume2 size={15}/>}</button>}
@@ -2028,9 +2042,11 @@ export default function App() {
           {hold.state.phase === "recording" && <small>0:{String(hold.state.seconds).padStart(2, "0")}</small>}
         </div>
       </div>}
+      {shareImage && <ShareImage t={t} title={shareImage.title} messages={shareImage.messages} locale={localeTag(language)}
+        onClose={() => setShareImage(null)} onNotify={notify}/>}
       {citation && <div className="cx-cite-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setCitation(null); }}>
-        <div className="cx-cite-dialog" role="dialog" aria-modal="true" aria-label={t("出处") + "：" + citation.file + " · " + citation.label}>
-          <header><FileText size={16}/><strong>{citation.file}</strong><span>{citation.label}</span>
+        <div className="cx-cite-dialog" role="dialog" aria-modal="true" aria-label={t("出处") + "：" + citation.file + " · " + citeLabel(citation.label, language)}>
+          <header><FileText size={16}/><strong>{citation.file}</strong><span>{citeLabel(citation.label, language)}</span>
             <button type="button" className="cx-icon" onClick={() => setCitation(null)} aria-label={t("关闭")}><X size={17}/></button></header>
           <pre>{citation.text || t("这一部分没有文字")}</pre>
           <small>{t("这是从你上传的文件里读出的原文，可以用来核对回答。")}</small>

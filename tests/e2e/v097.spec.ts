@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { Server } from "node:http";
+import { readFileSync } from "node:fs";
 import { startCiro, startMockModel } from "./mock-upstream";
 
 let mock: Server, ciro: { url: string; stop: () => void };
@@ -76,4 +77,25 @@ test("desktop quick ask: copied text is quoted, the answer streams in, and the c
   await main.goto(ciro.url + "/");
   await main.getByRole("button", { name: /翻译成中文/ }).first().click();
   await expect(main.locator(".message--assistant .message-prose")).toContainText("来自 ciro 的回答");
+});
+
+test("share an answer as an image: preview is generated and can be saved", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("用一句话介绍杭州");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".message--assistant .message-prose").last()).toContainText("来自 ciro 的回答");
+  await page.getByRole("button", { name: "分享为图片" }).last().click();
+  const dialog = page.getByRole("dialog", { name: "分享为图片" });
+  const img = dialog.getByRole("img", { name: "分享图片预览" });
+  await expect(img).toBeVisible({ timeout: 15000 });
+  const size = await img.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight]);
+  expect(size[0]).toBe(1120); // 560 px card at 2x
+  expect(size[1]).toBeGreaterThan(300);
+  const download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "保存图片" }).click();
+  // (Headless Chromium drops non-ASCII file names, so check the bytes rather than the name.)
+  const file = await (await download).path();
+  expect(readFileSync(file!).subarray(1, 4).toString()).toBe("PNG");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });

@@ -19,6 +19,8 @@ import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import org.json.JSONArray;
@@ -50,6 +52,7 @@ public class MainActivity extends BridgeActivity {
         if (view != null) {
             view.addJavascriptInterface(new ShareBridge(), "CiroShare");
             view.addJavascriptInterface(new NotifyBridge(), "CiroNotify");
+            view.addJavascriptInterface(new FilesBridge(), "CiroFiles");
         }
         captureShare(getIntent());
         captureChat(getIntent());
@@ -230,6 +233,32 @@ public class MainActivity extends BridgeActivity {
             try {
                 NotificationManagerCompat.from(MainActivity.this).notify(id, builder.build());
             } catch (SecurityException ignored) { }
+        }
+    }
+
+    /** Share a generated PNG (e.g. a conversation image) through the system share sheet, where it can also be saved. */
+    private class FilesBridge {
+        @JavascriptInterface
+        public boolean shareImage(String base64, String name) {
+            try {
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                if (bytes.length > 25 * 1024 * 1024) return false;
+                File dir = new File(getCacheDir(), "shared");
+                if (!dir.exists() && !dir.mkdirs()) return false;
+                String safe = (name == null ? "ciro" : name).replaceAll("[^A-Za-z0-9._-]", "_");
+                if (!safe.endsWith(".png")) safe = safe + ".png";
+                File file = new File(dir, safe);
+                try (FileOutputStream out = new FileOutputStream(file)) { out.write(bytes); }
+                Uri uri = androidx.core.content.FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", file);
+                Intent send = new Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                Intent chooser = Intent.createChooser(send, "Ciro");
+                chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() -> startActivity(chooser));
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
         }
     }
 
