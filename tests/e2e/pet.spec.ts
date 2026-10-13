@@ -109,3 +109,70 @@ test("pet: fewer words — silent when dragged or tapped, speaks only when a dec
   await pet.locator(".pet-sprite").dblclick();
   await expect(page.getByRole("heading", { name: "工作模式" }).first()).toBeVisible();
 });
+
+test("pet: Android overlay drag sends total screen displacement, never accumulated ticks", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as typeof window & { CiroPetHost: unknown; petNativeEvents: { type: string; dx?: number; dy?: number }[] };
+    w.petNativeEvents = [];
+    w.CiroPetHost = {
+      beginDrag: () => w.petNativeEvents.push({ type: "start" }),
+      dragTo: (dx: number, dy: number) => w.petNativeEvents.push({ type: "move", dx, dy }),
+      dragEnd: () => w.petNativeEvents.push({ type: "end" }),
+      moveBy: () => {}, resize: () => {}, expand: () => {}, edge: () => {}, action: () => {},
+    };
+  });
+  await page.goto(ciro.url + "/?pet=1&overlay=1");
+  const b = (await page.locator(".pet-sprite").boundingBox())!;
+  const x = b.x + b.width / 2, y = b.y + b.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (const delta of [12, 24, 36, 48]) await page.mouse.move(x + delta, y, { steps: 2 });
+  await page.mouse.up();
+  const events = await page.evaluate(() => (window as typeof window & {
+    petNativeEvents: { type: string; dx?: number; dy?: number }[]
+  }).petNativeEvents);
+  expect(events.filter((e) => e.type === "start")).toHaveLength(1);
+  const moves = events.filter((e) => e.type === "move");
+  expect(moves.length).toBeGreaterThan(2);
+  expect(moves.at(-1)!.dx).toBeGreaterThan(35);
+  expect(moves.at(-1)!.dx).toBeLessThan(60);
+  expect(moves.every((e, i) => i === 0 || e.dx! >= moves[i - 1].dx! - 1)).toBeTruthy();
+  expect(events.at(-1)?.type).toBe("end");
+});
+
+test("pet: mobile dock is flush to the viewport, not inset by gesture gutters", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(ciro.url + "/");
+    await page.evaluate(() => {
+      localStorage.setItem("ciro.pet.v1", "on");
+      localStorage.setItem("ciro.pet-edge.v1", "right");
+    });
+    await page.reload();
+    const pet = page.locator(".pet-root--inline");
+    await expect(pet).toHaveClass(/pet-root--edge-right/);
+    await expect.poll(() => pet.evaluate((el) => Math.round(window.innerWidth - el.getBoundingClientRect().right))).toBe(0);
+    await page.evaluate(() => localStorage.setItem("ciro.pet-edge.v1", "bottom"));
+    await page.reload();
+    await expect(pet).toHaveClass(/pet-root--edge-bottom/);
+    await expect.poll(() => pet.evaluate((el) => Math.round(window.innerHeight - el.getBoundingClientRect().bottom))).toBe(0);
+  } finally { await context.close(); }
+});
+
+test("home: a reachable unconfigured model is not a network outage, and a true outage can be dismissed", async ({ page }) => {
+  await page.route("**/api/status", (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ configured: false, model: "ciro", models: ["ciro"] }),
+  }));
+  await page.goto(ciro.url + "/");
+  await expect(page.locator(".cx-connect--down")).toHaveCount(0);
+  await page.unroute("**/api/status");
+  await page.route("**/api/status", (route) => route.abort("failed"));
+  await page.reload();
+  const warning = page.locator(".cx-connect--down");
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText("暂时连不上 Ciro 服务");
+  await warning.getByRole("button", { name: "关闭" }).click();
+  await expect(warning).toHaveCount(0);
+});

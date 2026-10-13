@@ -1237,6 +1237,9 @@ pre.rw-ev{font:inherit;background:none;border:0;padding:0}
 .cx-connect{width:min(520px,100%);margin:22px auto 0;padding:16px 18px;border-radius:16px;text-align:left;
   background:var(--cx-surface);border:1px solid var(--cx-line);box-shadow:var(--cx-shadow-sm)}
 .cx-connect-head{display:flex;align-items:center;gap:8px;color:var(--cx-accent)}
+.cx-connect--down{position:relative;padding-right:46px}
+.cx-connect-dismiss{position:absolute;top:8px;right:8px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:9px;background:transparent;color:var(--cx-text-2);cursor:pointer}
+.cx-connect-dismiss:hover,.cx-connect-dismiss:focus-visible{background:var(--cx-line);outline:2px solid transparent}
 .cx-connect-head strong{font-size:15.5px;color:var(--cx-text)}
 .cx-connect p{margin:8px 0 12px;font-size:14px;line-height:1.6;color:var(--cx-text-2)}
 .cx-connect small{display:block;margin-top:10px;font-size:12.5px;color:var(--cx-muted);line-height:1.5}

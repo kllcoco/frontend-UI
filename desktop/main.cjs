@@ -211,6 +211,8 @@ let petTimer = null;
 const petSize = (scale) => ({ width: Math.max(180, Math.round(186 * scale + 54)), height: Math.round(248 * scale + 96) });
 const petScale = () => { const v = Number(petPrefs().scale); return Number.isFinite(v) ? Math.min(1.6, Math.max(0.5, v)) : 0.8; };
 const displayAt = (b) => screen.getDisplayMatching(b).workArea;
+// Dock to physical monitor boundaries, not the work area (which excludes a taskbar/dock).
+const displayBoundsAt = (b) => screen.getDisplayMatching(b).bounds;
 const petFile = () => path.join(app.getPath("userData"), "pet.json");
 // Off until the user turns it on (tray menu or Settings).
 function petPrefs() {
@@ -243,7 +245,7 @@ function showPet() {
     petWindow.webContents.on("will-navigate", (event) => event.preventDefault());
     petWindow.once("ready-to-show", () => petWindow.showInactive());
     petExpanded = false;
-    petWindow.on("closed", () => { petWindow = null; if (petTimer) { clearInterval(petTimer); petTimer = null; } });
+    petWindow.on("closed", () => { petWindow = null; petDrag = null; if (petDragTimer) { clearInterval(petDragTimer); petDragTimer = null; } if (petTimer) { clearInterval(petTimer); petTimer = null; } });
     const edge = ["left", "right", "bottom", "top"].includes(saved.edge) && onScreen ? saved.edge : "";
     void petWindow.loadURL(serverOrigin + "/?pet=1&scale=" + petScale() + (edge ? "&edge=" + edge : "") + (saved.quiet ? "&quiet=1" : ""));
     // Her eyes follow the mouse anywhere on screen (only sent when it moves).
@@ -266,23 +268,38 @@ function hidePet() {
   setupTray();
 }
 function toPet(channel, payload) { if (petVisible()) petWindow.webContents.send(channel, payload); }
-let petDrag = null;
+let petDrag = null, petDragTimer = null;
+function movePetUnderCursor() {
+  if (!petDrag || !petWindow || petWindow.isDestroyed()) return;
+  const cursor = screen.getCursorScreenPoint(), b = petWindow.getBounds();
+  const x = Math.round(cursor.x - petDrag.dx), y = Math.round(cursor.y - petDrag.dy);
+  if (b.x !== x || b.y !== y) petWindow.setPosition(x, y);
+}
 ipcMain.on("ciro:pet-ignore", (_event, ignore) => { if (petWindow && !petWindow.isDestroyed()) petWindow.setIgnoreMouseEvents(Boolean(ignore), { forward: true }); });
 ipcMain.on("ciro:pet-drag", (_event, phase) => {
   if (!petWindow || petWindow.isDestroyed()) return;
-  const c = screen.getCursorScreenPoint();
-  if (phase === "start") { const b = petWindow.getBounds(); petDrag = { dx: c.x - b.x, dy: c.y - b.y }; return; }
+  if (phase === "start") {
+    const b = petWindow.getBounds(), cursor = screen.getCursorScreenPoint();
+    petDrag = { dx: cursor.x - b.x, dy: cursor.y - b.y };
+    // Native cursor polling stays smooth even when moving the transparent window pauses DOM pointermove events.
+    if (petDragTimer) clearInterval(petDragTimer);
+    petDragTimer = setInterval(movePetUnderCursor, 16);
+    return;
+  }
   if (!petDrag) return;
-  petWindow.setPosition(Math.round(c.x - petDrag.dx), Math.round(c.y - petDrag.dy));
+  movePetUnderCursor();
   if (phase === "end") {
     petDrag = null;
-    // Pulled partly past a screen edge: she hides behind it, only her head peeking out.
-    const b = petWindow.getBounds(), a = displayAt(b);
+    if (petDragTimer) { clearInterval(petDragTimer); petDragTimer = null; }
+    // Detect docking against full physical monitor bounds, not taskbar-inset workArea.
+    const b = petWindow.getBounds(), a = displayBoundsAt(b);
     const edge = b.x < a.x - b.width * 0.25 ? "left" : b.x + b.width > a.x + a.width + b.width * 0.25 ? "right"
-      : b.y + b.height > a.y + a.height + b.height * 0.2 ? "bottom" : (isMac ? b.y <= a.y + 2 : b.y < a.y - b.height * 0.3) ? "top" : ""; // macOS keeps windows below the menu bar
+      : b.y + b.height > a.y + a.height + b.height * 0.2 ? "bottom" : (isMac ? b.y <= a.y + 2 : b.y < a.y - b.height * 0.3) ? "top" : "";
     if (edge) snapPet(edge);
     else {
-      const x = Math.min(Math.max(b.x, a.x - b.width / 2), a.x + a.width - b.width / 2), y = Math.min(Math.max(b.y, a.y), a.y + a.height - b.height);
+      const safe = displayAt(b);
+      const x = Math.min(Math.max(b.x, safe.x - b.width / 2), safe.x + safe.width - b.width / 2);
+      const y = Math.min(Math.max(b.y, safe.y), safe.y + safe.height - b.height);
       petWindow.setPosition(Math.round(x), Math.round(y));
       savePet({ x: Math.round(x), y: Math.round(y) + (petExpanded ? REPLY_ROOM.extra : 0), edge: "" });
       petWindow.webContents.send("ciro:pet-edge", null);
@@ -291,7 +308,7 @@ ipcMain.on("ciro:pet-drag", (_event, phase) => {
 });
 /** Puts the window flush against a screen edge; the page then shows only her head. */
 function snapPet(edge) {
-  const b = petWindow.getBounds(), a = displayAt(b);
+  const b = petWindow.getBounds(), a = displayBoundsAt(b);
   const x = edge === "left" ? a.x : edge === "right" ? a.x + a.width - b.width : Math.min(Math.max(b.x, a.x), a.x + a.width - b.width);
   const y = edge === "bottom" ? a.y + a.height - b.height : edge === "top" ? a.y : Math.min(Math.max(b.y, a.y), a.y + a.height - b.height);
   petWindow.setPosition(Math.round(x), Math.round(y));
@@ -301,7 +318,7 @@ function snapPet(edge) {
 ipcMain.on("ciro:pet-edge", (_event, what) => {
   if (!petWindow || petWindow.isDestroyed()) return;
   const b = petWindow.getBounds(), a = displayAt(b);
-  if (what === "auto") { snapPet(b.x + b.width / 2 < a.x + a.width / 2 ? "left" : "right"); return; }
+  if (what === "auto") { const physical = displayBoundsAt(b); snapPet(b.x + b.width / 2 < physical.x + physical.width / 2 ? "left" : "right"); return; }
   // Coming out: step a little away from the side edge.
   const prev = petPrefs().edge;
   const x = prev === "left" ? a.x + 12 : prev === "right" ? a.x + a.width - b.width - 12 : b.x;

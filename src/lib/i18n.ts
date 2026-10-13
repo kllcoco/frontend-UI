@@ -489,6 +489,7 @@ const translations: Readonly<Record<string,string>> = {
   "快速打开常用功能": "Open common features quickly",
   "正在查资料…": "Looking things up…",
   "暂时连不上 Ciro 服务，请检查网络后重试。": "Can't reach Ciro right now. Check your connection and try again.",
+  "Ciro 对话服务暂未开通，请稍后再试。": "Ciro chat is not available on this server yet. Please try again later.",
   "CWU 额度不足，充值后即可继续。": "Not enough CWU. Top up to continue.",
   "登录已过期，请重新登录。": "Your sign-in expired. Please sign in again.",
   "请求太频繁，请稍等片刻再试。": "Too many requests. Please wait a moment and try again.",
