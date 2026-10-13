@@ -99,3 +99,41 @@ test("share an answer as an image: preview is generated and can be saved", async
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 });
+
+test("Android app updates itself: newer release offered, downloaded, installer asked for permission, then started", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    let polls = 0, allowed = false;
+    w.__dl = null; w.__installs = [];
+    w.CiroUpdate = {
+      version: () => "0.9.6",
+      download: (url: string, name: string) => { w.__dl = { url, name }; return true; },
+      progress: () => JSON.stringify(++polls < 3 ? { status: "running", bytes: polls * 40, total: 100 } : { status: "done", bytes: 100, total: 100 }),
+      install: () => { const r = allowed ? "started" : "need-permission"; allowed = true; (w.__installs as string[]).push(r); return r; }
+    };
+  });
+  await page.route("https://api.github.com/repos/kllcoco/frontend-UI/releases/latest", (route) => route.fulfill({ json: {
+    tag_name: "v0.9.7", html_url: "https://github.com/kllcoco/frontend-UI/releases/tag/v0.9.7",
+    assets: [{ name: "Android-Ciro-0.9.7.apk", browser_download_url: "https://github.com/kllcoco/frontend-UI/releases/download/v0.9.7/Android-Ciro-0.9.7.apk", size: 11534336 },
+      { name: "Windows-Ciro-0.9.7-x64.exe", browser_download_url: "https://example.com/x.exe", size: 1 }] } }));
+  await page.goto(ciro.url + "/");
+  const banner = page.locator(".cx-aupdate");
+  await expect(banner).toContainText("发现新版本 v0.9.7 · 11.0 MB", { timeout: 10000 });
+  await banner.getByRole("button", { name: "更新" }).click();
+  expect(await page.evaluate(() => (window as unknown as { __dl: { name: string } }).__dl.name)).toBe("Android-Ciro-0.9.7.apk");
+  await expect(banner).toContainText("允许 Ciro 安装应用");
+  await banner.getByRole("button", { name: "安装" }).click();
+  expect(await page.evaluate(() => (window as unknown as { __installs: string[] }).__installs)).toEqual(["need-permission", "started"]);
+});
+
+test("Android app on the latest version: no banner; About → Check for updates says so", async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as Record<string, unknown>).CiroUpdate = { version: () => "0.9.7", download: () => true, progress: () => "{}", install: () => "missing" }; });
+  await page.route("https://api.github.com/repos/kllcoco/frontend-UI/releases/latest", (route) => route.fulfill({ json: { tag_name: "v0.9.7", assets: [{ name: "Android-Ciro-0.9.7.apk", browser_download_url: "https://github.com/kllcoco/frontend-UI/releases/download/v0.9.7/Android-Ciro-0.9.7.apk", size: 1 }] } }));
+  await page.goto(ciro.url + "/");
+  await page.waitForTimeout(4500);
+  await expect(page.locator(".cx-aupdate")).toHaveCount(0);
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "关于 Ciro" }).click();
+  await page.getByRole("button", { name: "检查更新" }).click();
+  await expect(page.getByText("已是最新版本")).toBeVisible();
+});

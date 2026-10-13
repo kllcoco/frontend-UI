@@ -3,7 +3,11 @@ package com.kllcoco.ciro;
 import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.DownloadManager;
 import android.app.PendingIntent;
+import android.database.Cursor;
+import android.os.Environment;
+import android.provider.Settings;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -53,6 +57,7 @@ public class MainActivity extends BridgeActivity {
             view.addJavascriptInterface(new ShareBridge(), "CiroShare");
             view.addJavascriptInterface(new NotifyBridge(), "CiroNotify");
             view.addJavascriptInterface(new FilesBridge(), "CiroFiles");
+            view.addJavascriptInterface(new UpdateBridge(), "CiroUpdate");
         }
         captureShare(getIntent());
         captureChat(getIntent());
@@ -259,6 +264,76 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception e) {
                 return false;
             }
+        }
+    }
+
+    /** In-app update: download the newer APK from this project's GitHub release and hand it to the
+     *  system installer (which only accepts it when it is signed with the same key as this app). */
+    private static final String RELEASE_PREFIX = "https://github.com/kllcoco/frontend-UI/releases/download/";
+    private volatile long updateDownloadId = -1;
+    private volatile String updateFile = null;
+
+    private class UpdateBridge {
+        @JavascriptInterface
+        public String version() {
+            try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+            catch (Exception e) { return ""; }
+        }
+
+        @JavascriptInterface
+        public boolean download(String url, String name) {
+            if (url == null || !url.startsWith(RELEASE_PREFIX) || name == null || !name.matches("[A-Za-z0-9._-]+\\.apk")) return false;
+            try {
+                File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (dir != null) { File old = new File(dir, name); if (old.exists()) old.delete(); }
+                DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url))
+                    .setTitle("Ciro " + name.replaceAll("^Android-Ciro-|\\.apk$", ""))
+                    .setMimeType("application/vnd.android.package-archive")
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+                    .setDestinationInExternalFilesDir(MainActivity.this, Environment.DIRECTORY_DOWNLOADS, name);
+                updateFile = name;
+                updateDownloadId = dm.enqueue(request);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        /** {"status":"running|done|failed|none","bytes":n,"total":n} */
+        @JavascriptInterface
+        public String progress() {
+            if (updateDownloadId < 0) return "{\"status\":\"none\"}";
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            try (Cursor c = dm.query(new DownloadManager.Query().setFilterById(updateDownloadId))) {
+                if (c == null || !c.moveToFirst()) return "{\"status\":\"failed\"}";
+                int status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                long bytes = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                long total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                String s = status == DownloadManager.STATUS_SUCCESSFUL ? "done" : status == DownloadManager.STATUS_FAILED ? "failed" : "running";
+                return "{\"status\":\"" + s + "\",\"bytes\":" + bytes + ",\"total\":" + total + "}";
+            } catch (Exception e) {
+                return "{\"status\":\"failed\"}";
+            }
+        }
+
+        /** "started", "need-permission" (the user must allow installs from Ciro first) or "missing". */
+        @JavascriptInterface
+        public String install() {
+            File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (dir == null || updateFile == null) return "missing";
+            File apk = new File(dir, updateFile);
+            if (!apk.exists()) return "missing";
+            if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName()))));
+                return "need-permission";
+            }
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", apk);
+            Intent intent = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            runOnUiThread(() -> startActivity(intent));
+            return "started";
         }
     }
 

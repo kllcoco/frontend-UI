@@ -53,6 +53,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Work mode: scan a computer's QR code -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- In-app update: install the newer APK downloaded from the GitHub release -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Hold to talk / voice mode -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />

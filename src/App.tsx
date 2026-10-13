@@ -55,6 +55,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import AndroidUpdate from "./components/AndroidUpdate";
 import ShareImage from "./components/ShareImage";
 import { useHoldToTalk } from "./lib/hold-to-talk";
 import SourceCards from "./components/SourceCards";
@@ -1725,6 +1726,7 @@ export default function App() {
           </div>
         </header>
 
+        <AndroidUpdate t={t} onNotify={(text) => { if (text) notify(text); }}/>
         {findOpen && current && <FindBar t={t} root={scrollRef.current} refreshKey={current.messages.length + ":" + (current.messages.at(-1)?.content.length ?? 0)}
           onClose={() => { setFindOpen(false); focusComposer(); }}/>}
         <div ref={scrollRef} className={current ? "content-area content-area--chat" : viewProject ? "content-area content-area--project" : "content-area content-area--welcome"}

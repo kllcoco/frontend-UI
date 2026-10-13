@@ -490,6 +490,12 @@ export default function SettingsCenter({
               <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v{__APP_VERSION__}</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
+              {Boolean(window.ciroDesktop?.updateAction || (window as unknown as { CiroUpdate?: unknown }).CiroUpdate) && <SettingRow title={t("检查更新")}
+                description={t("有新版本时会在应用内下载并安装，聊天记录和设置都会保留")}>
+                <button type="button" className="sc-action-secondary" onClick={() => {
+                  if (window.ciroDesktop?.updateAction) window.ciroDesktop.updateAction("check");
+                  else window.dispatchEvent(new Event("ciro-check-update"));
+                }}><RefreshCcw size={15}/> {t("检查更新")}</button></SettingRow>}
               <SettingRow title={t("推理服务")} description={status.configured ? t("当前使用的模型：") + model : t("还没有连接推理服务，在“模型设置”里查看连接方法")}><span className="sc-static-value">{status.configured ? t("已连接") : t("未连接")}</span></SettingRow>
             </SettingBlock>
           </>}
