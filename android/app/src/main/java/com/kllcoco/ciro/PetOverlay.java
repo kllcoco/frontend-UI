@@ -264,8 +264,8 @@ final class PetOverlay {
             if (!Double.isFinite(dx) || !Double.isFinite(dy)) return;
             main.post(() -> {
                 if (view == null || dragging) return;
-                params.x += Math.round(dx * density());
-                params.y += Math.round(dy * density());
+                params.x += (int) Math.round(dx * density());
+                params.y += (int) Math.round(dy * density());
                 apply();
             });
         }
@@ -283,8 +283,8 @@ final class PetOverlay {
             main.post(() -> {
                 if (view == null || !dragging) return;
                 if (!Float.isNaN(downRawX)) { followFinger(); return; } // native finger position wins
-                params.x = dragStartX + Math.round(dx * density());
-                params.y = dragStartY + Math.round(dy * density());
+                params.x = dragStartX + (int) Math.round(dx * density());
+                params.y = dragStartY + (int) Math.round(dy * density());
                 apply();
             });
         }
