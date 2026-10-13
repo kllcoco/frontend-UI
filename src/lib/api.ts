@@ -33,6 +33,8 @@ type StreamOptions = {
   messages: (ChatMessage & { imageUrls?: string[] })[];
   model: string;
   instructions?: CustomInstructions;
+  /** The pet is on: let the model steer it with a <pet> tag. */
+  pet?: boolean;
   reasoning?:ReasoningRequest;
   project?:{name:string;instructions:string;files:{name:string;content:string}[]};
   signal: AbortSignal;
@@ -127,7 +129,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
   }
 }
 
-async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources }: StreamOptions): Promise<void> {
+async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -139,7 +141,8 @@ async function streamChatInner({ messages, model, instructions, reasoning, proje
       ...(reasoning&&(reasoning.mode==="deep"||reasoning.effort)?{reasoning}:{}),
       ...(project&&(project.instructions.trim()||project.files.length)?{project}:{}),
       ...(webSearch?{webSearch:true}:{}),
-      ...(memories?.length?{memories}:{})
+      ...(memories?.length?{memories}:{}),
+      ...(pet?{pet:true}:{})
     })
   });
 

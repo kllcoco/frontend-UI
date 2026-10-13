@@ -1,6 +1,6 @@
 // Ciro desktop shell: runs the bundled Node API + web UI on a private loopback port.
 const { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, shell } = require("electron");
-const { existsSync, mkdirSync, writeFileSync } = require("node:fs");
+const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -129,6 +129,8 @@ function setupTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: s.showCiro, click: showWindow },
     { label: s.newChat, click: () => { showWindow(); send("new-chat"); } },
+    { label: s.quickAsk, click: () => showQuick() },
+    { label: s.pet, type: "checkbox", checked: petVisible(), click: (item) => { if (item.checked) showPet(); else hidePet(); } },
     { type: "separator" },
     { label: s.updates, click: checkForUpdates },
     { type: "separator" },
@@ -164,6 +166,90 @@ ipcMain.on("ciro:quick-continue", (_event, chatId) => {
   showWindow();
   if (id) toRenderer("ciro:open-chat", id);
 });
+
+/* ── Desktop pet: chibi Ciro on the desktop (transparent, always on top, click-through outside her) ── */
+let petWindow = null;
+let petTimer = null;
+const PET_SIZE = { width: 230, height: 280 };
+const petFile = () => path.join(app.getPath("userData"), "pet.json");
+// Off until the user turns it on (tray menu or Settings).
+function petPrefs() {
+  try { return { enabled: false, ...JSON.parse(readFileSync(petFile(), "utf8")) }; } catch { return { enabled: false }; }
+}
+function savePet(patch) {
+  try { writeFileSync(petFile(), JSON.stringify({ ...petPrefs(), ...patch })); } catch { /* read-only profile */ }
+}
+function petVisible() { return Boolean(petWindow && !petWindow.isDestroyed() && petWindow.isVisible()); }
+function showPet() {
+  if (!serverOrigin) return;
+  if (!petWindow || petWindow.isDestroyed()) {
+    const saved = petPrefs();
+    const area = screen.getPrimaryDisplay().workArea;
+    // Keep a saved spot only if it is still on some screen.
+    const onScreen = Number.isFinite(saved.x) && Number.isFinite(saved.y) && screen.getAllDisplays().some((d) => {
+      const a = d.workArea; return saved.x > a.x - 150 && saved.x < a.x + a.width - 80 && saved.y > a.y - 100 && saved.y < a.y + a.height - 120;
+    });
+    petWindow = new BrowserWindow({
+      ...PET_SIZE, x: onScreen ? saved.x : area.x + area.width - PET_SIZE.width - 24, y: onScreen ? saved.y : area.y + area.height - PET_SIZE.height,
+      show: false, frame: false, transparent: true, resizable: false, maximizable: false, minimizable: false, fullscreenable: false,
+      skipTaskbar: true, hasShadow: false, alwaysOnTop: true, title: "Ciro", backgroundColor: "#00000000",
+      webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false }
+    });
+    petWindow.setAlwaysOnTop(true, "floating");
+    petWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: false });
+    petWindow.setIgnoreMouseEvents(true, { forward: true });
+    petWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    petWindow.webContents.on("will-navigate", (event) => event.preventDefault());
+    petWindow.once("ready-to-show", () => petWindow.showInactive());
+    petWindow.on("closed", () => { petWindow = null; if (petTimer) { clearInterval(petTimer); petTimer = null; } });
+    void petWindow.loadURL(serverOrigin + "/?pet=1");
+    // Her eyes follow the mouse anywhere on screen (only sent when it moves).
+    let last = "";
+    petTimer = setInterval(() => {
+      if (!petVisible()) return;
+      const c = screen.getCursorScreenPoint(), b = petWindow.getBounds();
+      const key = c.x + "," + c.y;
+      if (key === last) return;
+      last = key;
+      petWindow.webContents.send("ciro:pet-cursor", { x: c.x - b.x, y: c.y - b.y });
+    }, 120);
+  } else petWindow.showInactive();
+  savePet({ enabled: true });
+  setupTray();
+}
+function hidePet() {
+  if (petWindow && !petWindow.isDestroyed()) petWindow.close();
+  savePet({ enabled: false });
+  setupTray();
+}
+function toPet(channel, payload) { if (petVisible()) petWindow.webContents.send(channel, payload); }
+let petDrag = null;
+ipcMain.on("ciro:pet-ignore", (_event, ignore) => { if (petWindow && !petWindow.isDestroyed()) petWindow.setIgnoreMouseEvents(Boolean(ignore), { forward: true }); });
+ipcMain.on("ciro:pet-drag", (_event, phase) => {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const c = screen.getCursorScreenPoint();
+  if (phase === "start") { const b = petWindow.getBounds(); petDrag = { dx: c.x - b.x, dy: c.y - b.y }; return; }
+  if (!petDrag) return;
+  petWindow.setPosition(Math.round(c.x - petDrag.dx), Math.round(c.y - petDrag.dy));
+  if (phase === "end") { petDrag = null; const b = petWindow.getBounds(); savePet({ x: b.x, y: b.y }); }
+});
+ipcMain.on("ciro:pet-action", (_event, action) => {
+  if (action === "open") showWindow();
+  else if (action === "quick") showQuick();
+  else if (action === "hide") hidePet();
+});
+// The main window tells the pet what Ciro is doing (thinking / answered); the pet reacts.
+ipcMain.on("ciro:pet-signal", (_event, signal) => {
+  if (["thinking", "done", "error"].includes(signal)) toPet("ciro:pet-signal", { signal, focused: Boolean(mainWindow && mainWindow.isFocused()) });
+});
+// The model's <pet> tag: a mood and a short line.
+ipcMain.on("ciro:pet-command", (_event, cmd) => {
+  const mood = typeof cmd?.mood === "string" && /^[a-z]{2,8}$/.test(cmd.mood) ? cmd.mood : undefined;
+  const say = typeof cmd?.say === "string" ? cmd.say.slice(0, 40) : undefined;
+  if (mood || say) toPet("ciro:pet-command", { mood, say });
+});
+ipcMain.on("ciro:pet-state", (event) => { event.returnValue = petVisible(); });
+ipcMain.on("ciro:pet-toggle", (_event, on) => { if (on) showPet(); else hidePet(); });
 
 function setupHotkey() {
   try { globalShortcut.register(QUICK_HOTKEY, () => { if (quickWindow && quickWindow.isVisible()) quickWindow.hide(); else showQuick(); }); }
@@ -402,6 +488,7 @@ app.whenReady().then(async () => {
   if (!process.env.CIRO_DESKTOP_SMOKE) {
     try { setupTray(); } catch { tray = null; }
     setupHotkey();
+    if (petPrefs().enabled) setTimeout(showPet, 1500);
   }
   setupUpdater();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); else showWindow(); });

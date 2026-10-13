@@ -28,6 +28,8 @@ import { loadPrompts, savePrompts } from "./lib/prompts";
 import type { SavedPrompt } from "./lib/prompts";
 import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
 import RemoteWork from "./components/RemoteWork";
+import DesktopPet from "./pet/DesktopPet";
+import { commandPet, petCommand, petEnabled, stripPetTags } from "./lib/pet";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
@@ -372,6 +374,23 @@ export default function App() {
   }, [themePref, languagePref, instructions, appearance, preferences, profile]);
   useEffect(() => { projectsRef.current = projects; requestSync(); }, [projects]);
   useEffect(() => { if (!busy) requestSync(); }, [conversations, busy]);
+  // Desktop pet: thinks while Ciro answers, celebrates when the answer is ready.
+  const petBusy = useRef(false);
+  const [petOn, setPetOn] = useState(petEnabled);
+  const petOnRef = useRef(petOn);
+  petOnRef.current = petOn;
+  useEffect(() => {
+    const onToggle = (e: Event) => setPetOn(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener("ciro-pet-toggle", onToggle);
+    return () => window.removeEventListener("ciro-pet-toggle", onToggle);
+  }, []);
+  useEffect(() => {
+    if (busy === petBusy.current) return;
+    petBusy.current = busy;
+    const signal = busy ? "thinking" : "done";
+    desktop()?.pet?.signal(signal);
+    window.dispatchEvent(new CustomEvent("ciro-pet-signal", { detail: { signal, focused: !document.hidden } }));
+  }, [busy]);
   useEffect(() => {
     conversationsRef.current = conversations;
     if (!busy) { saveConversations(conversations); return; }
@@ -715,6 +734,7 @@ export default function App() {
           ? { imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : {}) }))),
         signal: controller.signal,
         webSearch: useWeb,
+        pet: petOnRef.current,
         usageKind: "chat", chatId: conversationId,
         onUsage: (usage) => patchMessage(conversationId, assistantId, { usage }),
         onSources: (found) => {
@@ -735,11 +755,14 @@ export default function App() {
         },
         onDelta: (text) => {
           answer += text;
-          const patch: Partial<ChatMessage> = { content: answer };
+          const patch: Partial<ChatMessage> = { content: stripPetTags(answer) };
           if (thought && !thoughtDone) { thoughtDone = true; patch.thinkingMs = Date.now() - started; }
           patchMessage(conversationId, assistantId, patch);
         }
       });
+      // The model may steer the pet with a <pet mood="…">line</pet> tag; it never shows in the chat.
+      const petCmd = petCommand(answer);
+      if (petCmd) { answer = stripPetTags(answer); patchMessage(conversationId, assistantId, { content: answer }); commandPet(petCmd); }
       if (!answer) throw new Error(t("接口未返回任何文本"));
       applyCanvasReply(conversationId, answer);
       if (preferencesRef.current.autoTitle && history.length === 1) void autoTitle(conversationId, history[0].content, answer);
@@ -2098,6 +2121,7 @@ export default function App() {
       {lightbox && <div className="cx-lightbox" role="dialog" aria-modal="true" aria-label={t("查看图片")} onClick={() => setLightbox(null)}>
         <img src={lightbox} alt=""/><button type="button" className="cx-icon" aria-label={t("关闭")}><X size={20}/></button></div>}
       {toast && <div className="toast" role="status" key={toast}><Check size={16}/> {toast}</div>}
+      {petOn && !desktop()?.pet && <DesktopPet inline onAsk={focusComposer}/>}
       {newVersion && <div className="cx-update cx-update--web" role="status">
         <Sparkles size={16}/><span>{t("Ciro 已更新到")} v{newVersion}</span>
         <button type="button" className="cx-btn cx-btn--primary" onClick={() => window.location.reload()}>{t("刷新")}</button>

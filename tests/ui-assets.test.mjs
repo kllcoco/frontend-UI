@@ -17,7 +17,8 @@ test("Ciro orbit-C logo uses gradient ring with star and sets favicon", () => {
   const logo = file("public/ciro-mark.svg");
   assert.match(logo, /linearGradient/);
   assert.match(logo, /stroke-linecap="round"/);
-  assert.match(logo, /<circle\b/);
+  // The star in the gap is the four-pointed star from the character art.
+  assert.match(logo, /<path d="M51 23.5C/);
   assert.match(file("index.html"), /ciro-mark\.svg/);
 });
 test("settings UI contains eight configured views and indexedDB DIY controls", () => {

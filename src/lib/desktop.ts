@@ -22,6 +22,20 @@ type DesktopBridge = {
   onOpenChat?: (handler: (chatId: string) => void) => () => void;
   openConfig?: () => void;
   pickFolder?: () => Promise<string | null>;
+  pet?: PetBridge;
+};
+export type PetSignal = "thinking" | "done" | "error";
+export type PetBridge = {
+  setIgnore: (ignore: boolean) => void;
+  drag: (phase: "start" | "move" | "end") => void;
+  action: (action: "open" | "quick" | "hide") => void;
+  signal: (signal: PetSignal) => void;
+  visible: () => boolean;
+  toggle: (on: boolean) => void;
+  command?: (cmd: { mood?: string; say?: string }) => void;
+  onCommand?: (handler: (cmd: { mood?: string; say?: string }) => void) => () => void;
+  onCursor: (handler: (p: { x: number; y: number }) => void) => () => void;
+  onSignal: (handler: (p: { signal: string; focused: boolean }) => void) => () => void;
 };
 
 declare global {

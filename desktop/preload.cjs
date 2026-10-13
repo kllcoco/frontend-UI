@@ -35,6 +35,31 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
   },
   quickHide: () => ipcRenderer.send("ciro:quick-hide"),
   quickContinue: (chatId) => ipcRenderer.send("ciro:quick-continue", String(chatId || "")),
+  // Desktop pet window and the main window's signals to it.
+  pet: {
+    setIgnore: (ignore) => ipcRenderer.send("ciro:pet-ignore", Boolean(ignore)),
+    drag: (phase) => { if (["start", "move", "end"].includes(phase)) ipcRenderer.send("ciro:pet-drag", phase); },
+    action: (action) => { if (["open", "quick", "hide"].includes(action)) ipcRenderer.send("ciro:pet-action", action); },
+    signal: (signal) => { if (["thinking", "done", "error"].includes(signal)) ipcRenderer.send("ciro:pet-signal", signal); },
+    visible: () => ipcRenderer.sendSync("ciro:pet-state"),
+    toggle: (on) => ipcRenderer.send("ciro:pet-toggle", Boolean(on)),
+    command: (cmd) => ipcRenderer.send("ciro:pet-command", { mood: String(cmd?.mood || ""), say: String(cmd?.say || "").slice(0, 40) }),
+    onCommand: (handler) => {
+      const listener = (_event, p) => handler({ mood: typeof p?.mood === "string" ? p.mood : undefined, say: typeof p?.say === "string" ? p.say : undefined });
+      ipcRenderer.on("ciro:pet-command", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-command", listener);
+    },
+    onCursor: (handler) => {
+      const listener = (_event, p) => { if (Number.isFinite(p?.x) && Number.isFinite(p?.y)) handler({ x: p.x, y: p.y }); };
+      ipcRenderer.on("ciro:pet-cursor", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-cursor", listener);
+    },
+    onSignal: (handler) => {
+      const listener = (_event, p) => handler({ signal: String(p?.signal || ""), focused: Boolean(p?.focused) });
+      ipcRenderer.on("ciro:pet-signal", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-signal", listener);
+    }
+  },
   onOpenChat: (handler) => {
     const listener = (_event, id) => { if (typeof id === "string") handler(id); };
     ipcRenderer.on("ciro:open-chat", listener);

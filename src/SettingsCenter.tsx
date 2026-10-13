@@ -22,6 +22,7 @@ import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
 import AnnouncementEditor from "./components/AnnouncementEditor";
 import UserAdmin from "./components/UserAdmin";
+import { petEnabled, setPetEnabled } from "./lib/pet";
 import AnnouncementList from "./components/AnnouncementList";
 import { loadAnnouncements } from "./lib/announcements";
 import MemoryManager from "./components/MemoryManager";
@@ -126,6 +127,7 @@ export default function SettingsCenter({
   const [listView, setListView] = useState(() => isPhone() && !sections.some((item) => item.id === initialSection));
   const [query, setQuery] = useState("");
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
+  const [petShown, setPetShown] = useState(petEnabled);
   // Registered members don't see the server-wide tools (workbench, plugins, billing) — those are the owner's.
   const [member, setMember] = useState(false);
   useEffect(() => {
@@ -256,6 +258,9 @@ export default function SettingsCenter({
                   className={preferences.accent === id ? "sc-accent sc-accent--on" : "sc-accent"}
                   onClick={() => onPreferencesChange({ ...preferences, accent: id, accentChosen: true })}><span/>{preferences.accent === id && <Check size={13}/>}</button>)}
               </div>
+            </SettingBlock>
+            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。")}>
+              <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
             </SettingBlock>
             <SettingBlock title={t("界面字体")}>
               <div className="sc-segmented">

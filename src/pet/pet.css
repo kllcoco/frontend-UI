@@ -1,0 +1,67 @@
+/* Desktop pet window: fully transparent page, only the character (and her bubble / menu) are visible. */
+html.pet-page,html.pet-page body,html.pet-page #root{background:transparent!important;overflow:hidden;margin:0;height:100%;user-select:none;-webkit-user-select:none}
+html.pet-page #ciro-boot{display:none}
+.pet-root{position:fixed;inset:0;font:13px/1.45 "DM Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif}
+.pet-sprite{position:absolute;left:50%;bottom:4px;width:190px;height:238px;transform:translateX(-50%);cursor:grab;touch-action:none}
+.pet-sprite:active{cursor:grabbing}
+.pet-sprite img,.pet-svg{width:100%;height:100%;display:block;pointer-events:none;object-fit:contain;object-position:bottom}
+.pet-svg{overflow:visible}
+
+/* Life: breathing, swaying hair, gentle float */
+.pet-body{transform-origin:100px 240px;animation:pet-breathe 3.4s ease-in-out infinite}
+.pet-hair-back{transform-origin:100px 60px;animation:pet-sway 5.2s ease-in-out infinite}
+.pet-pin{animation:pet-twinkle 3.6s ease-in-out infinite}
+.pet-sprite img{transform-origin:50% 100%;animation:pet-breathe 3.4s ease-in-out infinite}
+@keyframes pet-breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.012,.988)}}
+@keyframes pet-sway{0%,100%{transform:rotate(-.8deg)}50%{transform:rotate(.8deg)}}
+@keyframes pet-twinkle{0%,80%,100%{opacity:1}88%{opacity:.6}}
+
+/* Moods */
+.pet-sprite--happy,.pet-sprite--love,.pet-sprite--wave{animation:pet-hop .55s cubic-bezier(.3,1.6,.5,1) 2}
+.pet-sprite--angry{animation:pet-shake .32s linear 3}
+.pet-sprite--sleep .pet-body,.pet-sprite--sleep img{animation:pet-breathe 5.5s ease-in-out infinite}
+.pet-sprite--sleep{filter:saturate(.9)}
+.pet-sprite--drag{animation:pet-dangle 1s ease-in-out infinite;transform-origin:50% 12%}
+.pet-sprite--think .pet-head{animation:pet-tilt 2.4s ease-in-out infinite;transform-origin:100px 140px}
+.pet-sprite--wave .pet-arm--r{animation:pet-wave .5s ease-in-out 5;transform-origin:126px 150px}
+.pet-sprite--shy .pet-head{transform:rotate(-4deg);transform-origin:100px 140px;transition:transform .3s}
+@keyframes pet-hop{0%,100%{transform:translateX(-50%) translateY(0)}40%{transform:translateX(-50%) translateY(-16px)}}
+@keyframes pet-shake{0%,100%{transform:translateX(-50%)}25%{transform:translateX(calc(-50% - 4px))}75%{transform:translateX(calc(-50% + 4px))}}
+@keyframes pet-dangle{0%,100%{transform:translateX(-50%) rotate(-5deg)}50%{transform:translateX(-50%) rotate(5deg)}}
+@keyframes pet-tilt{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+@keyframes pet-wave{0%,100%{transform:rotate(0)}50%{transform:rotate(-14deg)}}
+
+/* Effects */
+.pet-fx{position:absolute;pointer-events:none;font-weight:700}
+.pet-heart{right:22px;top:34px;color:#e0607a;font-size:20px;animation:pet-rise 1.6s ease-out forwards}
+.pet-zzz{right:26px;top:20px;color:#d9b46a;font-size:15px;letter-spacing:2px}
+.pet-zzz i,.pet-zzz b{font-style:normal;display:inline-block;animation:pet-z 2.4s ease-in-out infinite}
+.pet-zzz i{font-size:18px;animation-delay:.4s}.pet-zzz b{font-size:22px;animation-delay:.8s}
+@keyframes pet-rise{0%{opacity:0;transform:translateY(8px) scale(.6)}25%{opacity:1;transform:translateY(0) scale(1.1)}100%{opacity:0;transform:translateY(-26px) scale(1)}}
+@keyframes pet-z{0%,100%{opacity:.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-6px)}}
+
+/* Speech bubble and menu in the art's black-and-gold */
+.pet-say{position:absolute;left:50%;top:4px;transform:translateX(-50%);max-width:206px;box-sizing:border-box;padding:7px 12px;border-radius:12px;
+  background:rgba(22,18,14,.92);color:#f3e7cf;border:1px solid rgba(217,180,106,.55);box-shadow:0 6px 18px rgba(0,0,0,.35);
+  text-align:center;white-space:pre-wrap;animation:pet-pop .25s cubic-bezier(.3,1.5,.5,1)}
+.pet-say::after{content:"";position:absolute;left:50%;bottom:-6px;width:10px;height:10px;transform:translateX(-50%) rotate(45deg);
+  background:rgba(22,18,14,.92);border-right:1px solid rgba(217,180,106,.55);border-bottom:1px solid rgba(217,180,106,.55)}
+.pet-say--dots{letter-spacing:3px;animation:pet-pop .25s cubic-bezier(.3,1.5,.5,1),pet-dots 1.2s ease-in-out infinite}
+@keyframes pet-pop{0%{opacity:0;transform:translateX(-50%) scale(.8)}100%{opacity:1;transform:translateX(-50%) scale(1)}}
+@keyframes pet-dots{0%,100%{opacity:.55}50%{opacity:1}}
+.pet-menu{position:absolute;left:50%;top:6px;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;min-width:140px;padding:5px;border-radius:12px;
+  background:rgba(22,18,14,.96);border:1px solid rgba(217,180,106,.5);box-shadow:0 10px 26px rgba(0,0,0,.45)}
+.pet-menu button{border:0;background:none;color:#f3e7cf;text-align:left;padding:7px 10px;border-radius:8px;font:inherit;cursor:pointer}
+.pet-menu button:hover,.pet-menu button:focus-visible{background:rgba(217,180,106,.18);color:#fbe9c0;outline:none}
+@media (prefers-reduced-motion:reduce){.pet-root *{animation:none!important}}
+
+/* In-app pet (web / Android): a smaller Ciro floating over the app, below dialogs. */
+.pet-root.pet-root--inline{position:fixed;inset:auto;width:170px;height:215px;z-index:40;pointer-events:none}
+.pet-root--inline .pet-sprite,.pet-root--inline .pet-say,.pet-root--inline .pet-menu{pointer-events:auto}
+.pet-root--inline .pet-sprite{width:130px;height:163px;bottom:0}
+.pet-root--inline .pet-say{top:0;max-width:170px;font-size:12.5px}
+@media (max-width:760px){
+  .pet-root.pet-root--inline{width:140px;height:178px}
+  .pet-root--inline .pet-sprite{width:104px;height:130px}
+  .pet-root--inline .pet-say{max-width:150px;font-size:12px;padding:6px 10px}
+}

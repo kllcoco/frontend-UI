@@ -9,7 +9,7 @@ const zh = {
   minimize: "最小化", zoom: "缩放", front: "全部置于顶层", shortcuts: "键盘快捷键", about: "关于 Ciro",
   website: "访问 GitHub 仓库", updates: "检查更新…", hide: "隐藏 Ciro", hideOthers: "隐藏其他", unhide: "全部显示",
   services: "服务", startupError: "Ciro 本地服务启动失败", exportPdf: "导出为 PDF…", upToDate: "已是最新版本",
-  showCiro: "显示 Ciro", trayHint: "Ciro 仍在后台运行，可从托盘图标或 Alt+Space 唤出。", hotkeyHint: "全局唤出快捷键", newWindow: "新建窗口", find: "在对话中查找", alwaysOnTop: "窗口置顶", quickAsk: "快速提问"
+  showCiro: "显示 Ciro", trayHint: "Ciro 仍在后台运行，可从托盘图标或 Alt+Space 唤出。", hotkeyHint: "全局唤出快捷键", newWindow: "新建窗口", find: "在对话中查找", alwaysOnTop: "窗口置顶", quickAsk: "快速提问", pet: "显示桌宠"
 };
 const en = {
   file: "File", edit: "Edit", view: "View", window: "Window", help: "Help",
@@ -21,7 +21,7 @@ const en = {
   minimize: "Minimize", zoom: "Zoom", front: "Bring All to Front", shortcuts: "Keyboard Shortcuts", about: "About Ciro",
   website: "Visit GitHub Repository", updates: "Check for Updates…", hide: "Hide Ciro", hideOthers: "Hide Others", unhide: "Show All",
   services: "Services", startupError: "Ciro could not start its local service", exportPdf: "Export as PDF…", upToDate: "You're up to date",
-  showCiro: "Show Ciro", trayHint: "Ciro is still running. Open it from the tray icon or with Alt+Space.", hotkeyHint: "Global shortcut", newWindow: "New Window", find: "Find in Chat", alwaysOnTop: "Always on Top", quickAsk: "Quick ask"
+  showCiro: "Show Ciro", trayHint: "Ciro is still running. Open it from the tray icon or with Alt+Space.", hotkeyHint: "Global shortcut", newWindow: "New Window", find: "Find in Chat", alwaysOnTop: "Always on Top", quickAsk: "Quick ask", pet: "Desktop pet"
 };
 const zhTW = {
   file: "檔案", edit: "編輯", view: "檢視", window: "視窗", help: "說明",
@@ -33,7 +33,7 @@ const zhTW = {
   minimize: "最小化", zoom: "縮放", front: "全部移到最前", shortcuts: "鍵盤快速鍵", about: "關於 Ciro",
   website: "前往 GitHub 儲存庫", updates: "檢查更新…", hide: "隱藏 Ciro", hideOthers: "隱藏其他", unhide: "全部顯示",
   services: "服務", startupError: "Ciro 本機服務啟動失敗", exportPdf: "匯出為 PDF…", upToDate: "已是最新版本",
-  showCiro: "顯示 Ciro", trayHint: "Ciro 仍在背景執行，可從系統匣圖示或 Alt+Space 喚出。", hotkeyHint: "全域喚出快速鍵", newWindow: "開新視窗", find: "在對話中尋找", alwaysOnTop: "視窗置頂", quickAsk: "快速提問"
+  showCiro: "顯示 Ciro", trayHint: "Ciro 仍在背景執行，可從系統匣圖示或 Alt+Space 喚出。", hotkeyHint: "全域喚出快速鍵", newWindow: "開新視窗", find: "在對話中尋找", alwaysOnTop: "視窗置頂", quickAsk: "快速提問", pet: "顯示桌寵"
 };
 function pickLanguage(preferred) {
   for (const tag of preferred) {

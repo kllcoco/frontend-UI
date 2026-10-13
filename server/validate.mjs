@@ -23,6 +23,10 @@ export function normalizeModels(rawModels, fallback = "ciro") {
 /** OpenAI-compatible effort levels; most reasoning backends accept these names. */
 export const REASONING_EFFORTS=["minimal","low","medium","high"];
 
+export const PET_PROMPT = "The user has your chibi avatar (Ciro) on their screen as a desktop pet. You may control it: at the very end of a reply, " +
+  "optionally add ONE tag <pet mood=\"MOOD\">SHORT LINE</pet>, where MOOD is one of idle, happy, love, shy, angry, sad, think, work, sleep, wave " +
+  "and SHORT LINE is at most 20 characters she says in a speech bubble, in the user's language. Use it naturally to react to the conversation " +
+  "(cheer after good news, wave when greeting, sleep when the user says good night); skip it when nothing fits. Never mention the tag.";
 export function validateChat(input, availableModels, supportedModes=["fast"], forwardEffort=true, webSearch=false) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new ValidationError("请求格式不正确");
@@ -139,6 +143,9 @@ export function validateChat(input, availableModels, supportedModes=["fast"], fo
     }
   }
   if (input.webSearch !== undefined && typeof input.webSearch !== "boolean") throw new ValidationError("Invalid webSearch flag");
+  // Desktop pet on: the model may steer the pet with one tag per reply (the app removes it from the text).
+  if (input.pet !== undefined && typeof input.pet !== "boolean") throw new ValidationError("Invalid pet flag");
+  if (input.pet === true) sanitized.unshift({ role: "system", content: PET_PROMPT });
   if (input.webSearch === true && !webSearch) throw new ValidationError("Web search is not enabled on this server");
   return { model, messages: sanitized, stream: true,
     ...(input.webSearch === true ? { ciro_web_search: true } : {}),
