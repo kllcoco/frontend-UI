@@ -1,6 +1,7 @@
 /* Composer attachments: text/code inline, PDF → extracted text, images → compressed data URLs.
    Full-size images live in IndexedDB (localStorage would overflow); chat history keeps thumbnails. */
 import { newId } from "./storage";
+import { docxText, pptxText, xlsxText } from "./office";
 
 export type Attachment =
   | { id: string; kind: "text"; name: string; content: string; size: number }
@@ -9,7 +10,7 @@ export type Attachment =
 export const LIMITS = { files: 5, textBytes: 200_000, imageBytes: 20_000_000, pdfBytes: 25_000_000, pdfChars: 120_000 };
 export const TEXT_EXT = /\.(txt|md|markdown|json|csv|ts|tsx|js|jsx|mjs|cjs|py|html|css|scss|xml|yaml|yml|toml|ini|sql|log|sh|ps1|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|rb|php|vue|svelte)$/i;
 export const IMAGE_TYPES = /^image\/(png|jpeg|webp|gif)$/;
-export const ACCEPT = ".txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.mjs,.cjs,.py,.html,.css,.scss,.xml,.yaml,.yml,.toml,.ini,.sql,.log,.sh,.ps1,.go,.rs,.java,.kt,.swift,.c,.cc,.cpp,.h,.hpp,.cs,.rb,.php,.vue,.svelte,.pdf,image/png,image/jpeg,image/webp,image/gif";
+export const ACCEPT = ".txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.mjs,.cjs,.py,.html,.css,.scss,.xml,.yaml,.yml,.toml,.ini,.sql,.log,.sh,.ps1,.go,.rs,.java,.kt,.swift,.c,.cc,.cpp,.h,.hpp,.cs,.rb,.php,.vue,.svelte,.pdf,.docx,.xlsx,.pptx,image/png,image/jpeg,image/webp,image/gif";
 
 export class AttachmentError extends Error {}
 
@@ -77,6 +78,19 @@ export async function readAttachment(file: File): Promise<Attachment> {
     const content = await pdfText(file);
     return { id: newId(), kind: "text", name: file.name, content, size: content.length };
   }
+  const office = /\.(docx|xlsx|pptx)$/i.exec(file.name)?.[1].toLowerCase();
+  if (office) {
+    if (file.size > LIMITS.pdfBytes) throw new AttachmentError("文件不能超过 25 MB");
+    let content: string;
+    try {
+      const buffer = await file.arrayBuffer();
+      content = office === "docx" ? docxText(buffer) : office === "xlsx" ? xlsxText(buffer) : pptxText(buffer);
+    } catch (e) { throw new AttachmentError(e instanceof Error ? e.message : "无法读取文件"); }
+    if (!content.replace(/\[(第 \d+ (页|张幻灯片)|工作表 [^\]]+)\]/g, "").trim()) throw new AttachmentError("文件里没有可读取的文字");
+    content = content.slice(0, LIMITS.pdfChars);
+    return { id: newId(), kind: "text", name: file.name, content, size: content.length };
+  }
+  if (/\.(doc|xls|ppt)$/i.test(file.name)) throw new AttachmentError("旧版 Office 格式暂不支持，请另存为 .docx / .xlsx / .pptx 后再上传");
   if (!TEXT_EXT.test(file.name)) throw new AttachmentError("不支持的文件类型");
   if (file.size > LIMITS.textBytes) throw new AttachmentError("文本文件不能超过 200 KB");
   const content = await file.text();

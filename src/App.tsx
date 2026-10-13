@@ -55,6 +55,8 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import { findCitations } from "./lib/office";
+import type { Citation } from "./lib/office";
 import CanvasPanel from "./components/CanvasPanel";
 import VoiceMode from "./components/VoiceMode";
 import { addMemory, listMemories, localMemoriesForChat, removeMemory } from "./lib/memory";
@@ -169,6 +171,13 @@ export default function App() {
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
   const [rowMenuUp, setRowMenuUp] = useState(false);
+  const [citation, setCitation] = useState<Citation | null>(null);
+  useEffect(() => {
+    if (!citation) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setCitation(null); };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [citation]);
   const [topMore, setTopMore] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [canvasId, setCanvasId] = useState<string | null>(null);
@@ -509,6 +518,7 @@ export default function App() {
       return true;
     }
     if (topMore) { setTopMore(false); return true; }
+    if (citation) { setCitation(null); return true; }
     if (plusOpen || modelOpen || rowMenuId) { setPlusOpen(false); setModelOpen(false); setRowMenuId(null); return true; }
     if (settingsSection) {
       if ((window as unknown as { ciroSettingsBack?: () => boolean }).ciroSettingsBack?.()) return true;
@@ -941,9 +951,11 @@ export default function App() {
       return;
     }
 
-    const attachmentText = attachments.flatMap((file) => file.kind === "text"
-      ? [t("附件：") + file.name + "\n\n```text\n" + file.content + "\n```"] : []
-    ).join("\n\n");
+    const textAttachments = attachments.flatMap((file) => file.kind === "text" ? [file] : []);
+    const cited = textAttachments.some((file) => /^\[(第 \d+ (页|张幻灯片)|工作表 [^\]]+)\]/m.test(file.content));
+    const attachmentText = textAttachments.map((file) => t("附件：") + file.name + "\n\n```text\n" + file.content + "\n```").join("\n\n") +
+      // Paged documents: ask for a source after each claim so the answer can link back to the page.
+      (cited ? "\n\n" + t("（回答中用到附件内容时，请在相应句子后用［文件名 第 N 页］注明出处；表格写［文件名 工作表 名称］，幻灯片写［文件名 第 N 张幻灯片］。）") : "");
     const images = attachments.flatMap((file) => file.kind === "image" ? [file] : []);
     images.forEach((image) => void putImage(image.id, image.dataUrl));
     const textFiles = attachments.flatMap((file) => file.kind === "text" ? [{ name: file.name, size: file.size }] : []);
@@ -1761,6 +1773,15 @@ export default function App() {
                     {preferences.showTime && <time className="message-time" dateTime={new Date(message.createdAt).toISOString()}>
                       {new Date(message.createdAt).toLocaleTimeString(localeTag(language), { hour: "2-digit", minute: "2-digit" })}
                     </time>}
+                    {assistant && message.content && !isStreaming && (() => {
+                      const asked = current.messages.slice(0, index).reverse().find((m) => m.role === "user");
+                      const cites = asked?.attachText ? findCitations(message.content, asked.attachText) : [];
+                      return cites.length ? <div className="cx-cites" aria-label={t("出处")}>
+                        <span>{t("出处")}</span>
+                        {cites.map((c) => <button type="button" key={c.file + c.label} onClick={() => setCitation(c)}>
+                          <FileText size={13}/>{c.file} · {c.label}</button>)}
+                      </div> : null;
+                    })()}
                     {assistant && message.content && !isStreaming && <div className="message-actions">
                       {(message.versions?.length ?? 0) > 1 && <VersionNav t={t} index={message.versionIndex ?? message.versions!.length - 1}
                         total={message.versions!.length} disabled={busy} onGo={(i) => showVersion(message, i)}/>}
@@ -1944,6 +1965,14 @@ export default function App() {
         onAsk={(instruction) => askCanvas(current.canvas!.find((d) => d.id === canvasId)!, instruction)}/>}
       {voiceOpen && <VoiceMode t={t} language={language} serverStt={Boolean(status.stt)} serverTts={Boolean(status.tts)}
         onAsk={askVoice} onClose={() => setVoiceOpen(false)}/>}
+      {citation && <div className="cx-cite-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setCitation(null); }}>
+        <div className="cx-cite-dialog" role="dialog" aria-modal="true" aria-label={t("出处") + "：" + citation.file + " · " + citation.label}>
+          <header><FileText size={16}/><strong>{citation.file}</strong><span>{citation.label}</span>
+            <button type="button" className="cx-icon" onClick={() => setCitation(null)} aria-label={t("关闭")}><X size={17}/></button></header>
+          <pre>{citation.text || t("这一部分没有文字")}</pre>
+          <small>{t("这是从你上传的文件里读出的原文，可以用来核对回答。")}</small>
+        </div>
+      </div>}
       {settingsSection && <SettingsCenter
         initialSection={settingsSection}
         onClose={() => setSettingsSection(null)}

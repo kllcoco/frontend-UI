@@ -1346,3 +1346,17 @@ pre.rw-ev{font:inherit;background:none;border:0;padding:0}
 .api-out{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--cx-side)}
 .api-out pre{margin:0;white-space:pre-wrap;word-break:break-word;font:inherit;font-size:14px;color:var(--cx-text)}
 .api-out small{display:block;margin-top:6px;color:var(--cx-muted);font-size:12px}
+
+/* Document Q&A: sources an answer cites, opening the original page text */
+.cx-cites{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 2px}
+.cx-cites>span{font-size:12.5px;color:var(--cx-muted);margin-right:2px}
+.cx-cites button{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:4px 10px;border-radius:999px;border:1px solid var(--cx-line);
+  background:var(--cx-surface);color:var(--cx-text-2);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-cites button:hover{border-color:var(--cx-accent);color:var(--cx-accent)}
+.cx-cite-backdrop{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--cx-scrim);animation:cx-fade .15s}
+.cx-cite-dialog{display:flex;flex-direction:column;width:min(640px,100%);max-height:min(80vh,720px);border-radius:16px;background:var(--cx-raised);border:1px solid var(--cx-line);box-shadow:var(--cx-shadow);animation:cx-rise .2s var(--cx-ease)}
+.cx-cite-dialog header{display:flex;align-items:center;gap:8px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--cx-line);color:var(--cx-accent)}
+.cx-cite-dialog header strong{color:var(--cx-text);font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cx-cite-dialog header span{flex:1;font-size:13px;color:var(--cx-muted);white-space:nowrap}
+.cx-cite-dialog pre{flex:1;min-height:0;overflow:auto;margin:0;padding:14px 16px;white-space:pre-wrap;word-break:break-word;font:inherit;font-size:14px;line-height:1.7;color:var(--cx-text)}
+.cx-cite-dialog small{padding:10px 16px 14px;font-size:12px;color:var(--cx-muted)}
