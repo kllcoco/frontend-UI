@@ -26,7 +26,8 @@ jobs:
   ui-smoke:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # Full E2E + browser setup + artifact cleanup exceeded 12 minutes even with all tests passing.
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
