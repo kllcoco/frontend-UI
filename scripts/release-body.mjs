@@ -18,6 +18,10 @@ const describe = (f) => {
   if (/\.deb$/.test(f)) return "Debian / Ubuntu 安装包";
   if (/\.tar\.gz$/.test(f)) return "压缩包";
   if (/\.apk$/.test(f)) return "Android 7.0 及以上";
+  if (/^Server-oneclick-Windows/.test(f)) return "**懒人版**：双击运行，自动把这台电脑变成服务器（局域网可用）";
+  if (/^Server-oneclick-macOS/.test(f)) return "**懒人版**：双击运行；打不开时在终端输入 `bash ` 再把文件拖进去回车";
+  if (/^Server-oneclick-Linux/.test(f)) return "**懒人版**：`bash Server-oneclick-Linux.sh`";
+  if (/portable\.zip$/.test(f)) return "懒人版使用的服务器文件（自动下载，无需手动下载）";
   if (/install\.sh$/.test(f)) return "Linux 服务器一键安装 / 升级脚本（见下方部署教程）";
   if (/\.tgz$/.test(f)) return "npm 包离线安装文件";
   return "";

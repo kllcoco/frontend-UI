@@ -45,6 +45,8 @@ await import("../server/index.mjs");
 `);
 
 chmodSync(join(out, "bin", "ciro-client.mjs"), 0o755);
+// The one-click launchers (deploy/oneclick) start this: asks for the model once, serves the local network.
+cpSync(join(root, "scripts", "quickstart.mjs"), join(out, "bin", "quickstart.mjs"));
 writeFileSync(join(out, "package.json"), JSON.stringify({
   name: "@kllcoco/ciro-client",
   version: pkg.version,

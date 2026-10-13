@@ -5,7 +5,8 @@ import {
   ArrowDownToLine, Columns2, ArrowUp, Blocks, BrainCircuit, Check, ChevronDown, ChevronRight, Code2, Copy, FileText,
   GitBranch, Layers, LayoutGrid, Menu, MoreHorizontal, Paperclip, PanelLeftClose,
   PanelLeftOpen, Pencil, Pin, PinOff, Plus, PlugZap, RotateCcw, Search, Settings2, Sparkles, Square, SquarePen,
-  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, ImageDown, AudioLines, Users, MonitorSmartphone, LockKeyhole
+  Target, Trash2, Workflow, X, ListChecks, Keyboard, Cloud, FolderOpen, FolderPlus, FolderMinus, ArrowLeft, Ghost, Mic, ThumbsDown, ThumbsUp, Volume2, VolumeX, Printer, Download, RefreshCw, Archive, BookMarked, Share2, Globe, Wrench, ChevronLeft, CornerDownRight, AppWindow, PanelRight, Bookmark, BookmarkCheck, ImagePlus, ImageDown, AudioLines, Users, MonitorSmartphone, LockKeyhole,
+  PawPrint
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
@@ -29,7 +30,7 @@ import type { SavedPrompt } from "./lib/prompts";
 import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
 import RemoteWork from "./components/RemoteWork";
 import DesktopPet from "./pet/DesktopPet";
-import { commandPet, petCommand, petEnabled, stripPetTags } from "./lib/pet";
+import { commandPet, petCommand, petEnabled, setPetEnabled, stripPetTags } from "./lib/pet";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
@@ -60,6 +61,7 @@ import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
 import Announcements from "./components/Announcements";
 import AndroidUpdate from "./components/AndroidUpdate";
+import { reportUpdate } from "./lib/update-result";
 import ShareImage from "./components/ShareImage";
 import { useHoldToTalk } from "./lib/hold-to-talk";
 import SourceCards from "./components/SourceCards";
@@ -533,7 +535,14 @@ export default function App() {
     if (bridge?.exportPdf) void bridge.exportPdf(chat.title).then((ok) => { if (ok) notify("已导出 PDF"); });
     else window.print();
   };
-  useEffect(() => desktop()?.onUpdate?.((info) => setUpdateInfo(info)), []);
+  useEffect(() => desktop()?.onUpdate?.((info) => {
+    if (info.state === "checking") { reportUpdate({ text: "正在检查更新…", busy: true }); return; }
+    if (info.state === "latest") { reportUpdate({ text: "已是最新版本" + (info.version ? " v" + info.version : "") }); return; }
+    if (info.state === "error") { if (info.manual) reportUpdate({ text: "暂时连不上更新服务器（GitHub），请稍后再试" }); return; }
+    if (info.state === "available") reportUpdate({ text: "发现新版本 v" + info.version, action: "download" });
+    if (info.state === "ready") reportUpdate({ text: "新版本 v" + (info.version || "") + " 已下载好", action: "install" });
+    setUpdateInfo(info);
+  }), []);
   const shareRef = useRef<(p: SharePayload) => Promise<void>>(async () => undefined);
   const backRef = useRef<() => boolean>(() => false);
   backRef.current = () => {
@@ -1476,6 +1485,13 @@ export default function App() {
     else if (action.type === "studio") openStudio(action.tab as WorkbenchTab);
     else if (action.type === "logout") void logout();
     else if (action.type === "download") openExternal(RELEASES_URL);
+    else if (action.type === "pet") togglePet();
+  }
+  function togglePet() {
+    const next = !petOnRef.current;
+    setPetEnabled(next);
+    setPetOn(next);
+    notify(next ? "桌宠已开启：可以拖动、点她、双击提问" : "桌宠已关闭");
   }
 
   const paletteCommands: PaletteCommand[] = [
@@ -1490,6 +1506,7 @@ export default function App() {
     { id: "shortcuts", label: t("键盘快捷键"), icon: <Keyboard size={16}/>, hint: MOD + " /", run: () => setSettingsSection("shortcuts") },
     { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
     { id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") },
+    { id: "pet", label: petOn ? t("隐藏桌宠") : t("显示桌宠"), icon: <PawPrint size={16}/>, run: togglePet },
     { id: "voice", label: t("语音对话"), icon: <AudioLines size={16}/>, run: () => setVoiceOpen(true) },
     { id: "find", label: t("在对话中查找"), icon: <Search size={16}/>, hint: MOD + " F", run: () => runCommand("find") },
     { id: "sync", label: t("跨设备同步"), icon: <Cloud size={16}/>, run: () => openStudio("sync") }
@@ -1663,7 +1680,7 @@ export default function App() {
         <UserMenu t={t} collapsed={sidebarCollapsed} name={displayName} email={session?.user?.email || null} plan={plan}
           authenticated={Boolean(session?.authenticated)} accountsEnabled={Boolean(session?.enabled)} unread={unread}
           languagePref={languagePref} onLanguagePref={(pref) => { setLanguagePref(pref); }}
-          themePref={themePref} onThemePref={setThemePref} onAction={onUserMenu}/>
+          themePref={themePref} onThemePref={setThemePref} onAction={onUserMenu} petOn={petOn}/>
       </aside>
 
       {studioOpen ? <main className="workspace workspace--studio">

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone } from "lucide-react";
+import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone, PawPrint } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -23,6 +23,8 @@ import ApiConsole from "./components/ApiConsole";
 import AnnouncementEditor from "./components/AnnouncementEditor";
 import UserAdmin from "./components/UserAdmin";
 import { petEnabled, setPetEnabled } from "./lib/pet";
+import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
+import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
 import { loadAnnouncements } from "./lib/announcements";
 import MemoryManager from "./components/MemoryManager";
@@ -33,7 +35,7 @@ import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "announce" | "users" | "general" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
+type Section = "announce" | "users" | "general" | "pet" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -69,6 +71,7 @@ type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: st
 const sections: SectionInfo[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
   { id: "appearance", label: "外观与背景", icon: Palette, group: "常用", keys: "主题 深色 浅色 背景 壁纸 强调色 字体 theme dark" },
+  { id: "pet", label: "桌宠", icon: PawPrint, group: "常用", keys: "桌宠 宠物 Q版 看板娘 pet mascot" },
   { id: "chat", label: "对话设置", icon: MessageSquare, group: "常用", keys: "通知 时间 紧凑 追问 标题 字号 notification" },
   { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 服务器 连接 api model server" },
   { id: "instructions", label: "自定义指令", icon: FileText, group: "常用", keys: "指令 关于你 回答方式 instructions" },
@@ -128,6 +131,12 @@ export default function SettingsCenter({
   const [query, setQuery] = useState("");
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
   const [petShown, setPetShown] = useState(petEnabled);
+  const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setUpdateResult((e as CustomEvent<UpdateResult>).detail);
+    window.addEventListener(UPDATE_RESULT, on);
+    return () => window.removeEventListener(UPDATE_RESULT, on);
+  }, []);
   // Registered members don't see the server-wide tools (workbench, plugins, billing) — those are the owner's.
   const [member, setMember] = useState(false);
   useEffect(() => {
@@ -233,6 +242,11 @@ export default function SettingsCenter({
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}
+          {section === "pet" && <>
+            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。")}>
+              <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
+            </SettingBlock>
+          </>}
           {section === "appearance" && <>
             <div className="sc-section-heading"><div><h3>{t("把 Ciro 变成你的空间")}</h3><p>{t("选一处风景，或上传只属于你的背景。每次调整都会立即生效。")}</p></div>
               <span className="sc-save-status"><Check size={14}/> {t("自动保存")}</span></div>
@@ -258,9 +272,6 @@ export default function SettingsCenter({
                   className={preferences.accent === id ? "sc-accent sc-accent--on" : "sc-accent"}
                   onClick={() => onPreferencesChange({ ...preferences, accent: id, accentChosen: true })}><span/>{preferences.accent === id && <Check size={13}/>}</button>)}
               </div>
-            </SettingBlock>
-            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。")}>
-              <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
             </SettingBlock>
             <SettingBlock title={t("界面字体")}>
               <div className="sc-segmented">
@@ -509,10 +520,17 @@ export default function SettingsCenter({
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
               {Boolean(window.ciroDesktop?.updateAction || (window as unknown as { CiroUpdate?: unknown }).CiroUpdate) && <SettingRow title={t("检查更新")}
                 description={t("有新版本时会在应用内下载并安装，聊天记录和设置都会保留")}>
-                <button type="button" className="sc-action-secondary" onClick={() => {
-                  if (window.ciroDesktop?.updateAction) window.ciroDesktop.updateAction("check");
-                  else window.dispatchEvent(new Event("ciro-check-update"));
-                }}><RefreshCcw size={15}/> {t("检查更新")}</button></SettingRow>}
+                <span className="sc-update">
+                  {updateResult && <span className="sc-update-msg" role="status">{t(updateResult.text)}</span>}
+                  {updateResult?.action && <button type="button" className="sc-action-secondary sc-update-go" onClick={() => {
+                    if (window.ciroDesktop?.updateAction) window.ciroDesktop.updateAction(updateResult.action!);
+                    else window.dispatchEvent(new Event(UPDATE_START));
+                  }}>{t(updateResult.action === "install" ? "重启以更新" : "立即更新")}</button>}
+                  <button type="button" className="sc-action-secondary" disabled={updateResult?.busy} onClick={() => {
+                    setUpdateResult({ text: "正在检查更新…", busy: true });
+                    if (window.ciroDesktop?.updateAction) window.ciroDesktop.updateAction("check");
+                    else window.dispatchEvent(new Event("ciro-check-update"));
+                  }}><RefreshCcw size={15} className={updateResult?.busy ? "cx-spin" : ""}/> {t("检查更新")}</button></span></SettingRow>}
               <SettingRow title={t("推理服务")} description={status.configured ? t("当前使用的模型：") + model : t("还没有连接推理服务，在“模型设置”里查看连接方法")}><span className="sc-static-value">{status.configured ? t("已连接") : t("未连接")}</span></SettingRow>
             </SettingBlock>
           </>}

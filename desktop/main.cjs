@@ -15,7 +15,9 @@ let tray = null;
 let isQuitting = false;
 let trayHintShown = false;
 let updater = null;
-let manualUpdateCheck = false;
+let manualUpdateCheck = ""; // "", "menu" or "app"
+let downloading = false;
+let downloadedVersion = "";
 const HOTKEY = isMac ? "Alt+Space" : "Alt+Space";
 // Quick ask: a small always-on-top window; text copied just before is brought along.
 const QUICK_HOTKEY = "CommandOrControl+Shift+Space";
@@ -93,27 +95,37 @@ function setupUpdater() {
   try { updater = require("electron-updater").autoUpdater; } catch { return; }
   updater.autoDownload = false;
   updater.autoInstallOnAppQuit = true;
-  updater.on("update-available", (info) => toRenderer("ciro:update", { state: "available", version: info.version }));
+  updater.on("update-available", (info) => {
+    manualUpdateCheck = "";
+    if (downloadedVersion && downloadedVersion === info.version) { toRenderer("ciro:update", { state: "ready", version: info.version }); return; }
+    if (!downloading) toRenderer("ciro:update", { state: "available", version: info.version });
+  });
   updater.on("update-not-available", () => {
-    if (manualUpdateCheck) {
+    if (manualUpdateCheck === "menu") {
       const s = strings(language);
       void dialog.showMessageBox({ type: "info", message: s.upToDate, detail: "Ciro " + app.getVersion() });
     }
-    manualUpdateCheck = false;
+    if (manualUpdateCheck) toRenderer("ciro:update", { state: "latest", version: app.getVersion() });
+    manualUpdateCheck = "";
   });
-  updater.on("download-progress", (p) => toRenderer("ciro:update", { state: "downloading", percent: Math.round(p.percent || 0) }));
-  updater.on("update-downloaded", (info) => toRenderer("ciro:update", { state: "ready", version: info.version }));
+  updater.on("download-progress", (p) => { downloading = true; toRenderer("ciro:update", { state: "downloading", percent: Math.round(p.percent || 0) }); });
+  updater.on("update-downloaded", (info) => { downloading = false; downloadedVersion = info.version; toRenderer("ciro:update", { state: "ready", version: info.version }); });
   updater.on("error", (error) => {
-    toRenderer("ciro:update", { state: "error", message: String(error && error.message || error).slice(0, 200) });
-    if (manualUpdateCheck) void shell.openExternal(REPO_URL + "/releases/latest");
-    manualUpdateCheck = false;
+    downloading = false;
+    toRenderer("ciro:update", { state: "error", manual: Boolean(manualUpdateCheck), message: String(error && error.message || error).slice(0, 200) });
+    if (manualUpdateCheck === "menu") void shell.openExternal(REPO_URL + "/releases/latest");
+    manualUpdateCheck = "";
   });
   setTimeout(() => { void updater.checkForUpdates().catch(() => {}); }, 8000);
   setInterval(() => { void updater.checkForUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);
 }
-function checkForUpdates() {
+/** Manual check from the menu / tray ("menu": answers with a dialog) or from Settings ("app": answers in the page). */
+function checkForUpdates(from = "menu") {
   if (!updater) { void shell.openExternal(REPO_URL + "/releases/latest"); return; }
-  manualUpdateCheck = true;
+  if (downloadedVersion) { toRenderer("ciro:update", { state: "ready", version: downloadedVersion }); return; }
+  if (downloading) return;
+  manualUpdateCheck = from === "app" ? "app" : "menu";
+  toRenderer("ciro:update", { state: "checking" });
   void updater.checkForUpdates().catch(() => {});
 }
 
@@ -132,7 +144,7 @@ function setupTray() {
     { label: s.quickAsk, click: () => showQuick() },
     { label: s.pet, type: "checkbox", checked: petVisible(), click: (item) => { if (item.checked) showPet(); else hidePet(); } },
     { type: "separator" },
-    { label: s.updates, click: checkForUpdates },
+    { label: s.updates, click: () => checkForUpdates("menu") },
     { type: "separator" },
     { label: s.quit, click: () => { isQuitting = true; app.quit(); } }
   ]));
@@ -279,7 +291,7 @@ function buildMenu() {
       label: "Ciro",
       submenu: [
         { label: s.about, click: () => send("about") },
-        { label: s.updates, click: checkForUpdates },
+        { label: s.updates, click: () => checkForUpdates("menu") },
         { type: "separator" },
         { label: s.settings, accelerator: "Cmd+,", click: () => send("settings") },
         { type: "separator" },
@@ -361,7 +373,7 @@ function buildMenu() {
       submenu: [
         { label: s.shortcuts, accelerator: "CmdOrCtrl+/", click: () => send("shortcuts") },
         { label: s.website, click: () => shell.openExternal(REPO_URL) },
-        { label: s.updates, click: checkForUpdates },
+        { label: s.updates, click: () => checkForUpdates("menu") },
         { label: s.hotkeyHint + " (" + (isMac ? "⌥ Space" : "Alt+Space") + ")", enabled: false },
         { label: s.quickAsk + " (" + (isMac ? "⌘⇧ Space" : "Ctrl+Shift+Space") + ")", click: () => showQuick() },
         ...(isMac ? [] : [{ type: "separator" }, { label: s.about, click: () => send("about") }])
@@ -447,9 +459,9 @@ ipcMain.on("ciro:set-language", (_event, next) => {
 });
 ipcMain.on("ciro:update-action", (_event, action) => {
   if (!updater) { void shell.openExternal(REPO_URL + "/releases/latest"); return; }
-  if (action === "download") void updater.downloadUpdate().catch(() => shell.openExternal(REPO_URL + "/releases/latest"));
+  if (action === "download" && !downloading && !downloadedVersion) { downloading = true; void updater.downloadUpdate().catch(() => { downloading = false; void shell.openExternal(REPO_URL + "/releases/latest"); }); }
   if (action === "install") { isQuitting = true; updater.quitAndInstall(); }
-  if (action === "check") checkForUpdates();
+  if (action === "check") checkForUpdates("app");
 });
 ipcMain.handle("ciro:export-pdf", async (_event, name) => {
   if (!mainWindow) return false;

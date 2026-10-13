@@ -3,7 +3,7 @@ import type { Language } from "./i18n";
 
 export type DesktopCommand =
   | "new-chat" | "search" | "settings" | "toggle-sidebar" | "shortcuts" | "about" | "export-chat" | "export-pdf" | "focus-composer" | "find" | "new-window";
-export type UpdateInfo = { state: "available" | "downloading" | "ready" | "error"; version?: string; percent?: number; message?: string };
+export type UpdateInfo = { state: "checking" | "latest" | "available" | "downloading" | "ready" | "error"; version?: string; percent?: number; message?: string; manual?: boolean };
 
 type DesktopBridge = {
   platform: string;

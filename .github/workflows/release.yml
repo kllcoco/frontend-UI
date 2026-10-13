@@ -216,6 +216,19 @@ jobs:
           scope: "@kllcoco"
       - run: npm ci --no-audit --no-fund
       - run: npm run build && npm run pack:npm
+      - name: Portable server for the one-click launchers
+        run: |
+          rm -rf build/portable && mkdir -p build/portable
+          cp -r build/npm build/portable/Ciro-Server
+          cd build/portable/Ciro-Server
+          # the server itself only needs express + dotenv; the rest is already bundled into dist/
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));p.dependencies={express:p.dependencies.express,dotenv:p.dependencies.dotenv};delete p.publishConfig;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+          npm install --omit=dev --no-audit --no-fund --no-package-lock
+          cd .. && zip -qr Server-Ciro-portable.zip Ciro-Server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-portable
+          path: build/portable/Server-Ciro-portable.zip
       - name: Publish @kllcoco/ciro-client to GitHub Packages
         working-directory: build/npm
         run: |
@@ -248,6 +261,9 @@ jobs:
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with: { path: out, name: npm-package }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { path: out, name: server-portable }
       - name: Checksums
         run: |
           cd out
@@ -258,6 +274,12 @@ jobs:
           rm -f desktop-smoke.png
           # Platform prefixes keep each platform's files together in the (alphabetical) asset list.
           cp ../deploy/install.sh Server-install.sh
+          # One-click ("lazy") launchers: sorted after the other Server- files, i.e. at the bottom of the list.
+          if [ -e Server-Ciro-portable.zip ]; then
+            cp ../deploy/oneclick/ciro-server.bat "Server-oneclick-Windows.bat"
+            cp ../deploy/oneclick/ciro-server.sh "Server-oneclick-macOS.command"
+            cp ../deploy/oneclick/ciro-server.sh "Server-oneclick-Linux.sh"
+          fi
           for f in kllcoco-ciro-client-*.tgz; do [ -e "$f" ] && mv "$f" "Server-ciro-client-${f#kllcoco-ciro-client-}"; done
           sha256sum * > checksums-SHA256.txt
           ls -la

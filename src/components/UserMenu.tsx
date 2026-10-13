@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Bell, Check, Cloud, Users, ChevronRight, ChevronsUpDown, CircleHelp, Download, Globe, Keyboard, LogIn, LogOut,
-  Monitor, Moon, Palette, Settings2, Sparkles, Sun, UserRound, Wallet
+  Monitor, Moon, Palette, PawPrint, Settings2, Sparkles, Sun, UserRound, Wallet
 } from "lucide-react";
 import { LANGUAGES } from "../lib/i18n";
 import type { LanguagePref } from "../lib/i18n";
@@ -12,7 +12,8 @@ export type UserMenuAction =
   | { type: "settings"; section?: string }
   | { type: "studio"; tab: string }
   | { type: "logout" }
-  | { type: "download" };
+  | { type: "download" }
+  | { type: "pet" };
 
 type Props = {
   t: (text: string) => string;
@@ -28,6 +29,7 @@ type Props = {
   themePref: ThemePref;
   onThemePref: (pref: ThemePref) => void;
   onAction: (action: UserMenuAction) => void;
+  petOn?: boolean;
 };
 
 function initials(name: string): string {
@@ -49,7 +51,7 @@ function Row({ icon, label, hint, onClick, children, danger }: {
 
 /** ChatGPT / Claude style profile button pinned to the bottom of the sidebar. */
 export default function UserMenu(props: Props) {
-  const { t, collapsed, name, email, plan, authenticated, accountsEnabled, unread, languagePref, themePref, onAction } = props;
+  const { t, collapsed, name, email, plan, authenticated, accountsEnabled, unread, languagePref, themePref, onAction, petOn } = props;
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState<"language" | "theme" | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -83,6 +85,8 @@ export default function UserMenu(props: Props) {
       <div className="um-sep"/>
       <Row icon={<Settings2 size={16}/>} label={t("设置")} hint={mod + " ,"} onClick={() => run({ type: "settings", section: "general" })}/>
       <Row icon={<Sparkles size={16}/>} label={t("个性化")} onClick={() => run({ type: "settings", section: "instructions" })}/>
+      <Row icon={<PawPrint size={16}/>} label={t("桌宠")} onClick={() => run({ type: "pet" })}>
+        <span className="um-item-value">{petOn ? t("已开启") : t("已关闭")}</span></Row>
       <div className="um-sub-wrap" onMouseEnter={() => setSub("language")} onMouseLeave={() => setSub((s) => s === "language" ? null : s)}>
         <Row icon={<Globe size={16}/>} label={t("语言")} onClick={() => setSub("language")}>
           <span className="um-item-value">{currentLanguage}</span><ChevronRight size={14} className="um-item-chev"/>

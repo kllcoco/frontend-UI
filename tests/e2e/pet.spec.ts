@@ -12,7 +12,7 @@ test("pet: off by default, turned on in settings, reacts, and follows the model'
   await page.goto(ciro.url + "/");
   await expect(page.locator(".pet-root--inline")).toHaveCount(0);
   await page.keyboard.press("Control+,");
-  await page.locator(".sc-nav").getByRole("button", { name: "外观与背景" }).click();
+  await page.locator(".sc-nav").getByRole("button", { name: "桌宠", exact: true }).click();
   await page.getByRole("switch", { name: "显示桌宠" }).click();
   await page.getByRole("button", { name: "关闭设置" }).first().click();
   const pet = page.locator(".pet-root--inline");

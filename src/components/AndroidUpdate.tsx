@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, X } from "lucide-react";
-import { androidUpdateAvailable, checkAndroidUpdate, downloadProgress, installDownloaded, startDownload, UpdateCheckError } from "../lib/android-update";
+import { androidUpdateAvailable, checkAndroidUpdate, downloadProgress, installDownloaded, installedVersion, startDownload, UpdateCheckError } from "../lib/android-update";
+import { reportUpdate, UPDATE_START } from "../lib/update-result";
 import type { AndroidRelease } from "../lib/android-update";
 
 const DISMISS = "ciro.update-dismissed.v1";
@@ -13,25 +14,39 @@ export default function AndroidUpdate({ t, onNotify }: { t: (s: string) => strin
   const [percent, setPercent] = useState(0);
   const timer = useRef(0);
 
+  const releaseRef = useRef<AndroidRelease | null>(null);
+  releaseRef.current = release;
+  const checking = useRef(false);
   useEffect(() => {
     if (!androidUpdateAvailable()) return;
     const check = async (manual: boolean) => {
+      // One lookup at a time: repeated taps used to start overlapping lookups that cancelled each other.
+      if (checking.current) { if (manual) reportUpdate({ text: "正在检查更新…", busy: true }); return; }
+      checking.current = true;
+      if (manual) reportUpdate({ text: "正在检查更新…", busy: true });
       try {
         const found = await checkAndroidUpdate();
         let dismissed = ""; try { dismissed = localStorage.getItem(DISMISS) || ""; } catch { /* ignore */ }
-        if (found && (manual || dismissed !== found.version)) { setRelease(found); setPhase("available"); }
-        else if (manual) onNotify(found ? "" : "已是最新版本");
+        if (found && (manual || dismissed !== found.version)) {
+          setRelease(found);
+          setPhase((p) => p === "downloading" && releaseRef.current?.version === found.version ? p : "available");
+        }
+        if (manual) reportUpdate(found ? { text: "发现新版本 v" + found.version, action: "download" } : { text: "已是最新版本 v" + installedVersion() });
       } catch (e) {
         if (!manual) return;
         const kind = e instanceof UpdateCheckError ? e.kind : "unavailable";
-        onNotify(kind === "network" ? "检查更新失败：手机没有联网" : kind === "rate-limited" ? "GitHub 暂时限制了查询次数，请稍后再试" : "暂时连不上更新服务器（GitHub），请稍后再试");
-      }
+        const text = kind === "network" ? "检查更新失败：手机没有联网" : kind === "rate-limited" ? "GitHub 暂时限制了查询次数，请稍后再试" : "暂时连不上更新服务器（GitHub），请稍后再试";
+        reportUpdate({ text });
+        onNotify(text);
+      } finally { checking.current = false; }
     };
     const first = window.setTimeout(() => void check(false), 4000);
     const every = window.setInterval(() => void check(false), 6 * 3600_000);
     const manual = () => void check(true);
+    const start = () => { if (releaseRef.current) updateRef.current(); };
     window.addEventListener("ciro-check-update", manual);
-    return () => { window.clearTimeout(first); window.clearInterval(every); window.removeEventListener("ciro-check-update", manual); window.clearInterval(timer.current); };
+    window.addEventListener(UPDATE_START, start);
+    return () => { window.clearTimeout(first); window.clearInterval(every); window.removeEventListener("ciro-check-update", manual); window.removeEventListener(UPDATE_START, start); window.clearInterval(timer.current); };
   }, []);
 
   function install() {
@@ -39,10 +54,15 @@ export default function AndroidUpdate({ t, onNotify }: { t: (s: string) => strin
     if (result === "need-permission") setPhase("permission");
     else if (result === "missing") setPhase("failed");
   }
+  const updateRef = useRef(() => {});
+  updateRef.current = update;
   function update() {
+    const release = releaseRef.current;
     if (!release) return;
+    if (phase === "downloading") { reportUpdate({ text: "正在下载更新 " + percent + "%", busy: true }); return; }
     if (!startDownload(release)) { setPhase("failed"); return; }
     setPhase("downloading"); setPercent(0);
+    reportUpdate({ text: "正在下载更新…", busy: true });
     window.clearInterval(timer.current);
     timer.current = window.setInterval(() => {
       const p = downloadProgress();
