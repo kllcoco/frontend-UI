@@ -14,6 +14,7 @@ import {createShareRouters} from "./share.mjs";
 import {createMediaRouter,mediaFeatures} from "./media.mjs";
 import {createRemoteRouter} from "./remote.mjs";
 import {createRemoteAgent} from "./remote-agent.mjs";
+import {createApiGateway} from "./api-gateway.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -29,7 +30,7 @@ const keepRaw = (req, _res, buf) => { req.rawBody = Buffer.from(buf); };
 const chatJson = express.json({ limit: "25mb", verify: keepRaw });
 const defaultJson = express.json({ limit: "1mb", verify: keepRaw });
 // Chat (image attachments), sync pushes and work-mode logs may be large; everything else keeps the 1 MB cap.
-const LARGE_BODIES = new Set(["/api/chat", "/api/account/sync/v2/push", "/api/remote/device/events", "/api/remote/device/chat"]);
+const LARGE_BODIES = new Set(["/api/chat", "/v1/chat/completions", "/api/account/sync/v2/push", "/api/remote/device/events", "/api/remote/device/chat"]);
 app.use((req, res, next) => (LARGE_BODIES.has(req.path) ? chatJson : defaultJson)(req, res, next));
 const accounts=createAccountService();
 app.use("/api/account",accounts.router);
@@ -53,6 +54,12 @@ const configured = Boolean(apiBase);
 const forwardEffort=!["0","false","off","no"].includes((process.env.CIRO_REASONING_EFFORT||"on").trim().toLowerCase());
 const webSearch=["1","true","on","yes"].includes((process.env.CIRO_WEB_SEARCH||"off").trim().toLowerCase());
 const configuredModes=["fast",...(process.env.CIRO_CHAT_REASONING_MODES||"").split(",").map(x=>x.trim()).filter(x=>["deep"].includes(x))];
+
+// Public OpenAI-compatible API (/v1) for API-key customers, and its console data for the owner.
+const apiGateway = createApiGateway({ accounts, dir: process.env.CIRO_WORKSPACE_DATA_DIR || ".ciro-runtime",
+  upstreamUrl: apiBase + "/" + apiPath.replace(/^\/+/, ""), apiKey, models, configured });
+app.use("/v1", apiGateway.v1);
+app.use("/api/apiconsole", apiGateway.consoleRouter);
 
 // Version of the deployed web app, so open pages can offer a refresh after an upgrade.
 const appVersion = (() => {

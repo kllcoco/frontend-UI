@@ -19,6 +19,7 @@ import ConversationManager from "./components/ConversationManager";
 import BackupPanel from "./components/BackupPanel";
 import ViewBoundary from "./components/ViewBoundary";
 import UsagePanel from "./components/UsagePanel";
+import ApiConsole from "./components/ApiConsole";
 import MemoryManager from "./components/MemoryManager";
 import TeamCenter from "./components/TeamCenter";
 import type { BulkAction } from "./components/ConversationManager";
@@ -71,7 +72,7 @@ const sections: SectionInfo[] = [
   { id: "storage", label: "文件与存储", icon: Database, group: "数据与同步", keys: "备份 恢复 导出 导入 删除 backup export" },
   { id: "sync", label: "跨设备同步", icon: RefreshCcw, group: "数据与同步", keys: "同步 sync", account: true },
   { id: "account", label: "账户与安全", icon: UserRound, group: "账户", keys: "登录 密码 账户 login password" },
-  { id: "api-keys", label: "API 密钥", icon: GitBranch, group: "账户", keys: "api key 密钥", account: true },
+  { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用 openai", account: true },
   { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing" },
   { id: "subscription", label: "订阅管理", icon: Wallet, group: "账户", keys: "订阅 subscription", account: true },
   { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true },
@@ -214,6 +215,7 @@ export default function SettingsCenter({
         <div className="sc-scroll"><ViewBoundary t={t} resetKey={section}>
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
+          {section === "api-keys" && accountsOn && <ApiConsole t={t} locale={localeTag(language)}/>}
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}

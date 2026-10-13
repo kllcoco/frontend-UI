@@ -81,7 +81,7 @@ test("real account authentication, encrypted memories, spending limits and devic
 
   // A scoped API key is actually minted by the server (only shown once).
   await go(page,"设置");
-  await page.locator(".sc-nav").getByRole("button",{name:"API 密钥"}).click();
+  await page.locator(".sc-nav").getByRole("button",{name:"API 控制台"}).click();
   await page.getByRole("textbox",{name:"密钥名称"}).fill("CIRO browser integration key");
   await page.getByRole("button",{name:"创建密钥"}).click();
   await expect(page.getByText("密钥只显示一次，请妥善保存。")).toBeVisible();

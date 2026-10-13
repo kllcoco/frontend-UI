@@ -26,7 +26,7 @@ type MemoryEntry={id:string;category:string;content:string;createdAt:string};
 type Spending={dailyLimitMicros:number|null;monthlyLimitMicros:number|null;singleRequestLimitMicros:number|null;
   reservedCount:number;dailyCommittedPlusReservedMicros:number;monthlyCommittedPlusReservedMicros:number;admissionRequiresSignedRuntime:boolean};
 const labels:Record<AccountTab,string>={
-  account:"账户与安全",subscription:"订阅管理", "api-keys":"API 密钥",
+  account:"账户与安全",subscription:"订阅管理", "api-keys":"API 控制台",
   spending:"消费限额",notifications:"通知中心",memory:"记忆管理",sync:"跨设备同步"
 };
 const titleFor=(code:string)=>(code==="not_connected"?"尚未连接支付服务":code);
