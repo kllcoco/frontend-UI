@@ -176,7 +176,7 @@ export default function SettingsCenter({
   useEffect(() => { loadAnnouncements().then((r) => setCanAnnounce(r.editable), () => setCanAnnounce(false)); }, []);
   // A signed-in member is a customer even on a server with setup hints on.
   const operator = ownerSignedIn || dev || (Boolean(status.setupHints) && !memberSignedIn);
-  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && !operator)
+  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && memberSignedIn)
     && !(item.operator && !operator));
   const q = query.trim().toLowerCase();
   // Opened directly (menu, link, slash command) but not for this person: back to the general page.

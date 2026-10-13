@@ -29,7 +29,7 @@ import type { SyncItem, SyncKind } from "./lib/sync";
 import type { CompareAnswer } from "./types";
 import { loadPrompts, savePrompts } from "./lib/prompts";
 import type { SavedPrompt } from "./lib/prompts";
-import { accountApi, accountFetch, getAccountSession, invalidateAccountSession } from "./lib/account-api";
+import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
 import RemoteWork from "./components/RemoteWork";
 import DesktopPet from "./pet/DesktopPet";
 import { localNow, nativeVoice, phoneActions, runPhoneActions, stripPhoneTags } from "./lib/phone";
@@ -251,7 +251,11 @@ export default function App() {
   const operator = dev || (Boolean(status.setupHints) && !(session?.enabled && session.authenticated && session.user?.role !== "owner"))
     || Boolean(session?.enabled && session.authenticated && session.user?.role === "owner");
   // Everyone else is a customer: chat, account, memory, sync, work mode — nothing of the server's plumbing.
-  const member = !operator;
+  // Tool pages (融合工作台, 协作空间, 插件中心 …) are for everyone except signed-in members of a shared server, whose
+  // server-wide tools belong to its owner. Only the model / server plumbing is operator-only.
+  const member = roleOf(session) === "user";
+  const memberRef = useRef(member);
+  memberRef.current = member;
   const operatorRef = useRef(operator);
   operatorRef.current = operator;
   /** What a customer sees instead of the operator's "configure CIRO_API_BASE_URL" preview text. */
@@ -267,7 +271,7 @@ export default function App() {
   };
   // ?view=studio links: the tools close again for customers once we know who is here.
   useEffect(() => {
-    if (!operator && !statusLoading && studioOpen && !["remote", ...ACCOUNT_TABS].includes(studioTab)) setStudioOpen(false);
+    if (member && studioOpen && !["remote", ...ACCOUNT_TABS].includes(studioTab)) setStudioOpen(false);
   }, [operator, statusLoading, studioOpen, studioTab]);
   const [unread, setUnread] = useState(0);
   const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
@@ -1100,7 +1104,7 @@ export default function App() {
 
   function openStudio(tab: WorkbenchTab = "goals") {
     // Customers only ever reach work mode and their own account pages here.
-    if (!operatorRef.current && !["remote", ...ACCOUNT_TABS].includes(tab)) return;
+    if (memberRef.current && !["remote", ...ACCOUNT_TABS].includes(tab)) return;
     purgeTemporary();
     setProjectViewId(null);
     setStudioTab(tab);
@@ -1129,7 +1133,7 @@ export default function App() {
     const command = match[1].toLowerCase();
     const argument = (match[2] || "").trim();
     // A customer typing "/studio …" just sends the text: those commands are the operator's.
-    if (!operatorRef.current && !CUSTOMER_COMMANDS.has("/" + command)) return false;
+    if (memberRef.current && !CUSTOMER_COMMANDS.has("/" + command)) return false;
     if (command === "goal" || command === "plan") {
       setComposerMode(command === "goal" ? "goal" : "plan");
       setDraft(argument);
@@ -1694,7 +1698,7 @@ export default function App() {
     { id: "new", label: t("开启新对话"), icon: <SquarePen size={16}/>, hint: MOD + " ⇧ O", run: createNew },
     { id: "project", label: t("新建项目"), icon: <FolderPlus size={16}/>, run: () => { setSidebarCollapsed(false); setSidebarOpen(true); setCreatingProject(true); } },
     ...projects.map((p) => ({ id: "project:" + p.id, label: t("项目") + " · " + p.name, icon: <FolderOpen size={16}/>, run: () => openProject(p.id) })),
-    ...(operator ? [
+    ...(!member ? [
       { id: "studio", label: t("融合工作台"), icon: <Layers size={16}/>, run: () => openStudio("studio") },
       { id: "work", label: t("协作空间"), icon: <Workflow size={16}/>, run: () => openStudio("goals") },
       { id: "plugins", label: t("插件中心"), icon: <PlugZap size={16}/>, run: () => openStudio("plugins") },
@@ -1702,7 +1706,7 @@ export default function App() {
     { id: "settings", label: t("设置"), icon: <Settings2 size={16}/>, hint: MOD + " ,", run: () => setSettingsSection("general") },
     { id: "shortcuts", label: t("键盘快捷键"), icon: <Keyboard size={16}/>, hint: MOD + " /", run: () => setSettingsSection("shortcuts") },
     { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
-    ...(operator || status.team ? [{ id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") }] : []),
+    ...(!member || status.team ? [{ id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") }] : []),
     { id: "pet", label: petOn ? t("隐藏桌宠") : t("显示桌宠"), icon: <PawPrint size={16}/>, run: togglePet },
     { id: "voice", label: t("语音对话"), icon: <AudioLines size={16}/>, run: () => setVoiceOpen(true) },
     { id: "find", label: t("在对话中查找"), icon: <Search size={16}/>, hint: MOD + " F", run: () => runCommand("find") },
@@ -1724,7 +1728,7 @@ export default function App() {
     { tab: "skills", label: "技能中心", icon: Blocks }
   ];
   const slashMatches = draft.startsWith("/") && !draft.includes(" ")
-    ? SLASH_COMMANDS.filter(([cmd]) => cmd.startsWith(draft.toLowerCase()) && (operator || CUSTOMER_COMMANDS.has(cmd))) : [];
+    ? SLASH_COMMANDS.filter(([cmd]) => cmd.startsWith(draft.toLowerCase()) && (!member || CUSTOMER_COMMANDS.has(cmd))) : [];
   const thinkingNote = !operator ? "" : !status.configured ? t("预览模式：连接推理服务后生效")
     : status.reasoningModes?.includes("deep") ? t("由 CIRO 原生深度推理执行")
     : status.reasoningEffort ? t("以 reasoning_effort 传给模型服务") : t("当前模型服务未开启思考深度");
@@ -1877,7 +1881,7 @@ export default function App() {
         <UserMenu t={t} collapsed={sidebarCollapsed} name={displayName} email={session?.user?.email || null} plan={plan}
           authenticated={Boolean(session?.authenticated)} accountsEnabled={Boolean(session?.enabled)} unread={unread}
           languagePref={languagePref} onLanguagePref={(pref) => { setLanguagePref(pref); }}
-          themePref={themePref} onThemePref={setThemePref} onAction={onUserMenu} petOn={petOn} operator={operator} team={Boolean(status.team)}/>
+          themePref={themePref} onThemePref={setThemePref} onAction={onUserMenu} petOn={petOn} operator={!member} team={Boolean(status.team)}/>
       </aside>
 
       {studioOpen ? <main className="workspace workspace--studio">
@@ -2217,7 +2221,7 @@ export default function App() {
                     {plusOpen && <div className="cx-plus-menu" role="menu" onClick={(e) => e.stopPropagation()}>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); fileInputRef.current?.click(); }}>
                         <Paperclip size={16}/><span><strong>{t("添加附件")}</strong><small>{t("图片、PDF、文本或代码，最多 5 个")}</small></span></button>
-                      {operator && <><div className="cx-menu-sep"/>
+                      {!member && <><div className="cx-menu-sep"/>
                       <button role="menuitemradio" aria-checked={composerMode === "goal"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "goal" ? "chat" : "goal"); focusComposer(); }}>
                         <Target size={16}/><span><strong>{t("目标模式")}</strong><small>{t("交给代理自主执行并验证")}</small></span>{composerMode === "goal" && <Check size={15}/>}</button>
                       <button role="menuitemradio" aria-checked={composerMode === "plan"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "plan" ? "chat" : "plan"); focusComposer(); }}>
@@ -2235,7 +2239,7 @@ export default function App() {
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setPromptsOpen(true); }}>
                         <BookMarked size={16}/><span><strong>{t("提示词库")}</strong><small>{t("保存并一键插入常用提示词")}</small></span></button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setDraft("/"); focusComposer(); }}>
-                        <Sparkles size={16}/><span><strong>{t("斜杠命令")}</strong><small>{t(operator ? "快速打开工作台与工具" : "快速打开常用功能")}</small></span></button>
+                        <Sparkles size={16}/><span><strong>{t("斜杠命令")}</strong><small>{t(!member ? "快速打开工作台与工具" : "快速打开常用功能")}</small></span></button>
                     </div>}
                   </div>
                   {composerMode !== "chat" && <button type="button" className="cx-mode-pill" onClick={(e) => { e.stopPropagation(); setComposerMode("chat"); }}

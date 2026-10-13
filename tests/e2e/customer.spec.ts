@@ -13,6 +13,8 @@ test("customer view hides the model connection; developer options bring it back"
   await expect(page.getByText("暂时连不上 Ciro 服务")).toBeVisible();
   await expect(page.getByText("还差一步：连接模型")).toHaveCount(0);
   await expect(page.getByText("当前为客户端预览，尚未连接真实 CIRO 推理服务")).toHaveCount(0);
+  // The tools themselves (融合工作台 …) are for everyone; only the model / server plumbing is hidden.
+  await expect(page.locator(".cx-nav").getByRole("button", { name: "融合工作台" })).toBeVisible();
   await page.keyboard.press("Control+,");
   // 模型设置 only offers "我的模型" (their own API keys) to customers; the Ciro service settings stay hidden.
   await page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true }).click();
