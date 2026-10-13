@@ -49,10 +49,11 @@ function gutters(): { side: number; top: number; bottom: number } {
 }
 /** In-app position (right / bottom offsets) for hiding at an edge. */
 function edgePos(edge: Exclude<PetEdge, null>, w: number, h: number, p: { x: number; y: number }) {
+  // Docking reaches the actual viewport edge; free-placement gutters stay unchanged.
   const g = gutters(), W = window.innerWidth, H = window.innerHeight;
   const midY = Math.max(g.bottom, Math.min(H - h - g.top, p.y)), midX = Math.max(g.side, Math.min(W - w - g.side, p.x));
-  return edge === "right" ? { x: g.side, y: midY } : edge === "left" ? { x: W - w - g.side, y: midY }
-    : edge === "bottom" ? { x: midX, y: g.bottom } : { x: midX, y: H - h - g.top };
+  return edge === "right" ? { x: 0, y: midY } : edge === "left" ? { x: W - w, y: midY }
+    : edge === "bottom" ? { x: midX, y: 0 } : { x: midX, y: H - h };
 }
 /** Inside the app and, on touch screens, away from the system gesture areas. */
 function keepIn(p: { x: number; y: number }, w: number, h: number) {
@@ -124,7 +125,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const commanded = useRef(0);
   const pokes = useRef<number[]>([]);
   const stroke = useRef({ dist: 0, at: 0 });
-  const drag = useRef<{ x: number; y: number; cx: number; cy: number; moving: boolean; ox: number; oy: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; moving: boolean; ox: number; oy: number } | null>(null);
   const sprite = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const moodRef = useRef(mood);
@@ -387,7 +388,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     if (e.button !== 0) return;
     wake();
-    drag.current = { x: e.screenX, y: e.screenY, cx: e.clientX, cy: e.clientY, moving: false, ox: posRef.current.x, oy: posRef.current.y };
+    drag.current = { x: e.screenX, y: e.screenY, moving: false, ox: posRef.current.x, oy: posRef.current.y };
   }
   function onPointerMove(e: React.PointerEvent) {
     if (pinch.current || !e.isPrimary) return;
@@ -402,7 +403,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
         const box = rootRef.current?.getBoundingClientRect();
         const w = box?.width || 150, h = box?.height || 200;
         if (inline) setPos({ x: Math.max(-w * .6, Math.min(window.innerWidth - w * .4, d.ox - (e.screenX - d.x))), y: Math.max(-h * .5, Math.min(window.innerHeight - h * .7, d.oy - (e.screenY - d.y))) });
-        else bridge?.drag("move", e.clientX - d.cx, e.clientY - d.cy);
+        else bridge?.drag("move", e.screenX - d.x, e.screenY - d.y); // stable global displacement even when the overlay moves
       }
       return;
     }

@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
@@ -44,6 +45,9 @@ final class PetOverlay {
     private WindowManager.LayoutParams params;
     private boolean ready = false;
     private boolean expanded = false;
+    // Fixed window origin for one drag gesture; pointer deltas are totals, not per-frame ticks.
+    private boolean dragging = false;
+    private int dragStartX, dragStartY;
     volatile boolean enabled;
 
     PetOverlay(Activity activity) {
@@ -80,16 +84,30 @@ final class PetOverlay {
     private int gutterSide() { return Math.round(30 * density()); }
     private int gutterTop() { return dimen("status_bar_height") + Math.round(40 * density()); }
     private int gutterBottom() { return dimen("navigation_bar_height") + Math.round(48 * density()); }
-    /** Where she sits when hiding at an edge: just inside the gesture areas, so she can always be dragged again. */
+    /** The edge mode leaves part of the sprite available for grabbing; no extra gesture gutter here.
+     * Free-floating positions remain clamped away from system gesture areas. */
     private void snapTo(String edge) {
         Rect s = screen();
         int w = params.width, h = params.height;
-        if (edge.equals("left")) params.x = gutterSide();
-        else if (edge.equals("right")) params.x = s.right - w - gutterSide();
-        else if (edge.equals("bottom")) params.y = s.bottom - h - gutterBottom();
-        else if (edge.equals("top")) params.y = gutterTop();
+        if (edge.equals("left")) params.x = s.left;
+        else if (edge.equals("right")) params.x = s.right - w;
+        else if (edge.equals("bottom")) params.y = s.bottom - h;
+        else if (edge.equals("top")) params.y = s.top;
+        if (edge.equals("left") || edge.equals("right"))
+            params.y = Math.max(s.top, Math.min(params.y, s.bottom - h));
+        else
+            params.x = Math.max(s.left, Math.min(params.x, s.right - w));
     }
     private Rect screen() {
+        // Resources DisplayMetrics can exclude the status/navigation bars. Overlay positions
+        // are absolute: use full physical display bounds for true edge alignment.
+        if (wm != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                return wm.getMaximumWindowMetrics().getBounds();
+            Point size = new Point();
+            wm.getDefaultDisplay().getRealSize(size);
+            return new Rect(0, 0, size.x, size.y);
+        }
         DisplayMetrics m = activity.getResources().getDisplayMetrics();
         return new Rect(0, 0, m.widthPixels, m.heightPixels);
     }
@@ -143,7 +161,8 @@ final class PetOverlay {
         params.width = widthPx(); params.height = heightPx();
         params.x += (oldW - params.width) / 2;
         params.y += oldH - params.height;
-        clamp();
+        String edge = prefs().getString("edge", "");
+        if (edge.isEmpty()) clamp(); else snapTo(edge);
         apply();
         save();
         if (tellPage) send("scale", String.valueOf(v));
@@ -168,6 +187,7 @@ final class PetOverlay {
         view = null;
         ready = false;
         expanded = false;
+        dragging = false;
         queue.clear();
     }
 
@@ -218,17 +238,37 @@ final class PetOverlay {
 
     /** window.CiroPetHost: what the pet page asks the app to do. */
     private final class Host {
+        /** Walking sends per-frame increments. Dragging sends total displacement from the gesture origin. */
         @JavascriptInterface public void moveBy(double dx, double dy) {
+            if (!Double.isFinite(dx) || !Double.isFinite(dy)) return;
             main.post(() -> {
-                if (view == null) return;
+                if (view == null || dragging) return;
                 params.x += Math.round(dx * density());
                 params.y += Math.round(dy * density());
+                apply();
+            });
+        }
+        @JavascriptInterface public void beginDrag() {
+            main.post(() -> {
+                if (view == null) return;
+                dragStartX = params.x;
+                dragStartY = params.y;
+                dragging = true;
+            });
+        }
+        @JavascriptInterface public void dragTo(double dx, double dy) {
+            if (!Double.isFinite(dx) || !Double.isFinite(dy)) return;
+            main.post(() -> {
+                if (view == null || !dragging) return;
+                params.x = dragStartX + Math.round(dx * density());
+                params.y = dragStartY + Math.round(dy * density());
                 apply();
             });
         }
         @JavascriptInterface public void dragEnd() {
             main.post(() -> {
                 if (view == null) return;
+                dragging = false;
                 Rect s = screen();
                 int w = params.width, h = params.height;
                 // Pulled partly past an edge: she hides there with only her head showing.
@@ -270,7 +310,8 @@ final class PetOverlay {
                 params.width = widthPx(); params.height = heightPx();
                 params.x += (oldW - params.width) / 2;
                 params.y += oldH - params.height;
-                clamp();
+                String edge = prefs().getString("edge", "");
+                if (edge.isEmpty()) clamp(); else snapTo(edge);
                 apply();
             });
         }

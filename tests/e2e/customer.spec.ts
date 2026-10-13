@@ -10,7 +10,9 @@ test.afterAll(() => { ciro?.stop(); mock?.close(); });
 
 test("customer view hides the model connection; developer options bring it back", async ({ page }) => {
   await page.goto(ciro.url + "/");
-  await expect(page.getByText("暂时连不上 Ciro 服务")).toBeVisible();
+  // A reachable preview server is unconfigured, but not disconnected. Never raise a false outage banner.
+  await expect(page.getByText("暂时连不上 Ciro 服务")).toHaveCount(0);
+  await expect(page.locator(".cx-connect--down")).toHaveCount(0);
   await expect(page.getByText("还差一步：连接模型")).toHaveCount(0);
   await expect(page.getByText("当前为客户端预览，尚未连接真实 CIRO 推理服务")).toHaveCount(0);
   await page.keyboard.press("Control+,");

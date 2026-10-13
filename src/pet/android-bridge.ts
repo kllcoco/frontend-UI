@@ -3,7 +3,9 @@
 import type { PetBridge } from "../lib/desktop";
 
 type Host = {
-  moveBy: (dx: number, dy: number) => void; dragEnd: () => void; action: (name: string) => void;
+  moveBy: (dx: number, dy: number) => void;
+  beginDrag: () => void; dragTo: (dx: number, dy: number) => void; dragEnd: () => void;
+  action: (name: string) => void;
   resize: (scale: number) => void; expand: (on: boolean) => void; edge: (what: string) => void;
 };
 type Handler = (data: never) => void;
@@ -25,7 +27,12 @@ export function androidPetBridge(): PetBridge | undefined {
   };
   cached = {
     setIgnore: () => {},
-    drag: (phase, dx = 0, dy = 0) => { if (phase === "move") host.moveBy(dx, dy); else if (phase === "end") host.dragEnd(); },
+    // Drag displacement is absolute since pointer-down; walking below remains relative per tick.
+    drag: (phase, dx = 0, dy = 0) => {
+      if (phase === "start") host.beginDrag();
+      else if (phase === "move") host.dragTo(dx, dy);
+      else host.dragEnd();
+    },
     action: (name) => host.action(name),
     signal: () => {},
     visible: () => true,
