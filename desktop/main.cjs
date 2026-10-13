@@ -245,7 +245,7 @@ function showPet() {
     petExpanded = false;
     petWindow.on("closed", () => { petWindow = null; if (petTimer) { clearInterval(petTimer); petTimer = null; } });
     const edge = ["left", "right", "bottom", "top"].includes(saved.edge) && onScreen ? saved.edge : "";
-    void petWindow.loadURL(serverOrigin + "/?pet=1&scale=" + petScale() + (edge ? "&edge=" + edge : ""));
+    void petWindow.loadURL(serverOrigin + "/?pet=1&scale=" + petScale() + (edge ? "&edge=" + edge : "") + (saved.quiet ? "&quiet=1" : ""));
     // Her eyes follow the mouse anywhere on screen (only sent when it moves).
     let last = "";
     petTimer = setInterval(() => {
@@ -335,6 +335,7 @@ ipcMain.on("ciro:pet-action", (_event, action) => {
   if (action === "open") showWindow();
   else if (action === "quick") showQuick();
   else if (action === "hide") hidePet();
+  else if (action === "work") { showWindow(); send("open-work"); } // a work step waits for your decision
 });
 // The main window tells the pet what Ciro is doing (thinking / answered); the pet reacts.
 ipcMain.on("ciro:pet-signal", (_event, signal) => {
@@ -354,6 +355,8 @@ function petProgress(p) {
     done: Boolean(p.done), ok: p.ok !== false, attention: Boolean(p.attention), source: String(p.source || "") });
 }
 ipcMain.on("ciro:pet-progress", (_event, p) => petProgress(p));
+// 更少对话 from the settings in the main window.
+ipcMain.on("ciro:pet-quiet", (_event, on) => { savePet({ quiet: Boolean(on) }); toPet("ciro:pet-quiet", Boolean(on)); });
 // Work mode's "this computer" controls live on the local server; with the official service loaded in the window
 // the page reaches them through here (main-process requests carry no Origin, so the loopback-only checks pass).
 ipcMain.handle("ciro:local-api", async (_event, req) => {

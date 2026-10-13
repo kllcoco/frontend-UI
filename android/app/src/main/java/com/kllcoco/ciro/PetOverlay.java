@@ -130,7 +130,8 @@ final class PetOverlay {
         view.onResume();
         view.resumeTimers(); // the app's own WebView may have paused the shared JS timers when it went to the background
         String edge = prefs().getString("edge", "");
-        view.loadUrl(ORIGIN + "index.html?pet=1&overlay=1&scale=" + scale() + (edge.isEmpty() ? "" : "&edge=" + edge));
+        view.loadUrl(ORIGIN + "index.html?pet=1&overlay=1&scale=" + scale() + (edge.isEmpty() ? "" : "&edge=" + edge)
+            + (prefs().getBoolean("quiet", false) ? "&quiet=1" : ""));
     }
 
     /** New size (pinch on her, or the settings slider: then the page is told too). */
@@ -146,6 +147,12 @@ final class PetOverlay {
         apply();
         save();
         if (tellPage) send("scale", String.valueOf(v));
+    }
+
+    /** Settings → 桌宠 → 更少对话 */
+    void setQuiet(boolean on) {
+        prefs().edit().putBoolean("quiet", on).apply();
+        send("quiet", on ? "true" : "false");
     }
 
     /** Settings → 桌宠 → 回到默认位置: forget the place, size and edge. */
@@ -272,6 +279,8 @@ final class PetOverlay {
                 if ("hide".equals(name)) {
                     setEnabled(false);
                     bringAppToFront("(function(){try{localStorage.setItem('ciro.pet.v1','off');window.dispatchEvent(new CustomEvent('ciro-pet-toggle',{detail:false}));}catch(e){}})()");
+                } else if ("work".equals(name)) {
+                    bringAppToFront("(function(){try{window.dispatchEvent(new Event('ciro-open-work'));}catch(e){}})()");
                 } else if ("quick".equals(name)) {
                     bringAppToFront("(function(){try{var t=document.querySelector('textarea');t&&t.focus();}catch(e){}})()");
                 } else bringAppToFront(null);

@@ -7,7 +7,7 @@ import type { Mood } from "./Chibi";
 import { desktop } from "../lib/desktop";
 import { androidPetBridge } from "./android-bridge";
 import { loadLanguage, translate } from "../lib/i18n";
-import { bubbleText, PET_MOODS, setPetEnabled } from "../lib/pet";
+import { bubbleText, PET_MOODS, petQuiet, setPetEnabled } from "../lib/pet";
 import type { PetCommand, PetEdge, PetProgress, PetStream } from "../lib/pet";
 
 /* Ciro pet. Desktop app: its own transparent always-on-top window (?pet=1). Web / Android: `inline`,
@@ -103,7 +103,13 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const pinch = useRef<{ start: number; from: number } | null>(null);
   const touchingPet = useRef(false);
   const [mood, setMood] = useState<Mood>("wave");
-  const [say, setSay] = useState<string>(() => greeting(t));
+  // 更少对话: no small talk; she speaks only when work needs a decision or reaches a result.
+  const [quiet, setQuiet] = useState(() => inline ? petQuiet() : new URLSearchParams(window.location.search).get("quiet") === "1");
+  const quietRef = useRef(quiet);
+  quietRef.current = quiet;
+  // A work step that waits for the user: double-clicking her then opens it.
+  const pending = useRef<"" | "work" | "chat">("");
+  const [say, setSay] = useState<string>(() => quiet ? "" : greeting(t));
   const [blink, setBlink] = useState(false);
   const [look, setLook] = useState({ x: 0, y: 0 });
   const [menu, setMenu] = useState(false);
@@ -130,7 +136,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     setMood(next);
     if (ms > 0) moodTimer.current = window.setTimeout(() => setMood(busy.current ? "think" : "idle"), ms);
   };
-  const speak = (text: string, ms = 4200) => {
+  /** A line in her bubble; with 更少对话 only `important` ones (decisions needed, results) are said. */
+  const speak = (text: string, ms = 4200, important = false) => {
+    if (quietRef.current && !important) return;
     window.clearTimeout(sayTimer.current);
     setSay(text);
     if (ms > 0) sayTimer.current = window.setTimeout(() => setSay(""), ms);
@@ -145,8 +153,19 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (p.source === "work" && !p.done && edgeRef.current) { setEdge(null); if (inline) store(INLINE_EDGE, ""); else bridge?.unedge?.(); }
     if (edgeRef.current) { setPeeking(true); window.setTimeout(() => setPeeking(false), p.done ? 5200 : 3600); }
     const text = p.text + (typeof p.percent === "number" ? " " + Math.round(p.percent) + "%" : "");
-    if (p.done) { busy.current = false; act(p.ok === false ? "sad" : "happy", 3600); play(p.ok === false ? "shake" : pick<PetAction>(["nod", "jump", "sparkle"])); speak(text, 6500); return; }
-    if (p.attention) { act("wave", 4000); play("wave"); speak(text, 0); return; }
+    if (p.done) {
+      busy.current = false; pending.current = "";
+      act(p.ok === false ? "sad" : "happy", 3600); play(p.ok === false ? "shake" : pick<PetAction>(["nod", "jump", "sparkle"]));
+      speak(text + (quietRef.current && p.ok === false ? t("（双击我看看）") : ""), quietRef.current ? 12_000 : 6500, true);
+      if (p.ok === false) pending.current = p.source === "work" ? "work" : "chat";
+      return;
+    }
+    if (p.attention) {
+      pending.current = p.source === "work" ? "work" : "chat";
+      act("wave", 4000); play("wave");
+      speak(text + (quietRef.current ? t("（双击我去处理）") : ""), 0, true);
+      return;
+    }
     if (moodRef.current !== "work" && moodRef.current !== "think") act("work", 0);
     speak(text, 0);
     window.clearTimeout(progressTimer.current);
@@ -176,8 +195,8 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (signal === "thinking") { busy.current = true; act("think", 0); if (!replyRef.current) speak("…", 0); play("magic"); }
     // The model's own reaction (its <pet> tag) wins over the generic "done" one.
     else if (signal === "done" && (Date.now() - commanded.current < 3000 || replyRef.current)) { busy.current = false; if (replyRef.current && Date.now() - commanded.current >= 3000) { act("happy", 2600); play(pick<PetAction>(["nod", "sparkle"])); } }
-    else if (signal === "done") { busy.current = false; act("happy", 3200); play(pick<PetAction>(["nod", "jump", "wave"])); speak(focused ? t("好啦～") : t("回答好了，去看看吧。"), focused ? 2000 : 6000); }
-    else if (signal === "error") { busy.current = false; act("sad", 3200); speak(t("出错了……再试一次吧。"), 4200); }
+    else if (signal === "done") { busy.current = false; act("happy", 3200); play(pick<PetAction>(["nod", "jump", "wave"])); speak(focused ? t("好啦～") : t("回答好了，去看看吧。"), focused ? 2000 : 6000, !focused); }
+    else if (signal === "error") { busy.current = false; pending.current = "chat"; act("sad", 3200); speak(t("出错了……再试一次吧。"), 4200, true); }
   }
   const wake = () => { lastActive.current = Date.now(); if (moodRef.current === "sleep") { act("idle", 0); speak(t("唔……我醒着呢。"), 2400); } };
 
@@ -469,6 +488,13 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       document.removeEventListener("touchend", onEnd, true); document.removeEventListener("touchcancel", onEnd, true);
     };
   }, []);
+  // 更少对话 switched in the settings.
+  useEffect(() => {
+    const on = (e: Event) => { if (inline) { const v = Boolean((e as CustomEvent<boolean>).detail); setQuiet(v); if (v) setSay(""); } };
+    window.addEventListener("ciro-pet-quiet", on);
+    const off = bridge?.onQuiet?.((v) => { setQuiet(v); if (v) setSay(""); });
+    return () => { window.removeEventListener("ciro-pet-quiet", on); off?.(); };
+  }, []);
   // Size from the settings slider (in the app, the desktop window and the Android floating pet).
   useEffect(() => {
     const onScale = (e: Event) => { const v = Number((e as CustomEvent<number>).detail); if (inline && Number.isFinite(v)) resize(v); };
@@ -523,7 +549,17 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
-      onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); play("magic"); if (inline) onAsk?.(); else bridge?.action("quick"); }}
+      onDoubleClick={() => {
+        act("happy", 1600); play("magic");
+        const waiting = pending.current;
+        pending.current = "";
+        setSay("");
+        // Something waits for a decision: straight to it. Otherwise a quick question (or the app when quiet).
+        if (waiting === "work") { if (inline) window.dispatchEvent(new Event("ciro-open-work")); else bridge?.action("work"); return; }
+        if (waiting === "chat" || quietRef.current) { if (inline) onAsk?.(); else bridge?.action("open"); return; }
+        speak(t("想问什么？"), 2000);
+        if (inline) onAsk?.(); else bridge?.action("quick");
+      }}
       onContextMenu={(e) => { e.preventDefault(); wake(); setMenu((v) => !v); }}>
       {image ? <LivePet src={image} mood={shown} look={look} action={gesture} walking={walking}/> : <Chibi mood={shown} blink={blink} look={look}/>}
       {(shown === "happy" || shown === "love") && <span className="pet-fx pet-heart">♥</span>}

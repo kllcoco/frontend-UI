@@ -514,7 +514,8 @@ export default function App() {
   }, [rowMenuId]);
 
   const runCommand = useCallback((command: string) => {
-    if (command === "new-chat") createNew();
+    if (command === "open-work") openStudioRef.current("remote");
+    else if (command === "new-chat") createNew();
     else if (command === "search") setPaletteOpen(true);
     else if (command === "settings") setSettingsSection("general");
     else if (command === "shortcuts") setSettingsSection("shortcuts");
@@ -603,6 +604,12 @@ export default function App() {
     onText: (text) => sendRef.current(text), onTap: () => setVoiceOpen(true),
     onError: (code) => notify(code === "mic-denied" ? "需要麦克风权限才能语音输入" : code === "not-allowed" ? "需要麦克风权限才能语音输入" : "语音识别失败：" + code) });
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
+  // The pet (or her floating window on Android) asks to show the work that waits for a decision.
+  useEffect(() => {
+    const open = () => openStudioRef.current("remote");
+    window.addEventListener("ciro-open-work", open);
+    return () => window.removeEventListener("ciro-open-work", open);
+  }, []);
   // Scheduled tasks: poll the server's result feed and raise a notification for anything new.
   useEffect(() => {
     if ((!status.configured && statusLoading) || member) return;

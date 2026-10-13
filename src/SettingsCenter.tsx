@@ -22,7 +22,7 @@ import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
 import AnnouncementEditor from "./components/AnnouncementEditor";
 import UserAdmin from "./components/UserAdmin";
-import { nativePet, petEnabled, petMirror, petScale, resetPetPlace, setPetEnabled, setPetMirror, setPetScale } from "./lib/pet";
+import { nativePet, petEnabled, petMirror, petQuiet, petScale, resetPetPlace, setPetEnabled, setPetMirror, setPetQuiet, setPetScale } from "./lib/pet";
 import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
 import { nativeVoice } from "./lib/phone";
 import { devMode, setDevMode } from "./lib/operator";
@@ -136,6 +136,7 @@ export default function SettingsCenter({
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
   const [petShown, setPetShown] = useState(petEnabled);
   const [mirrorOn, setMirrorOn] = useState(petMirror);
+  const [quietOn, setQuietOn] = useState(petQuiet);
   const [dev, setDev] = useState(devMode);
   const versionTaps = useRef<number[]>([]);
   const [wakeOn, setWakeOn] = useState(() => { try { return Boolean(nativeVoice()?.wakeOn?.()); } catch { return false; } });
@@ -279,6 +280,8 @@ export default function SettingsCenter({
                   };
                   if (r === "asking") (window as unknown as { ciroWakeResult?: (s: string) => void }).ciroWakeResult = done; else done(r);
                 }}/></SettingRow>}
+              <SettingRow title={t("更少对话")} description={t("她不再闲聊，拖她、点她也不说话；只有工作需要你做决定、出了问题或有了结果时才开口。这时双击她，就能直接进去给下一步指令。")}>
+                <Toggle checked={quietOn} title={t("更少对话")} onChange={(v) => { setPetQuiet(v); setQuietOn(v); }}/></SettingRow>
               <SettingRow title={t("同步显示回答")} description={t("Ciro 回答时，回答内容会在她的气泡里同步出现；工作模式、后台回答、定时任务和更新下载的进度也由她告诉你。")}>
                 <Toggle checked={mirrorOn} title={t("同步显示回答")} onChange={(v) => { setPetMirror(v); setMirrorOn(v); }}/></SettingRow>
               <Slider title={t("她的大小")} value={petSize} min={50} max={160} suffix="%" onChange={(v) => { setPetSizeState(v); setPetScale(v / 100); }}/>

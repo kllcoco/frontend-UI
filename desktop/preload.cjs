@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-const COMMANDS = new Set(["new-chat", "search", "settings", "toggle-sidebar", "shortcuts", "about", "export-chat", "export-pdf", "focus-composer", "find"]);
+const COMMANDS = new Set(["open-work", "new-chat", "search", "settings", "toggle-sidebar", "shortcuts", "about", "export-chat", "export-pdf", "focus-composer", "find"]);
 
 contextBridge.exposeInMainWorld("ciroDesktop", {
   platform: process.platform,
@@ -41,7 +41,13 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
   pet: {
     setIgnore: (ignore) => ipcRenderer.send("ciro:pet-ignore", Boolean(ignore)),
     drag: (phase) => { if (["start", "move", "end"].includes(phase)) ipcRenderer.send("ciro:pet-drag", phase); },
-    action: (action) => { if (["open", "quick", "hide"].includes(action)) ipcRenderer.send("ciro:pet-action", action); },
+    action: (action) => { if (["open", "quick", "hide", "work"].includes(action)) ipcRenderer.send("ciro:pet-action", action); },
+    setQuiet: (on) => ipcRenderer.send("ciro:pet-quiet", Boolean(on)),
+    onQuiet: (handler) => {
+      const listener = (_event, on) => handler(Boolean(on));
+      ipcRenderer.on("ciro:pet-quiet", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-quiet", listener);
+    },
     signal: (signal) => { if (["thinking", "done", "error"].includes(signal)) ipcRenderer.send("ciro:pet-signal", signal); },
     visible: () => ipcRenderer.sendSync("ciro:pet-state"),
     toggle: (on) => ipcRenderer.send("ciro:pet-toggle", Boolean(on)),

@@ -29,7 +29,7 @@ export type PetBridge = {
   setIgnore: (ignore: boolean) => void;
   /** dx / dy: pointer movement since the drag started, in CSS px (used by the Android overlay; the desktop polls the cursor). */
   drag: (phase: "start" | "move" | "end", dx?: number, dy?: number) => void;
-  action: (action: "open" | "quick" | "hide") => void;
+  action: (action: "open" | "quick" | "hide" | "work") => void;
   signal: (signal: PetSignal) => void;
   visible: () => boolean;
   toggle: (on: boolean) => void;
@@ -38,6 +38,8 @@ export type PetBridge = {
   onCursor: (handler: (p: { x: number; y: number }) => void) => () => void;
   onSignal: (handler: (p: { signal: string; focused: boolean }) => void) => () => void;
   resize?: (scale: number) => void;
+  setQuiet?: (on: boolean) => void;
+  onQuiet?: (handler: (on: boolean) => void) => () => void;
   onScale?: (handler: (scale: number) => void) => () => void;
   expand?: (on: boolean) => void;
   /** Walk sideways by dx px (kept on screen); done: last step, remember the place. */

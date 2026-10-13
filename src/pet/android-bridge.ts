@@ -40,6 +40,7 @@ export function androidPetBridge(): PetBridge | undefined {
     unedge: () => host.edge("none"),
     onEdge: on("edge"),
     onScale: on("scale"),
+    onQuiet: on("quiet"),
     onProgress: on("progress"),
     onStream: on("stream")
   };

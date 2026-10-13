@@ -89,3 +89,23 @@ test("pet: size slider in settings and calling her back", async ({ page }) => {
   await page.getByRole("button", { name: "叫她回来" }).click();
   await expect(pet).not.toHaveClass(/pet-root--edge/);
 });
+
+test("pet: fewer words — silent when dragged or tapped, speaks only when a decision is needed", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.evaluate(() => { localStorage.setItem("ciro.pet.v1", "on"); localStorage.setItem("ciro.pet-quiet.v1", "on"); });
+  await page.reload();
+  const pet = page.locator(".pet-root--inline");
+  await expect(pet).toBeVisible();
+  await expect(pet.locator(".pet-say")).toHaveCount(0);       // no greeting
+  await pet.locator(".pet-sprite").click();
+  await page.waitForTimeout(400);
+  await expect(pet.locator(".pet-say")).toHaveCount(0);       // no chit-chat on a tap
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-progress", { detail: { text: "正在运行 npm test", source: "work" } })));
+  await page.waitForTimeout(300);
+  await expect(pet.locator(".pet-say")).toHaveCount(0);       // ordinary steps stay silent
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-progress", { detail: { text: "需要你批准写入 package.json", attention: true, source: "work" } })));
+  await expect(pet.locator(".pet-say")).toContainText("需要你批准写入 package.json");
+  // Double-click: straight to the work that waits.
+  await pet.locator(".pet-sprite").dblclick();
+  await expect(page.getByRole("heading", { name: "工作模式" }).first()).toBeVisible();
+});

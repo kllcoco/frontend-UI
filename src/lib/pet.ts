@@ -7,7 +7,7 @@ const KEY = "ciro.pet.v1";
 /** Android app: the pet that floats over other apps while Ciro is in the background (PetOverlay.java). */
 type NativePet = { setEnabled?: (on: boolean) => void; command?: (json: string) => void; progress?: (json: string) => void;
   stream?: (json: string) => void; signal?: (signal: string) => void; overlayAllowed?: () => boolean; requestOverlay?: () => void; resetPlace?: () => void;
-  setScale?: (v: number) => void };
+  setScale?: (v: number) => void; setQuiet?: (on: boolean) => void };
 export const nativePet = (): NativePet | undefined => (window as unknown as { CiroPet?: NativePet }).CiroPet;
 export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave", "eat"];
 export const PET_ACTIONS = ["wave", "nod", "shake", "bow", "jump", "stretch", "magic", "spin", "lookaround", "yawn", "hum", "doze", "tidy", "giggle", "sparkle", "peek"] as const;
@@ -109,4 +109,14 @@ export function setPetScale(v: number): void {
   window.dispatchEvent(new CustomEvent("ciro-pet-scale", { detail: s }));
   desktop()?.pet?.resize?.(s);
   try { nativePet()?.setScale?.(s); } catch { /* not the Android app */ }
+}
+
+/** 更少对话: she only speaks when work needs your decision or makes real progress (done / failed). */
+const QUIET = "ciro.pet-quiet.v1";
+export function petQuiet(): boolean { try { return localStorage.getItem(QUIET) === "on"; } catch { return false; } }
+export function setPetQuiet(on: boolean): void {
+  try { localStorage.setItem(QUIET, on ? "on" : "off"); } catch { /* storage off */ }
+  window.dispatchEvent(new CustomEvent("ciro-pet-quiet", { detail: on }));
+  desktop()?.pet?.setQuiet?.(on);
+  try { nativePet()?.setQuiet?.(on); } catch { /* not the Android app */ }
 }
