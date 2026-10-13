@@ -467,7 +467,8 @@ export default function SettingsCenter({
                 [t("导出 PDF / 打印"),"Ctrl / ⌘","P"],
                 [t("重命名选中的对话"),"F2"],
                 [t("输入换行"),"Shift","Enter"],
-                [t("发送消息"),...(preferences.sendWithEnter ? ["Enter"] : ["Ctrl / ⌘","Enter"])]
+                [t("发送消息"),...(preferences.sendWithEnter ? ["Enter"] : ["Ctrl / ⌘","Enter"])],
+                ...(window.ciroDesktop ? [[t("快速提问（任意界面，带入复制的文字）"),"Ctrl / ⌘","Shift","Space"]] : [])
               ].map(([name,...keys]) => <div className="sc-shortcut" key={name}><span>{name}</span>
                 <div>{keys.map((key) => <kbd key={key}>{key}</kbd>)}</div></div>)}
             </SettingBlock>

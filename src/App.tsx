@@ -530,6 +530,12 @@ export default function App() {
     if (studioOpen || current || viewProject || composerMode !== "chat") { createNew(); return true; }
     return false;
   };
+  // Desktop quick ask hands its conversation over to continue here.
+  useEffect(() => desktop()?.onOpenChat?.((id) => {
+    const chats = loadConversations();
+    setConversations(chats);
+    if (chats.some((c) => c.id === id)) { setActiveId(id); setStudioOpen(false); setSettingsSection(null); }
+  }), []);
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
   // Scheduled tasks: poll the server's result feed and raise a notification for anything new.
   useEffect(() => {

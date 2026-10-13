@@ -5,6 +5,7 @@ import App from "./App";
 import SharedView from "./components/SharedView";
 import ViewBoundary from "./components/ViewBoundary";
 import "./lib/desktop";
+import QuickAsk from "./components/QuickAsk";
 import { bootMobile, isMobileShell } from "./lib/mobile";
 import "./styles.css";
 import "./cinematic.css";
@@ -21,13 +22,14 @@ import "./shell.css";
 bootMobile();
 if (window.ciroDesktop) document.documentElement.dataset.desktop = window.ciroDesktop.platform;
 
+const quick = new URLSearchParams(window.location.search).get("quick") === "1";
 const shareMatch = /^\/share\/([A-Za-z0-9_-]{16,40})\/?$/.exec(window.location.pathname);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     {/* Last line of defence: never a blank white page. */}
     <ViewBoundary t={(text) => text} onHome={() => window.location.reload()}>
-      {shareMatch ? <SharedView id={shareMatch[1]} /> : <App />}
+      {shareMatch ? <SharedView id={shareMatch[1]} /> : quick ? <QuickAsk /> : <App />}
     </ViewBoundary>
   </React.StrictMode>
 );

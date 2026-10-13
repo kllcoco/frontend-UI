@@ -26,5 +26,18 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
   openWindow: (chatId) => ipcRenderer.send("ciro:open-window", chatId ? String(chatId) : ""),
   // Work mode: native folder chooser for the folders this computer allows remote tasks in.
   pickFolder: () => ipcRenderer.invoke("ciro:pick-folder"),
-  openConfig: () => ipcRenderer.send("ciro:open-config")
+  openConfig: () => ipcRenderer.send("ciro:open-config"),
+  // Quick-ask window (global shortcut): clipboard text arrives with each show.
+  onQuick: (handler) => {
+    const listener = (_event, info) => handler({ clipboard: typeof info?.clipboard === "string" ? info.clipboard : "" });
+    ipcRenderer.on("ciro:quick", listener);
+    return () => ipcRenderer.removeListener("ciro:quick", listener);
+  },
+  quickHide: () => ipcRenderer.send("ciro:quick-hide"),
+  quickContinue: (chatId) => ipcRenderer.send("ciro:quick-continue", String(chatId || "")),
+  onOpenChat: (handler) => {
+    const listener = (_event, id) => { if (typeof id === "string") handler(id); };
+    ipcRenderer.on("ciro:open-chat", listener);
+    return () => ipcRenderer.removeListener("ciro:open-chat", listener);
+  }
 });

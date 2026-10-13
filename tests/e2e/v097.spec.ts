@@ -46,3 +46,34 @@ test("scheduled task results become system notifications (once each) and tapping
   expect(seen).toBe("2026-10-13T08:00:02.000Z");
   expect(await page.evaluate(() => (window as unknown as { __shown: Shown[] }).__shown[0].body)).toBe("打开协作空间查看详情");
 });
+
+test("desktop quick ask: copied text is quoted, the answer streams in, and the chat is handed to the main window", async ({ page, context }) => {
+  // Stand-in for the Electron preload bridge.
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__continued = ""; w.__hidden = 0;
+    let quick: ((i: { clipboard: string }) => void) | null = null;
+    w.ciroDesktop = { platform: "win32", version: "0", setLanguage() {}, onCommand: () => () => {},
+      onQuick: (h: typeof quick) => { quick = h; return () => {}; }, quickHide: () => { (w.__hidden as number)++; },
+      quickContinue: (id: string) => { w.__continued = id; }, __fire: (c: string) => quick?.({ clipboard: c }) };
+  });
+  await page.goto(ciro.url + "/?quick=1");
+  await page.evaluate(() => (window as unknown as { ciroDesktop: { __fire: (c: string) => void } }).ciroDesktop.__fire("The quick brown fox"));
+  await expect(page.locator(".qa-quote")).toContainText("The quick brown fox");
+  await page.getByRole("textbox", { name: "快速提问" }).fill("翻译成中文");
+  const sent = page.waitForRequest((r) => r.url().endsWith("/api/chat"));
+  await page.keyboard.press("Enter");
+  expect(((await sent).postDataJSON() as { messages: { content: string }[] }).messages[0].content).toContain("> The quick brown fox");
+  await expect(page.locator(".qa-answer")).toContainText("来自 ciro 的回答");
+  await page.getByRole("button", { name: "在主窗口继续这个对话" }).click();
+  const id = await page.evaluate(() => (window as unknown as { __continued: string }).__continued);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.chats.v1") || "[]") as { id: string; title: string }[]);
+  expect(saved[0]).toMatchObject({ id, title: "翻译成中文" });
+  await page.keyboard.press("Escape");
+  expect(await page.evaluate(() => (window as unknown as { __hidden: number }).__hidden)).toBe(1);
+  // The main window opens that chat.
+  const main = await context.newPage();
+  await main.goto(ciro.url + "/");
+  await main.getByRole("button", { name: /翻译成中文/ }).first().click();
+  await expect(main.locator(".message--assistant .message-prose")).toContainText("来自 ciro 的回答");
+});

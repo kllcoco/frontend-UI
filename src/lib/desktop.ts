@@ -15,6 +15,13 @@ type DesktopBridge = {
   updateAction?: (action: "download" | "install" | "check") => void;
   exportPdf?: (name: string) => Promise<boolean>;
   openWindow?: (chatId?: string) => void;
+  /** Quick-ask window: text the user copied before pressing the shortcut. */
+  onQuick?: (handler: (info: { clipboard: string }) => void) => () => void;
+  quickHide?: () => void;
+  quickContinue?: (chatId: string) => void;
+  onOpenChat?: (handler: (chatId: string) => void) => () => void;
+  openConfig?: () => void;
+  pickFolder?: () => Promise<string | null>;
 };
 
 declare global {

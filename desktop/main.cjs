@@ -1,5 +1,5 @@
 // Ciro desktop shell: runs the bundled Node API + web UI on a private loopback port.
-const { app, BrowserWindow, Menu, Tray, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, shell } = require("electron");
 const { existsSync, mkdirSync, writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
@@ -17,6 +17,9 @@ let trayHintShown = false;
 let updater = null;
 let manualUpdateCheck = false;
 const HOTKEY = isMac ? "Alt+Space" : "Alt+Space";
+// Quick ask: a small always-on-top window; text copied just before is brought along.
+const QUICK_HOTKEY = "CommandOrControl+Shift+Space";
+let quickWindow = null;
 
 app.setName("Ciro");
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -132,7 +135,39 @@ function setupTray() {
     { label: s.quit, click: () => { isQuitting = true; app.quit(); } }
   ]));
 }
+function showQuick() {
+  if (!serverOrigin) return;
+  if (!quickWindow || quickWindow.isDestroyed()) {
+    quickWindow = new BrowserWindow({
+      width: 680, height: 480, minWidth: 420, minHeight: 260, show: false, frame: false, resizable: true,
+      alwaysOnTop: true, skipTaskbar: true, fullscreenable: false, title: "Ciro",
+      backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1b19" : "#faf9f6",
+      webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true }
+    });
+    quickWindow.on("blur", () => { if (quickWindow && !quickWindow.webContents.isDevToolsOpened()) quickWindow.hide(); });
+    quickWindow.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//i.test(url)) void shell.openExternal(url); return { action: "deny" }; });
+    quickWindow.webContents.on("will-navigate", (event) => event.preventDefault());
+    void quickWindow.loadURL(serverOrigin + "/?quick=1");
+  }
+  // Centre on the display under the mouse, a little above the middle.
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const { width, height } = quickWindow.getBounds();
+  quickWindow.setPosition(Math.round(area.x + (area.width - width) / 2), Math.round(area.y + (area.height - height) / 3));
+  const text = (clipboard.readText() || "").slice(0, 8000);
+  const reveal = () => { quickWindow.show(); quickWindow.focus(); quickWindow.webContents.send("ciro:quick", { clipboard: text }); };
+  if (quickWindow.webContents.isLoading()) quickWindow.webContents.once("did-finish-load", reveal); else reveal();
+}
+ipcMain.on("ciro:quick-hide", () => { if (quickWindow && !quickWindow.isDestroyed()) quickWindow.hide(); });
+ipcMain.on("ciro:quick-continue", (_event, chatId) => {
+  const id = typeof chatId === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(chatId) ? chatId : "";
+  if (quickWindow && !quickWindow.isDestroyed()) quickWindow.hide();
+  showWindow();
+  if (id) toRenderer("ciro:open-chat", id);
+});
+
 function setupHotkey() {
+  try { globalShortcut.register(QUICK_HOTKEY, () => { if (quickWindow && quickWindow.isVisible()) quickWindow.hide(); else showQuick(); }); }
+  catch { /* another app owns the shortcut */ }
   try {
     globalShortcut.register(HOTKEY, () => {
       if (mainWindow && mainWindow.isVisible() && mainWindow.isFocused()) { mainWindow.hide(); return; }
@@ -241,6 +276,7 @@ function buildMenu() {
         { label: s.website, click: () => shell.openExternal(REPO_URL) },
         { label: s.updates, click: checkForUpdates },
         { label: s.hotkeyHint + " (" + (isMac ? "⌥ Space" : "Alt+Space") + ")", enabled: false },
+        { label: s.quickAsk + " (" + (isMac ? "⌘⇧ Space" : "Ctrl+Shift+Space") + ")", click: () => showQuick() },
         ...(isMac ? [] : [{ type: "separator" }, { label: s.about, click: () => send("about") }])
       ]
     }
