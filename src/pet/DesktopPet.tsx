@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Chibi from "./Chibi";
+import LivePet from "./LivePet";
 import type { Mood } from "./Chibi";
 import { desktop } from "../lib/desktop";
 import { loadLanguage, translate } from "../lib/i18n";
@@ -206,7 +207,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
       onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); if (inline) onAsk?.(); else bridge?.action("quick"); }}
       onContextMenu={(e) => { e.preventDefault(); wake(); setMenu((v) => !v); }}>
-      {image ? <img src={image} alt="" draggable={false}/> : <Chibi mood={shown} blink={blink} look={look}/>}
+      {image ? <LivePet src={image} mood={shown} look={look}/> : <Chibi mood={shown} blink={blink} look={look}/>}
       {(shown === "happy" || shown === "love") && <span className="pet-fx pet-heart">♥</span>}
       {shown === "sleep" && <span className="pet-fx pet-zzz">z<i>z</i><b>z</b></span>}
       {/* With artwork the face is never repainted: moods show as motion plus a small sign by her head. */}

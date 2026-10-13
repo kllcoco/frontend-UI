@@ -88,3 +88,6 @@ html.pet-page #ciro-boot{display:none}
 .pet-sprite--art.pet-sprite--think img,.pet-sprite--art.pet-sprite--shy img{animation:pet-tilt 2.6s ease-in-out infinite;transform-origin:50% 100%}
 .pet-sprite--art.pet-sprite--sad img{animation:pet-slump 2.8s ease-in-out infinite;transform-origin:50% 100%}
 @keyframes pet-slump{0%,100%{transform:scale(1,1)}50%{transform:scale(1.01,.975)}}
+/* Live (WebGL mesh) artwork: motion comes from the mesh, so the sprite-level breathing is off. */
+.pet-live{width:100%;height:100%;display:block;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.28))}
+.pet-sprite--art.pet-sprite--sleep .pet-live{filter:drop-shadow(0 4px 6px rgba(0,0,0,.28)) brightness(.94)}
