@@ -91,3 +91,6 @@ html.pet-page #ciro-boot{display:none}
 /* Live (WebGL mesh) artwork: motion comes from the mesh, so the sprite-level breathing is off. */
 .pet-live{width:100%;height:100%;display:block;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.28))}
 .pet-sprite--art.pet-sprite--sleep .pet-live{filter:drop-shadow(0 4px 6px rgba(0,0,0,.28)) brightness(.94)}
+/* The live canvas is a bit larger than the sprite box (see PAD_X / PAD_TOP in LivePet.tsx). */
+.pet-sprite--art{overflow:visible}
+.pet-sprite--art .pet-live{position:absolute;left:-6%;right:-6%;top:-10%;bottom:0;width:112%;height:110%}

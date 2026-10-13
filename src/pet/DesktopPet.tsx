@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Chibi from "./Chibi";
 import LivePet from "./LivePet";
+import type { PetAction } from "./LivePet";
 import type { Mood } from "./Chibi";
 import { desktop } from "../lib/desktop";
 import { loadLanguage, translate } from "../lib/i18n";
@@ -48,6 +49,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const moodTimer = useRef(0), sayTimer = useRef(0);
   const lastActive = useRef(Date.now());
   const busy = useRef(false);
+  // Body gestures (wave, nod, jump…) played by the live artwork on top of the mood.
+  const [gesture, setGesture] = useState<{ name: PetAction; id: number } | null>(null);
+  const play = (name: PetAction) => setGesture({ name, id: Date.now() + Math.random() });
+  const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
   const commanded = useRef(0);
   const pokes = useRef<number[]>([]);
   const stroke = useRef({ dist: 0, at: 0 });
@@ -69,10 +74,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   };
   function signalled({ signal, focused }: { signal: string; focused: boolean }) {
     lastActive.current = Date.now();
-    if (signal === "thinking") { busy.current = true; act("think", 0); speak("…", 0); }
+    if (signal === "thinking") { busy.current = true; act("think", 0); speak("…", 0); play("magic"); }
     // The model's own reaction (its <pet> tag) wins over the generic "done" one.
     else if (signal === "done" && Date.now() - commanded.current < 3000) busy.current = false;
-    else if (signal === "done") { busy.current = false; act("happy", 3200); speak(focused ? t("好啦～") : t("回答好了，去看看吧。"), focused ? 2000 : 6000); }
+    else if (signal === "done") { busy.current = false; act("happy", 3200); play(pick<PetAction>(["nod", "jump", "wave"])); speak(focused ? t("好啦～") : t("回答好了，去看看吧。"), focused ? 2000 : 6000); }
     else if (signal === "error") { busy.current = false; act("sad", 3200); speak(t("出错了……再试一次吧。"), 4200); }
   }
   const wake = () => { lastActive.current = Date.now(); if (moodRef.current === "sleep") { act("idle", 0); speak(t("唔……我醒着呢。"), 2400); } };
@@ -81,8 +86,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (!inline) document.documentElement.classList.add("pet-page");
     // ?pet=1&mood=shy shows one expression (artwork previews and screenshots).
     const preview = new URLSearchParams(window.location.search).get("mood") as Mood | null;
+    const previewAction = new URLSearchParams(window.location.search).get("action") as PetAction | null;
     if (preview && PET_MOODS.includes(preview)) { act(preview, 0); setSay(""); }
-    else { act("wave", 3200); speak(greeting(t), 5200); }
+    else { act("wave", 3200); speak(greeting(t), 5200); window.setTimeout(() => play("wave"), 400); }
+    if (previewAction) window.setTimeout(() => play(previewAction), 300);
     // Optional artwork images replace the drawing.
     fetch("/pet/pet.json", { cache: "no-store" }).then(async (r) => {
       if (!r.ok || !(r.headers.get("content-type") || "").includes("json")) return;
@@ -104,7 +111,8 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       const meal = (hour >= 11.5 && hour < 13) || (hour >= 17.5 && hour < 19);
       if (meal && roll < .12) { act("eat", 15_000); speak(t("我先吃点东西～你也记得吃饭。"), 4200); }
       else if (roll < .05) { act("work", 20_000); speak(t("我也来认真工作一会儿。"), 3600); }
-      else if (roll < .09) speak([t("我一直在这里。"), t("要一起工作吗？"), greeting(t), t("有什么想问的，双击我就好。")][Math.floor(Math.random() * 4)], 4200);
+      else if (roll < .16) play(pick<PetAction>(["stretch", "magic", "spin", "nod"]));
+      else if (roll < .2) speak([t("我一直在这里。"), t("要一起工作吗？"), greeting(t), t("有什么想问的，双击我就好。")][Math.floor(Math.random() * 4)], 4200);
     }, 30_000);
     // The model's <pet> tag: a mood and a line.
     const command = (cmd: PetCommand) => {
@@ -113,6 +121,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       const mood = cmd.mood && PET_MOODS.includes(cmd.mood) ? cmd.mood : undefined;
       if (mood) act(mood, mood === "sleep" ? 0 : 4200);
       if (cmd.say) speak(cmd.say, 5200);
+      if (cmd.action) play(cmd.action as PetAction);
     };
     const onWindowCommand = (e: Event) => { if (inline) command((e as CustomEvent<PetCommand>).detail || {}); };
     const onWindowSignal = (e: Event) => { if (inline) signalled((e as CustomEvent<{ signal: string; focused: boolean }>).detail); };
@@ -176,12 +185,13 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (d?.moving) {
       if (inline) { try { localStorage.setItem(INLINE_POS, JSON.stringify(posRef.current)); } catch { /* storage off */ } }
       else bridge?.drag("end");
-      act("happy", 1600); speak(t("这里不错。"), 2200); return; }
+      act("happy", 1600); speak(t("这里不错。"), 2200); play("bow"); return; }
     if (!d) return;
     const now = Date.now();
     pokes.current = [...pokes.current.filter((x) => now - x < 1600), now];
-    if (pokes.current.length >= 5) { pokes.current = []; act("angry", 2800); speak(t("别戳啦！"), 2600); return; }
+    if (pokes.current.length >= 5) { pokes.current = []; act("angry", 2800); speak(t("别戳啦！"), 2600); play("shake"); return; }
     act(Math.random() < .3 ? "love" : "happy", 2200);
+    play(pick<PetAction>(["wave", "nod", "jump", "spin", "magic"]));
     speak([t("嗯？"), t("我在哦。"), t("找我有事吗？"), t("嘿嘿。")][Math.floor(Math.random() * 4)], 2400);
   }
   const shown: Mood = mood;
@@ -205,9 +215,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     <div ref={sprite} className={"pet-sprite pet-sprite--" + shown + (image ? " pet-sprite--art" : "")} aria-label="Ciro" role="img"
       onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-      onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); if (inline) onAsk?.(); else bridge?.action("quick"); }}
+      onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); play("magic"); if (inline) onAsk?.(); else bridge?.action("quick"); }}
       onContextMenu={(e) => { e.preventDefault(); wake(); setMenu((v) => !v); }}>
-      {image ? <LivePet src={image} mood={shown} look={look}/> : <Chibi mood={shown} blink={blink} look={look}/>}
+      {image ? <LivePet src={image} mood={shown} look={look} action={gesture}/> : <Chibi mood={shown} blink={blink} look={look}/>}
       {(shown === "happy" || shown === "love") && <span className="pet-fx pet-heart">♥</span>}
       {shown === "sleep" && <span className="pet-fx pet-zzz">z<i>z</i><b>z</b></span>}
       {/* With artwork the face is never repainted: moods show as motion plus a small sign by her head. */}

@@ -24,7 +24,7 @@ export function normalizeModels(rawModels, fallback = "ciro") {
 export const REASONING_EFFORTS=["minimal","low","medium","high"];
 
 export const PET_PROMPT = "The user has your chibi avatar (Ciro) on their screen as a desktop pet. You may control it: at the very end of a reply, " +
-  "optionally add ONE tag <pet mood=\"MOOD\">SHORT LINE</pet>, where MOOD is one of idle, happy, love, shy, angry, sad, think, work, sleep, wave, eat " +
+  "optionally add ONE tag <pet mood=\"MOOD\" action=\"ACTION\">SHORT LINE</pet>; ACTION (optional) is one of wave, nod, shake, bow, jump, stretch, magic, spin; MOOD is one of idle, happy, love, shy, angry, sad, think, work, sleep, wave, eat " +
   "and SHORT LINE is at most 20 characters she says in a speech bubble, in the user's language. Use it naturally to react to the conversation " +
   "(cheer after good news, wave when greeting, sleep when the user says good night); skip it when nothing fits. Never mention the tag.";
 export function validateChat(input, availableModels, supportedModes=["fast"], forwardEffort=true, webSearch=false) {

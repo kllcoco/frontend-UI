@@ -246,7 +246,8 @@ ipcMain.on("ciro:pet-signal", (_event, signal) => {
 ipcMain.on("ciro:pet-command", (_event, cmd) => {
   const mood = typeof cmd?.mood === "string" && /^[a-z]{2,8}$/.test(cmd.mood) ? cmd.mood : undefined;
   const say = typeof cmd?.say === "string" ? cmd.say.slice(0, 40) : undefined;
-  if (mood || say) toPet("ciro:pet-command", { mood, say });
+  const action = typeof cmd?.action === "string" && /^[a-z]{2,8}$/.test(cmd.action) ? cmd.action : undefined;
+  if (mood || say || action) toPet("ciro:pet-command", { mood, say, action });
 });
 ipcMain.on("ciro:pet-state", (event) => { event.returnValue = petVisible(); });
 ipcMain.on("ciro:pet-toggle", (_event, on) => { if (on) showPet(); else hidePet(); });

@@ -5,7 +5,8 @@ import type { Mood } from "../pet/Chibi";
 
 const KEY = "ciro.pet.v1";
 export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave", "eat"];
-export type PetCommand = { mood?: Mood; say?: string };
+export const PET_ACTIONS = ["wave", "nod", "shake", "bow", "jump", "stretch", "magic", "spin"] as const;
+export type PetCommand = { mood?: Mood; say?: string; action?: typeof PET_ACTIONS[number] };
 
 /** Off until the user turns it on (Settings → 外观与背景 → 桌宠). */
 export function petEnabled(): boolean {
@@ -32,9 +33,11 @@ export function petCommand(text: string): PetCommand | null {
   for (const m of text.matchAll(TAG)) {
     const mood = /mood\s*=\s*["']?(\w+)/i.exec(m[1])?.[1]?.toLowerCase() as Mood | undefined;
     const say = m[2].replace(/<[^>]*>/g, "").trim().slice(0, 40);
-    found = { ...(mood && PET_MOODS.includes(mood) ? { mood } : {}), ...(say ? { say } : {}) };
+    const action = /action\s*=\s*["']?(\w+)/i.exec(m[1])?.[1]?.toLowerCase() as PetCommand["action"];
+    found = { ...(mood && PET_MOODS.includes(mood) ? { mood } : {}), ...(say ? { say } : {}),
+      ...(action && (PET_ACTIONS as readonly string[]).includes(action) ? { action } : {}) };
   }
-  return found && (found.mood || found.say) ? found : null;
+  return found && (found.mood || found.say || found.action) ? found : null;
 }
 /** Sends a command to whichever pet is showing (the desktop window or the in-app one). */
 export function commandPet(cmd: PetCommand): void {

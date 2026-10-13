@@ -43,9 +43,10 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
     signal: (signal) => { if (["thinking", "done", "error"].includes(signal)) ipcRenderer.send("ciro:pet-signal", signal); },
     visible: () => ipcRenderer.sendSync("ciro:pet-state"),
     toggle: (on) => ipcRenderer.send("ciro:pet-toggle", Boolean(on)),
-    command: (cmd) => ipcRenderer.send("ciro:pet-command", { mood: String(cmd?.mood || ""), say: String(cmd?.say || "").slice(0, 40) }),
+    command: (cmd) => ipcRenderer.send("ciro:pet-command", { mood: String(cmd?.mood || ""), say: String(cmd?.say || "").slice(0, 40), action: String(cmd?.action || "") }),
     onCommand: (handler) => {
-      const listener = (_event, p) => handler({ mood: typeof p?.mood === "string" ? p.mood : undefined, say: typeof p?.say === "string" ? p.say : undefined });
+      const listener = (_event, p) => handler({ mood: typeof p?.mood === "string" ? p.mood : undefined, say: typeof p?.say === "string" ? p.say : undefined,
+        action: typeof p?.action === "string" ? p.action : undefined });
       ipcRenderer.on("ciro:pet-command", listener);
       return () => ipcRenderer.removeListener("ciro:pet-command", listener);
     },

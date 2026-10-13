@@ -32,8 +32,8 @@ export type PetBridge = {
   signal: (signal: PetSignal) => void;
   visible: () => boolean;
   toggle: (on: boolean) => void;
-  command?: (cmd: { mood?: string; say?: string }) => void;
-  onCommand?: (handler: (cmd: { mood?: string; say?: string }) => void) => () => void;
+  command?: (cmd: { mood?: string; say?: string; action?: string }) => void;
+  onCommand?: (handler: (cmd: { mood?: string; say?: string; action?: string }) => void) => () => void;
   onCursor: (handler: (p: { x: number; y: number }) => void) => () => void;
   onSignal: (handler: (p: { signal: string; focused: boolean }) => void) => () => void;
 };
