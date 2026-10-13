@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { defaultPolicy } from "./agent-policy.mjs";
 
 function initial() {
-  return { version: 1, policy: defaultPolicy(), goals: [], schedules: [], approvals: [],
+  return { version: 1, policy: defaultPolicy(), goals: [], schedules: [], scheduleEvents: [], approvals: [],
     plugins: { github: true, scheduler: true, runner: true }, audit: [],
     commercial: { events: [], pinnedApps: ["chat", "workbench"], skills: {},
       billing: { monthlyBudgetMicros: null, alertThresholdPct: 80 },

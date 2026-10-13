@@ -5,6 +5,8 @@ export type ChatPreferences = {
   fontSize: "small" | "normal" | "large";
   reduceMotion: boolean;
   notifyOnComplete: boolean;
+  /** System notification when a scheduled task needs approval or finishes. */
+  notifySchedules: boolean;
   autoTitle: boolean;
   followUps: boolean;
   accent: Accent;
@@ -25,6 +27,7 @@ export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   fontSize: "normal",
   reduceMotion: false,
   notifyOnComplete: false,
+  notifySchedules: true,
   autoTitle: true,
   followUps: true,
   accent: "jade",
@@ -44,6 +47,7 @@ export function loadChatPreferences(): ChatPreferences {
         value.fontSize as ChatPreferences["fontSize"] : "normal",
       reduceMotion: typeof value.reduceMotion === "boolean" ? value.reduceMotion : false,
       notifyOnComplete: typeof value.notifyOnComplete === "boolean" ? value.notifyOnComplete : false,
+      notifySchedules: typeof value.notifySchedules === "boolean" ? value.notifySchedules : true,
       autoTitle: typeof value.autoTitle === "boolean" ? value.autoTitle : true,
       followUps: typeof value.followUps === "boolean" ? value.followUps : true,
       accent: ACCENTS.includes(value.accent as Accent) ? value.accent as Accent : "jade",

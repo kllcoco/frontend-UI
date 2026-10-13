@@ -496,8 +496,32 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
     }
     res.json({ok:true,enabled:store.get().plugins[id]});
   }));
+  // Results of scheduled runs, for the notification feed (and the account notification centre).
+  const FINISHED={completed:["success","已完成"],needs_evidence:["warning","已结束，但缺少验证证据"],failed:["warning","运行失败"],
+    rejected:["warning","已被拒绝"],waiting_runtime:["warning","无法运行：服务器未连接 CIRO 运行时"],waiting_verifier:["warning","已执行，等待独立验证器"]};
+  function scheduleEvent(kind,title,body,scheduleId,goalId=null){
+    const event={id:store.id(),at:new Date().toISOString(),kind,title:String(title).slice(0,130),body:String(body||"").slice(0,500),scheduleId,goalId};
+    store.change("schedule.event",{id:event.id,kind},s=>{
+      s.scheduleEvents=[event,...(s.scheduleEvents||[])].slice(0,100);
+    });
+    try{notify({type:kind==="success"?"success":kind==="warning"?"warning":"info",title:event.title,body:event.body,refId:goalId});}catch{/* accounts off */}
+  }
+  function reportScheduledGoals(){
+    for(const goal of store.get().goals){
+      if(!goal.fromSchedule||goal.reported===goal.status||!FINISHED[goal.status])continue;
+      const [kind,label]=FINISHED[goal.status];
+      const summary=typeof goal.lastResult==="string"?goal.lastResult:goal.lastResult?.summary||goal.error||"";
+      store.change("schedule.goal.reported",{id:goal.id,status:goal.status},()=>{goal.reported=goal.status;});
+      scheduleEvent(kind,"定时任务「"+goal.title+"」"+label,summary,goal.fromSchedule,goal.id);
+    }
+  }
+  router.get("/schedule-events",(req,res)=>{
+    const after=typeof req.query.after==="string"?req.query.after:"";
+    const events=(store.get().scheduleEvents||[]).filter(e=>!after||e.at>after);
+    res.set("Cache-Control","no-store").json({events:events.slice(0,30),now:new Date().toISOString()});
+  });
   function createGoalFromSchedule(schedule){
-    const goal={id:store.id(),title:schedule.title,goal:schedule.goal,mode:"goal",
+    const goal={id:store.id(),title:schedule.title,goal:schedule.goal,mode:"goal",fromSchedule:schedule.id,
       repo:store.get().policy.repo,ownerId:schedule.ownerId||null,
       createdAt:now(),updatedAt:now(),phase:"plan",status:"draft",attempt:0,
       plan:[],evidence:[],events:[],lastResult:null,error:null};
@@ -522,11 +546,13 @@ export function createWorkbenchRouter({env=process.env,dir,fetchFn=fetch,automat
       store.change("schedule.fired",{id:schedule.id,slot},()=>{schedule.lastSlot=slot;});
       const access=decision(state.policy,"schedule.run",{repo:state.policy.repo});
       if(access.result==="approval"){
-        approval("schedule.run","Scheduled goal: "+schedule.title,{repo:state.policy.repo},{scheduleId:schedule.id});
+        approval("schedule.run","Scheduled goal: "+schedule.title,{repo:state.policy.repo},{scheduleId:schedule.id,repo:state.policy.repo});
+        scheduleEvent("info","定时任务「"+schedule.title+"」等待你批准","到了设定时间。打开协作空间批准后才会运行。",schedule.id);
       }else if(access.result==="allow"){
         createGoalFromSchedule(schedule);
       }
     }
+    reportScheduledGoals();
   }
   const timer=automaticScheduler?setInterval(()=>{try{tick();}catch(error){console.error("Ciro scheduler error:",error.message);}},60_000):null;
   timer?.unref?.();

@@ -530,6 +530,37 @@ export default function App() {
     if (studioOpen || current || viewProject || composerMode !== "chat") { createNew(); return true; }
     return false;
   };
+  const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
+  // Scheduled tasks: poll the server's result feed and raise a notification for anything new.
+  useEffect(() => {
+    if (!status.configured && statusLoading) return;
+    const KEY = "ciro.schedule-seen.v1";
+    let seen = "";
+    try { seen = localStorage.getItem(KEY) || ""; } catch { /* storage off */ }
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const r = await accountFetch("/api/workbench/schedule-events" + (seen ? "?after=" + encodeURIComponent(seen) : ""));
+        if (!r.ok) return;
+        const data = await r.json() as { events: { id: string; at: string; title: string; body: string }[]; now: string };
+        if (stopped) return;
+        // First run on this device: start from now instead of replaying old results.
+        if (!seen) { seen = data.now; try { localStorage.setItem(KEY, seen); } catch { /* ignore */ } return; }
+        const fresh = [...data.events].reverse();
+        for (const e of fresh) {
+          if (preferencesRef.current.notifySchedules && notifyGranted() && appInBackground())
+            showNotify(e.title, e.body || t("打开协作空间查看详情"), "schedule-" + e.id, () => openStudioRef.current("schedules"));
+          else if (!document.hidden) notify(e.title);
+        }
+        if (fresh.length) { seen = fresh[fresh.length - 1].at; try { localStorage.setItem(KEY, seen); } catch { /* ignore */ } }
+      } catch { /* offline: try again next time */ }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 60_000);
+    const onVisible = () => { if (!document.hidden) void poll(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stopped = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [status.configured, statusLoading]);
   // Phone gestures: swipe right/left to open/close the sidebar, swipe sheets down to dismiss them.
   useSidebarSwipe(sidebarOpen, setSidebarOpen, () => Boolean(settingsSection || voiceOpen || lightbox || paletteOpen));
   useSheetSwipe();
@@ -899,6 +930,8 @@ export default function App() {
     setSidebarOpen(false);
     setRowMenuId(null);
   }
+  openStudioRef.current = openStudio;
+
   async function sendGoal(goal: string, mode: AgentMode) {
     if (!goal.trim()) { setComposerMode(mode); return; }
     setBusy(true);
