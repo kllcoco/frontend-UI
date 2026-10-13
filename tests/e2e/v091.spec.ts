@@ -109,6 +109,30 @@ test("chat settings expose notifications and auto titles; web-search chip explai
   await expect(page.getByRole("switch", { name: "回答完成时通知" })).toBeVisible();
 });
 
+test("reply notifications: browser permission and a clear reason when blocked", async ({ page, context }) => {
+  const openChat = async () => {
+    await go(page, "设置");
+    await page.locator(".sc-nav").getByRole("button", { name: "对话设置", exact: true }).click();
+    return page.getByRole("switch", { name: "回答完成时通知" });
+  };
+  // Browser: granted permission turns it on.
+  await context.grantPermissions(["notifications"]);
+  await fresh(page);
+  let toggle = await openChat();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  // Browser: denied permission explains how to allow it instead of silently doing nothing.
+  await context.clearPermissions();
+  await page.addInitScript(() => Object.defineProperty(Notification, "permission", { get: () => "denied" }));
+  await page.reload({ waitUntil: "domcontentloaded" });
+  toggle = await openChat();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByRole("alert")).toContainText("通知权限已被拒绝");
+});
+
 test("back handler closes layers before leaving the conversation", async ({ page }) => {
   await fresh(page);
   await send(page, "返回键测试");

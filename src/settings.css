@@ -212,3 +212,4 @@
 .sc-instructions-field small{text-align:right;color:#91a595}
 :root[data-theme="dark"] .sc-instructions-field strong{color:#cde1d4}
 :root[data-theme="dark"] .sc-instructions-field textarea{background:#191917;color:#e0ebe3;border-color:#484743}
+.sc-row-note{margin:-2px 0 10px;font-size:12px;color:var(--cx-danger,#c0392b)}

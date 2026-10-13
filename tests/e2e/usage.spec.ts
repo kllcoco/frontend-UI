@@ -78,3 +78,40 @@ test("attached files show as chips while the model still receives their text", a
   await expect(page.locator(".user-bubble")).toHaveText("总结这个文件");
   await expect(page.locator(".message--assistant .message-prose")).toContainText("（已收到附件）");
 });
+
+test("Android app: reply notifications go through the native bridge and tapping one opens the chat", async ({ page }) => {
+  // The Android WebView has no web Notification API; MainActivity exposes window.CiroNotify instead.
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    let state = "default";
+    w.__shown = [];
+    delete (w as { Notification?: unknown }).Notification;
+    w.CiroNotify = {
+      status: () => state,
+      request: () => { state = "granted"; setTimeout(() => (w.ciroNotifyResult as (s: string) => void)?.(state), 10); },
+      show: (title: string, body: string, tag: string) => (w.__shown as unknown[]).push({ title, body, tag }),
+      background: () => true,
+    };
+  });
+  await page.goto(ciro.url + "/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "对话设置", exact: true }).click();
+  const toggle = page.getByRole("switch", { name: "回答完成时通知" });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("通知测试");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".message--assistant .message-prose")).toContainText("来自 ciro 的回答");
+  type Shown = { title: string; body: string; tag: string };
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __shown: Shown[] }).__shown.length)).toBe(1);
+  const shown = await page.evaluate(() => (window as unknown as { __shown: Shown[] }).__shown[0]);
+  expect(shown.title).toContain("Ciro 已回答");
+  expect(shown.body).toContain("来自 ciro 的回答");
+  await page.keyboard.press("Control+Shift+O");
+  await expect(page.locator(".message--assistant")).toHaveCount(0);
+  await page.evaluate((id) => (window as unknown as { ciroOpenChat: (id: string) => void }).ciroOpenChat(id), shown.tag);
+  await expect(page.locator(".message--assistant .message-prose")).toContainText("来自 ciro 的回答");
+});

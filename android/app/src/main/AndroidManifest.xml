@@ -53,5 +53,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Work mode: scan a computer's QR code -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- "Notify when a reply finishes" -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

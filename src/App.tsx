@@ -53,6 +53,7 @@ import ShareDialog from "./components/ShareDialog";
 import FindBar from "./components/FindBar";
 import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
+import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import CanvasPanel from "./components/CanvasPanel";
 import VoiceMode from "./components/VoiceMode";
 import { addMemory, listMemories, localMemoriesForChat, removeMemory } from "./lib/memory";
@@ -512,9 +513,11 @@ export default function App() {
   useSidebarSwipe(sidebarOpen, setSidebarOpen, () => Boolean(settingsSection || voiceOpen || lightbox || paletteOpen));
   useSheetSwipe();
   useEffect(() => {
-    const w = window as unknown as { ciroHandleBack?: () => boolean };
+    const w = window as unknown as { ciroHandleBack?: () => boolean; ciroOpenChat?: (id: string) => void };
     w.ciroHandleBack = () => backRef.current();
-    return () => { delete w.ciroHandleBack; };
+    // Tapping an Android "reply finished" notification opens that chat.
+    w.ciroOpenChat = (id: string) => { if (conversationsRef.current.some((c) => c.id === id)) { setActiveId(id); setSidebarOpen(false); } };
+    return () => { delete w.ciroHandleBack; delete w.ciroOpenChat; };
   }, []);
   // "Share → Ciro": Android passes shared text/images through the CiroShare bridge; the PWA share
   // target arrives as ?share=1&title=&text=&url=. Either way a new chat opens with the content filled in.
@@ -666,10 +669,9 @@ export default function App() {
         const question = [...history].reverse().find((m) => m.role === "user")?.content || "";
         void suggestFollowUps(conversationId, assistantId, question, answer);
       }
-      if (preferencesRef.current.notifyOnComplete && document.hidden && "Notification" in window && Notification.permission === "granted") {
+      if (preferencesRef.current.notifyOnComplete && appInBackground() && notifyGranted()) {
         const title = conversationsRef.current.find((c) => c.id === conversationId)?.title || "Ciro";
-        const note = new Notification(t("Ciro 已回答") + " · " + title, { body: answer.replace(/[#*`>|_-]+/g, " ").slice(0, 140), icon: "/icon-192.png", tag: conversationId });
-        note.onclick = () => { window.focus(); setActiveId(conversationId); note.close(); };
+        showNotify(t("Ciro 已回答") + " · " + title, answer.replace(/[#*`>|_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 140), conversationId, () => setActiveId(conversationId));
       }
     } catch (error) {
       if (controller.signal.aborted) {

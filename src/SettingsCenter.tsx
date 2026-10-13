@@ -11,6 +11,7 @@ import type { ApiStatus, Conversation } from "./types";
 import { LANGUAGES, localeTag, translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
+import { notifyGranted, requestNotify } from "./lib/notify";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
@@ -111,6 +112,7 @@ export default function SettingsCenter({
     sections.some((item) => item.id === initialSection) ? initialSection as Section : "appearance");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notifyNote, setNotifyNote] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const totalMessages = conversations.reduce((sum, chat) => sum + chat.messages.length, 0);
   const wallpaper = backgroundUrl(appearance.preset, customImageUrl);
@@ -339,14 +341,17 @@ export default function SettingsCenter({
               <SettingRow title={t("紧凑显示")} description={t("缩短消息之间的间距")}>
                 <Toggle checked={preferences.compactMessages} title={t("紧凑显示")} onChange={(v) => updatePreference("compactMessages", v)}/></SettingRow>
               <SettingRow title={t("回答完成时通知")} description={t("窗口不在前台时，用系统通知提醒你回答已完成")}>
-                <Toggle checked={preferences.notifyOnComplete} title={t("回答完成时通知")} onChange={(v) => {
+                <Toggle checked={preferences.notifyOnComplete && notifyGranted()} title={t("回答完成时通知")} onChange={(v) => {
+                  setNotifyNote("");
                   if (!v) { updatePreference("notifyOnComplete", false); return; }
-                  if (!("Notification" in window)) { setError(t("当前环境不支持系统通知")); return; }
-                  void Notification.requestPermission().then((perm) => {
-                    if (perm === "granted") updatePreference("notifyOnComplete", true);
-                    else setError(t("通知权限被拒绝，请在系统或浏览器设置中允许"));
+                  void requestNotify().then((result) => {
+                    if (result === "granted") { updatePreference("notifyOnComplete", true); return; }
+                    setNotifyNote(result === "insecure" ? t("浏览器只允许 HTTPS 网址发送通知。请用 https:// 地址访问 Ciro，或使用桌面版 / Android 版。")
+                      : result === "unsupported" ? t("当前浏览器不支持系统通知。可以使用桌面版或 Android 版。")
+                      : t("通知权限已被拒绝。请在系统设置（或浏览器地址栏左侧的网站设置）里允许 Ciro 发送通知，然后再打开。"));
                   });
                 }}/></SettingRow>
+              {notifyNote && <p className="sc-error sc-row-note" role="alert">{notifyNote}</p>}
               <SettingRow title={t("追问建议")} description={t("回答结束后，在下方给出可以一键继续的问题")}>
                 <Toggle checked={preferences.followUps} title={t("追问建议")} onChange={(v) => updatePreference("followUps", v)}/></SettingRow>
               <SettingRow title={t("自动生成对话标题")} description={t("第一轮回答后，由模型为对话起一个简短标题")}>
