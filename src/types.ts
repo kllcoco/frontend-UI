@@ -57,6 +57,8 @@ export type Conversation = {
 };
 
 export type ApiStatus = {
+  /** Self-hosted server that wants everyone to see the setup hints (CIRO_SETUP_HINTS=on); off on the official service. */
+  setupHints?: boolean;
   configured: boolean;
   model: string;
   models: string[];

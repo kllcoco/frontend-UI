@@ -43,7 +43,7 @@ export default function QuickAsk() {
   async function ask() {
     const question = draft.trim();
     if (!question || busy) return;
-    if (!model) { setError(t("还没有连接推理服务，请先在主窗口完成连接。")); return; }
+    if (!model) { setError(t("暂时连不上 Ciro 服务，请稍后再试。")); return; }
     const content = quote ? question + "\n\n" + t("引用内容：") + "\n\n> " + quote.split("\n").join("\n> ") : question;
     const user: ChatMessage = { id: newId(), role: "user", content, createdAt: Date.now() };
     setAsked(question); setDraft(""); setAnswer(""); setError(""); setBusy(true);

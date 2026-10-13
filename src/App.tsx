@@ -61,6 +61,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import { devMode } from "./lib/operator";
 import Announcements from "./components/Announcements";
 import AndroidUpdate from "./components/AndroidUpdate";
 import { reportUpdate } from "./lib/update-result";
@@ -234,6 +235,14 @@ export default function App() {
   // Registered members of a hosted server get their own chats, keys, sync and work mode; the shared
   // workbench, studio and plugins belong to the server owner.
   const member = roleOf(session) === "user";
+  // Model / server plumbing (connect card, preview notes) is for the operator only: owner account or developer options.
+  const [dev, setDev] = useState(devMode);
+  useEffect(() => {
+    const on = (e: Event) => setDev(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener("ciro-dev-mode", on);
+    return () => window.removeEventListener("ciro-dev-mode", on);
+  }, []);
+  const operator = dev || Boolean(status.setupHints) || Boolean(session?.enabled && session.authenticated && session.user?.role === "owner");
   const [unread, setUnread] = useState(0);
   const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
   const customUrlRef = useRef<string | null>(null);
@@ -1211,7 +1220,7 @@ export default function App() {
     } else setConversations((prev) => prev.map((c) => c.id === id ? { ...c, messages: [...c.messages, user], updatedAt: now } : c));
     petProgress({ text: t("好的，我想想…"), source: "voice" });
     const answer = await generateReply(id, [...(chat?.messages || []), user], undefined, undefined, { phone: true });
-    const spoken = spokenText(answer || (status.configured ? "" : t("还没有连接模型，打开 Ciro 设置一下吧。"))).split("\n\n")[0].slice(0, 400);
+    const spoken = spokenText(answer || (status.configured ? "" : t("暂时连不上 Ciro 服务，稍后再试吧。"))).split("\n\n")[0].slice(0, 400);
     if (spoken) nativeVoice()?.speak?.(spoken);
   }
   const voiceRef = useRef(voiceCommand);
@@ -1598,7 +1607,7 @@ export default function App() {
   ];
   const slashMatches = draft.startsWith("/") && !draft.includes(" ")
     ? SLASH_COMMANDS.filter(([cmd]) => cmd.startsWith(draft.toLowerCase())) : [];
-  const thinkingNote = !status.configured ? t("预览模式：连接推理服务后生效")
+  const thinkingNote = !operator ? "" : !status.configured ? t("预览模式：连接推理服务后生效")
     : status.reasoningModes?.includes("deep") ? t("由 CIRO 原生深度推理执行")
     : status.reasoningEffort ? t("以 reasoning_effort 传给模型服务") : t("当前模型服务未开启思考深度");
 
@@ -1872,7 +1881,11 @@ export default function App() {
                 <h1>{t("临时对话")}</h1>
                 <p className="cx-temp-note">{t("此对话不会出现在历史记录中，也不会同步或用于记忆。离开后即删除。")}</p>
               </> : <h1>{t("让每一个想法，")}{language === "en" ? " " : ""}<em>{t("走得更远。")}</em></h1>}
-              {!status.configured && !statusLoading && !temporaryMode && <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>}
+              {!status.configured && !statusLoading && !temporaryMode && (operator
+                ? <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>
+                : <div className="cx-connect cx-connect--down" role="status"><strong>{t("暂时连不上 Ciro 服务")}</strong>
+                    <p>{t("请检查网络后重试；如果一直这样，可能是服务正在维护，稍后再来。")}</p>
+                    <div className="cx-connect-row"><button type="button" onClick={() => void refreshStatus()}>{t("重试")}</button></div></div>)}
               {!temporaryMode && <Announcements t={t}/>}
             </section>
           ) : (
@@ -2036,7 +2049,7 @@ export default function App() {
 
         <div className="composer-dock">
           <div className="composer-inner">
-            {!status.configured && !statusLoading && <div className="preview-hint">
+            {!status.configured && !statusLoading && operator && <div className="preview-hint">
               <span className="preview-hint-dot"/>
               <span>{t("当前为客户端预览，尚未连接真实 CIRO 推理服务")}</span>
               <button onClick={() => setSettingsSection("models")}>{t("如何连接 ")} <span aria-hidden="true">↗</span></button>
@@ -2094,7 +2107,7 @@ export default function App() {
                         <PanelRight size={16}/><span><strong>{t("新建画布")}</strong><small>{t("在右侧编辑文档或代码，并让 Ciro 协助修改")}</small></span></button>
                       <button role="menuitem" onClick={() => {
                         setPlusOpen(false);
-                        if (!status.configured || status.models.length < 2) { notify(status.configured ? "对比需要服务端配置多个模型（CIRO_MODELS）" : "连接推理服务后可对比模型"); return; }
+                        if (!status.configured || status.models.length < 2) { notify(!operator ? "模型对比暂未开放" : status.configured ? "对比需要服务端配置多个模型（CIRO_MODELS）" : "连接推理服务后可对比模型"); return; }
                         setComposerMode("chat"); setComparePicker(true); }}>
                         <Columns2 size={16}/><span><strong>{t("对比模型")}</strong><small>{t("同一个问题同时问 2–3 个模型，并排比较")}</small></span>{compareModels.length >= 2 && <Check size={15}/>}</button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setPromptsOpen(true); }}>
@@ -2127,7 +2140,7 @@ export default function App() {
                   {composerMode === "chat" && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
                     aria-pressed={webSearchOn && Boolean(status.webSearch)} title={t("联网搜索")} aria-label={t("联网搜索")}
                     onClick={(e) => { e.stopPropagation();
-                      if (!status.webSearch) { notify(status.configured ? "联网搜索需要服务端开启 CIRO_WEB_SEARCH=on" : "连接推理服务后可使用联网搜索"); return; }
+                      if (!status.webSearch) { notify(!operator ? "联网搜索暂未开放" : status.configured ? "联网搜索需要服务端开启 CIRO_WEB_SEARCH=on" : "连接推理服务后可使用联网搜索"); return; }
                       setWebSearchOn((v) => !v); }}>
                     <Globe size={15}/><span>{t("联网")}</span></button>}
                   {composerMode === "chat" && <div onClick={(e) => e.stopPropagation()}>

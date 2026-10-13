@@ -54,7 +54,7 @@ export async function startCiro(port: number, upstreamPort: number, extraEnv: Re
   const dir = mkdtempSync(join(tmpdir(), "ciro-e2e-"));
   const child: ChildProcess = spawn(process.execPath, ["server/index.mjs"], { stdio: "ignore", env: {
     ...process.env, PORT: String(port), HOST: "127.0.0.1", NODE_ENV: "production", CIRO_WORKSPACE_DATA_DIR: dir,
-    CIRO_API_BASE_URL: "http://127.0.0.1:" + upstreamPort + "/v1", CIRO_ANNOUNCEMENTS_URL: "off", CIRO_MODEL: "ciro", CIRO_MODELS: "ciro,ciro-pro", ...extraEnv } });
+    CIRO_API_BASE_URL: "http://127.0.0.1:" + upstreamPort + "/v1", CIRO_ANNOUNCEMENTS_URL: "off", CIRO_SETUP_HINTS: "on", CIRO_MODEL: "ciro", CIRO_MODELS: "ciro,ciro-pro", ...extraEnv } });
   const url = "http://127.0.0.1:" + port;
   for (let i = 0; i < 60; i += 1) {
     try { if ((await fetch(url + "/api/status")).ok) break; } catch { /* starting */ }

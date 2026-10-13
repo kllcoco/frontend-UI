@@ -36,7 +36,8 @@ export function bootMobile(): void {
   if (!isMobileShell() || window.location.origin !== LOCAL_ORIGIN) return;
   const params = new URLSearchParams(window.location.search);
   if (params.get("forget") === "1") { try { localStorage.removeItem(KEY); } catch { /* ignore */ } }
-  const server = savedServer();
-  if (server && params.get("local") !== "1") window.location.replace(server + "/");
+  // Customers never pick a server: the app opens the official one (set at build time) unless another was chosen.
+  const server = savedServer() || (params.get("forget") === "1" ? "" : OFFICIAL_SERVER);
+  if (server && params.get("local") !== "1") { try { localStorage.setItem(KEY, server); } catch { /* ignore */ } window.location.replace(server + "/"); }
   document.documentElement.dataset.mobile = "true";
 }

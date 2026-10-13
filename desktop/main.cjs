@@ -10,6 +10,16 @@ const REPO_URL = "https://github.com/kllcoco/frontend-UI";
 const isMac = process.platform === "darwin";
 let mainWindow = null;
 let serverOrigin = null;
+// The company's Ciro service, written into desktop/official.json at release time (repo variable CIRO_OFFICIAL_SERVER).
+// When set, chats run there (accounts, CWU); the local server still drives the pet, work mode and quick tools.
+const OFFICIAL = (() => {
+  try {
+    const v = String(JSON.parse(readFileSync(path.join(__dirname, "official.json"), "utf8")).server || "").trim().replace(/\/+$/, "");
+    return /^https:\/\/[^/\s]+$/i.test(v) ? v : "";
+  } catch { return ""; }
+})();
+/** Where the chat windows load from. */
+const appOrigin = () => OFFICIAL || serverOrigin;
 let language = "en";
 let tray = null;
 let isQuitting = false;
@@ -176,7 +186,7 @@ function showQuick() {
     quickWindow.on("blur", () => { if (quickWindow && !quickWindow.webContents.isDevToolsOpened()) quickWindow.hide(); });
     quickWindow.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//i.test(url)) void shell.openExternal(url); return { action: "deny" }; });
     quickWindow.webContents.on("will-navigate", (event) => event.preventDefault());
-    void quickWindow.loadURL(serverOrigin + "/?quick=1");
+    void quickWindow.loadURL(appOrigin() + "/?quick=1");
   }
   // Centre on the display under the mouse, a little above the middle.
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
@@ -344,6 +354,16 @@ function petProgress(p) {
     done: Boolean(p.done), ok: p.ok !== false, attention: Boolean(p.attention), source: String(p.source || "") });
 }
 ipcMain.on("ciro:pet-progress", (_event, p) => petProgress(p));
+// Work mode's "this computer" controls live on the local server; with the official service loaded in the window
+// the page reaches them through here (main-process requests carry no Origin, so the loopback-only checks pass).
+ipcMain.handle("ciro:local-api", async (_event, req) => {
+  const p = String(req?.path || "");
+  if (!/^\/[a-z0-9/_-]{0,80}$/i.test(p) || !serverOrigin) return { status: 400, body: { error: "bad path" } };
+  const post = req.body !== undefined;
+  const res = await fetch(serverOrigin + "/api/remote/local" + p, { method: post ? "POST" : "GET",
+    headers: { "X-Ciro-Local": "1", ...(post ? { "Content-Type": "application/json" } : {}) }, ...(post ? { body: JSON.stringify(req.body) } : {}) });
+  return { status: res.status, body: await res.json().catch(() => ({})) };
+});
 // The reply being written, mirrored in her bubble.
 ipcMain.on("ciro:pet-stream", (_event, s) => { if (s && typeof s.text === "string") toPet("ciro:pet-stream", s); });
 // Room above her for the reply bubble: the window grows upwards (and a little wider) while it is shown.
@@ -524,7 +544,7 @@ function createWindow(route = "/") {
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(serverOrigin)) {
+    if (!url.startsWith(appOrigin()) && !url.startsWith(serverOrigin)) {
       event.preventDefault();
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     }
@@ -541,7 +561,7 @@ function createWindow(route = "/") {
   });
   win.on("closed", () => { if (first) mainWindow = null; });
   if (first) mainWindow = win;
-  void win.loadURL(serverOrigin + route);
+  void win.loadURL(appOrigin() + route);
   return win;
 }
 

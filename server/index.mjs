@@ -102,6 +102,8 @@ app.get("/api/status", (_req, res) => {
     webSearch:configured&&webSearch,
     ...mediaFeatures(),
     studioVersion:"ciro-studio.v1",
+    // Self-hosting / development: show the model connection hints to everyone (the official service leaves this off).
+    ...(/^(1|on|true|yes)$/i.test(process.env.CIRO_SETUP_HINTS||"")?{setupHints:true}:{}),
     version:appVersion
   });
 });

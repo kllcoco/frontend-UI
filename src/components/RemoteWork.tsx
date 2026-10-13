@@ -35,6 +35,14 @@ async function cloud<T>(path: string, method = "GET", body?: unknown): Promise<T
   return readApiJson<T>(res, "Work mode request failed");
 }
 async function local<T = LocalStatus>(path: string, body?: unknown): Promise<T> {
+  // Desktop app showing the official service: this computer's controls are on its local server, reached via IPC.
+  const viaApp = (window as unknown as { ciroDesktop?: { localApi?: (p: string, b?: unknown) => Promise<{ status: number; body: unknown }> } }).ciroDesktop?.localApi;
+  if (viaApp && !/^http:\/\/127\.0\.0\.1:/.test(window.location.origin)) {
+    const r = await viaApp(path, body);
+    const data = (r.body || {}) as { error?: string };
+    if (r.status >= 400) throw new Error(data.error || "Local request failed");
+    return r.body as T;
+  }
   const res = await fetch("/api/remote/local" + path, { method: body === undefined ? "GET" : "POST", cache: "no-store",
     headers: { "X-Ciro-Local": "1", ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return readApiJson<T>(res, "Local request failed");

@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
   quickHide: () => ipcRenderer.send("ciro:quick-hide"),
   quickContinue: (chatId) => ipcRenderer.send("ciro:quick-continue", String(chatId || "")),
   // Desktop pet window and the main window's signals to it.
+  // Work mode on this computer when the window shows the official service (see ciro:local-api in main.cjs).
+  localApi: (path, body) => ipcRenderer.invoke("ciro:local-api", { path: String(path || ""), ...(body === undefined ? {} : { body }) }),
   pet: {
     setIgnore: (ignore) => ipcRenderer.send("ciro:pet-ignore", Boolean(ignore)),
     drag: (phase) => { if (["start", "move", "end"].includes(phase)) ipcRenderer.send("ciro:pet-drag", phase); },

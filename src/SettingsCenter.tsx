@@ -25,6 +25,7 @@ import UserAdmin from "./components/UserAdmin";
 import { nativePet, petEnabled, petMirror, petScale, resetPetPlace, setPetEnabled, setPetMirror, setPetScale } from "./lib/pet";
 import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
 import { nativeVoice } from "./lib/phone";
+import { devMode, setDevMode } from "./lib/operator";
 import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
 import { loadAnnouncements } from "./lib/announcements";
@@ -67,14 +68,16 @@ type SettingsProps = {
   onImport: (items: Conversation[]) => number;
   onImportProject: (file: File) => Promise<void>;
 };
-type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean; ownerOnly?: boolean; ownerTools?: boolean };
+type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean; ownerOnly?: boolean; ownerTools?: boolean;
+  /** Model / server plumbing: only the operator (owner account or developer options) sees it. */
+  operator?: boolean };
 // Grouped so the most used pages come first; `keys` feeds the settings search.
 const sections: SectionInfo[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
   { id: "appearance", label: "外观与背景", icon: Palette, group: "常用", keys: "主题 深色 浅色 背景 壁纸 强调色 字体 theme dark" },
   { id: "pet", label: "桌宠", icon: PawPrint, group: "常用", keys: "桌宠 宠物 Q版 看板娘 pet mascot" },
   { id: "chat", label: "对话设置", icon: MessageSquare, group: "常用", keys: "通知 时间 紧凑 追问 标题 字号 notification" },
-  { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 服务器 连接 api model server" },
+  { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 服务器 连接 api model server", operator: true },
   { id: "instructions", label: "自定义指令", icon: FileText, group: "常用", keys: "指令 关于你 回答方式 instructions" },
   { id: "memory", label: "记忆管理", icon: Database, group: "常用", keys: "记忆 自动记忆 memory" },
   { id: "usage", label: "用量统计", icon: Activity, group: "数据与同步", keys: "用量 CWU GWU usage" },
@@ -133,6 +136,8 @@ export default function SettingsCenter({
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
   const [petShown, setPetShown] = useState(petEnabled);
   const [mirrorOn, setMirrorOn] = useState(petMirror);
+  const [dev, setDev] = useState(devMode);
+  const versionTaps = useRef<number[]>([]);
   const [wakeOn, setWakeOn] = useState(() => { try { return Boolean(nativeVoice()?.wakeOn?.()); } catch { return false; } });
   const [wakeNote, setWakeNote] = useState("");
   const [petSize, setPetSizeState] = useState(() => Math.round(petScale() * 100));
@@ -151,16 +156,20 @@ export default function SettingsCenter({
   }, []);
   // Registered members don't see the server-wide tools (workbench, plugins, billing) — those are the owner's.
   const [member, setMember] = useState(false);
+  const [ownerSignedIn, setOwnerSignedIn] = useState(false);
   useEffect(() => {
     let alive = true;
-    getAccountSession().then((s) => { if (alive) { setAccountsOn(Boolean(s.enabled)); setMember(roleOf(s) === "user"); } }, () => { if (alive) setAccountsOn(false); });
+    getAccountSession().then((s) => { if (alive) { setAccountsOn(Boolean(s.enabled)); setMember(roleOf(s) === "user");
+      setOwnerSignedIn(Boolean(s.enabled && s.authenticated && s.user?.role === "owner")); } }, () => { if (alive) setAccountsOn(false); });
     return () => { alive = false; };
   }, []);
   const touchOnly = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
   // Without accounts every account page shows the same notice, so only the first one is listed.
   const [canAnnounce, setCanAnnounce] = useState(false);
   useEffect(() => { loadAnnouncements().then((r) => setCanAnnounce(r.editable), () => setCanAnnounce(false)); }, []);
-  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && member));
+  const operator = ownerSignedIn || dev || Boolean(status.setupHints);
+  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && member)
+    && !(item.operator && !operator));
   const q = query.trim().toLowerCase();
   const matches = q ? visible.filter((item) => (t(item.label) + " " + item.label + " " + (item.keys || "")).toLowerCase().includes(q)) : visible;
   const openSection = (id: Section) => { setSection(id); setError(null); setListView(false); setQuery(""); };
@@ -408,7 +417,7 @@ export default function SettingsCenter({
             </SettingBlock>
             <div className="sc-info-card"><ShieldCheck size={18}/><div>
               <strong>{t("本地保存，模型调用时发送")}</strong>
-              <p>{t("指令保存在当前浏览器；启用后会发送到配置的推理服务，但不能替代沙盒或 GitHub 权限设置。")}</p>
+              <p>{t("指令保存在当前设备；启用后会随每次对话发送给 Ciro，但不能替代沙盒或 GitHub 权限设置。")}</p>
             </div></div>
           </>}
 
@@ -548,7 +557,12 @@ export default function SettingsCenter({
 
           {section === "about" && <>
             <div className="sc-about-hero"><CiroMark/><strong>Ciro</strong><span>Think further.</span>
-              <p>{t("与你一起，探索思考的另一种可能。")}</p><small>CIRO CLIENT · v{__APP_VERSION__}</small></div>
+              <p>{t("与你一起，探索思考的另一种可能。")}</p><small onClick={() => {
+                // Developer options: tap the version 7 times (shows model and server settings).
+                const now = Date.now();
+                versionTaps.current = [...versionTaps.current.filter((x) => now - x < 3000), now];
+                if (versionTaps.current.length >= 7 && !dev) { versionTaps.current = []; setDevMode(true); setDev(true); }
+              }}>CIRO CLIENT · v{__APP_VERSION__}</small></div>
             <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
               <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
               {Boolean(window.ciroDesktop?.updateAction || (window as unknown as { CiroUpdate?: unknown }).CiroUpdate) && <SettingRow title={t("检查更新")}
@@ -564,7 +578,9 @@ export default function SettingsCenter({
                     if (window.ciroDesktop?.updateAction) window.ciroDesktop.updateAction("check");
                     else window.dispatchEvent(new Event("ciro-check-update"));
                   }}><RefreshCcw size={15} className={updateResult?.busy ? "cx-spin" : ""}/> {t("检查更新")}</button></span></SettingRow>}
-              <SettingRow title={t("推理服务")} description={status.configured ? t("当前使用的模型：") + model : t("还没有连接推理服务，在“模型设置”里查看连接方法")}><span className="sc-static-value">{status.configured ? t("已连接") : t("未连接")}</span></SettingRow>
+              {operator && <SettingRow title={t("推理服务")} description={status.configured ? t("当前使用的模型：") + model : t("还没有连接推理服务，在“模型设置”里查看连接方法")}><span className="sc-static-value">{status.configured ? t("已连接") : t("未连接")}</span></SettingRow>}
+              {dev && <SettingRow title={t("开发者选项")} description={t("显示模型与服务器设置。普通用户不需要。")}>
+                <Toggle checked title={t("开发者选项")} onChange={() => { setDevMode(false); setDev(false); }}/></SettingRow>}
             </SettingBlock>
           </>}
         </ViewBoundary></div>

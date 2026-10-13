@@ -76,7 +76,11 @@ jobs:
       - run: npm run build
       - name: Package installers
         shell: bash
+        env:
+          CIRO_OFFICIAL_SERVER: ${{ vars.CIRO_OFFICIAL_SERVER }}
         run: |
+          # Customers' desktop app opens the company's Ciro service when one is configured (repo variable).
+          node -e "require('fs').writeFileSync('desktop/official.json', JSON.stringify({ server: process.env.CIRO_OFFICIAL_SERVER || '' }))"
           if [ "$RUNNER_OS" = "macOS" ] && [ "$HAS_MAC_CERT" = "true" ]; then
             export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
             echo "macOS: signing with Developer ID${APPLE_ID:+ and notarizing}"

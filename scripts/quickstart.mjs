@@ -43,7 +43,7 @@ if (!existsSync(envFile)) {
   writeFileSync(envFile, [
     "# Created by the Ciro one-click server. Edit and restart to change.",
     "CIRO_API_BASE_URL=" + base, "CIRO_MODEL=" + model, "CIRO_API_KEY=" + key,
-    "CIRO_WEB_SEARCH=off", "CIRO_VOICE=off", "CIRO_IMAGES=off", ""
+    "CIRO_WEB_SEARCH=off", "CIRO_VOICE=off", "CIRO_IMAGES=off", "CIRO_SETUP_HINTS=on", ""
   ].join("\n"));
   try { chmodSync(envFile, 0o600); } catch { /* Windows */ }
   env = readEnv();
