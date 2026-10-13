@@ -1,6 +1,6 @@
 /* Chibi Ciro drawn in SVG (black-and-gold dress, long dark wavy hair, gold star hairpin, amber eyes).
    Used until artwork images are added under public/pet/ (see DesktopPet). */
-export type Mood = "idle" | "happy" | "love" | "shy" | "angry" | "sleep" | "think" | "work" | "wave" | "drag" | "sad";
+export type Mood = "idle" | "happy" | "love" | "shy" | "angry" | "sleep" | "think" | "work" | "wave" | "drag" | "sad" | "eat";
 
 const STAR = "M0 -11C.8 -3.2 3.2 -.8 11 0C3.2 .8 .8 3.2 0 11C-.8 3.2 -3.2 .8 -11 0C-3.2 -.8 -.8 -3.2 0 -11Z";
 

@@ -467,6 +467,7 @@ const translations: Readonly<Record<string,string>> = {
   "GitHub 暂时限制了查询次数，请稍后再试": "GitHub is limiting lookups for now; try again later",
   "暂时连不上更新服务器（GitHub），请稍后再试": "Can't reach the update server (GitHub) right now; try again later",
   "公告": "Announcements",
+  "我先吃点东西～你也记得吃饭。": "Snack time~ Don't forget to eat too.",
   "显示桌宠": "Show desktop pet",
   "桌宠": "Desktop pet",
   "下午好，要一起工作吗？": "Good afternoon — shall we work together?",

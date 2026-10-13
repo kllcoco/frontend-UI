@@ -99,7 +99,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       if (busy.current || drag.current || moodRef.current === "sleep") return;
       if (Date.now() - lastActive.current > SLEEP_AFTER) { act("sleep", 0); speak("Zzz…", 0); return; }
       const roll = Math.random();
-      if (roll < .05) { act("work", 20_000); speak(t("我也来认真工作一会儿。"), 3600); }
+      const hour = new Date().getHours() + new Date().getMinutes() / 60;
+      const meal = (hour >= 11.5 && hour < 13) || (hour >= 17.5 && hour < 19);
+      if (meal && roll < .12) { act("eat", 15_000); speak(t("我先吃点东西～你也记得吃饭。"), 4200); }
+      else if (roll < .05) { act("work", 20_000); speak(t("我也来认真工作一会儿。"), 3600); }
       else if (roll < .09) speak([t("我一直在这里。"), t("要一起工作吗？"), greeting(t), t("有什么想问的，双击我就好。")][Math.floor(Math.random() * 4)], 4200);
     }, 30_000);
     // The model's <pet> tag: a mood and a line.
@@ -198,7 +201,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       <button type="button" role="menuitem" onClick={() => { setMenu(false); act("sleep", 0); speak("Zzz…", 0); }}>{t("让她睡一会儿")}</button>
       <button type="button" role="menuitem" onClick={() => run("hide")}>{t("隐藏桌宠")}</button>
     </div>}
-    <div ref={sprite} className={"pet-sprite pet-sprite--" + shown} aria-label="Ciro" role="img"
+    <div ref={sprite} className={"pet-sprite pet-sprite--" + shown + (image ? " pet-sprite--art" : "")} aria-label="Ciro" role="img"
       onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
       onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); if (inline) onAsk?.(); else bridge?.action("quick"); }}

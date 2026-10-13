@@ -27,9 +27,13 @@
 <pet mood="happy">今天也辛苦啦</pet>
 ```
 
-`mood` 可选 idle、happy、love、shy、angry、sad、think、work、sleep、wave；文字最多 20 字。应用会把标签从显示的回复里去掉，交给桌宠执行。
+`mood` 可选 idle、happy、love、shy、angry、sad、think、work、sleep、wave、eat；文字最多 20 字。应用会把标签从显示的回复里去掉，交给桌宠执行。
 
-## 换成立绘（Q 版图片）
+## 立绘（Q 版图片）
+
+已内置：`public/pet/` 里的 11 个表情取自 Ciro 角色设定集的 Q 版桌宠，经 4 倍超分（Real-ESRGAN anime）后抠图，同一画布对齐。
+
+### 替换或增加表情
 
 把透明背景的 PNG（建议 512×640，人物底部贴边、居中）放进 `public/pet/`，再新建 `public/pet/pet.json`：
 

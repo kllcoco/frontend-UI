@@ -4,7 +4,7 @@ import { desktop } from "./desktop";
 import type { Mood } from "../pet/Chibi";
 
 const KEY = "ciro.pet.v1";
-export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave"];
+export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave", "eat"];
 export type PetCommand = { mood?: Mood; say?: string };
 
 /** Off until the user turns it on (Settings → 外观与背景 → 桌宠). */

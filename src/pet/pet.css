@@ -65,3 +65,10 @@ html.pet-page #ciro-boot{display:none}
   .pet-root--inline .pet-sprite{width:104px;height:130px}
   .pet-root--inline .pet-say{max-width:150px;font-size:12px;padding:6px 10px}
 }
+
+/* Artwork sprites (public/pet/*.webp, 528×492): wider than the drawn chibi, sitting on the bottom edge. */
+.pet-sprite.pet-sprite--art{width:224px;height:209px}
+.pet-sprite--art img{filter:drop-shadow(0 4px 6px rgba(0,0,0,.28))}
+.pet-sprite--art.pet-sprite--sleep img{filter:drop-shadow(0 4px 6px rgba(0,0,0,.28)) saturate(.92)}
+.pet-root--inline .pet-sprite.pet-sprite--art{width:160px;height:149px}
+@media (max-width:760px){.pet-root--inline .pet-sprite.pet-sprite--art{width:128px;height:119px}}
