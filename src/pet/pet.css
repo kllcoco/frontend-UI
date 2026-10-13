@@ -102,7 +102,7 @@ html.pet-page #ciro-boot{display:none}
 /* Hidden behind a screen edge: only her head peeks out; she leans out a little more when she has news or you hover. */
 .pet-root--edge{overflow:hidden}
 .pet-root--edge .pet-sprite{transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
-.pet-root--edge-bottom .pet-sprite{transform:translateX(-50%) translateY(64%)}
+.pet-root--edge-bottom .pet-sprite{bottom:0;transform:translateX(-50%) translateY(64%)}
 .pet-root--edge-bottom.pet-root--peek .pet-sprite,.pet-root--edge-bottom .pet-sprite:hover{transform:translateX(-50%) translateY(52%)}
 .pet-root--edge-right .pet-sprite{left:auto;right:0;bottom:8%;transform:translateX(80%) rotate(-38deg);transform-origin:50% 100%}
 .pet-root--edge-right.pet-root--peek .pet-sprite,.pet-root--edge-right .pet-sprite:hover{transform:translateX(66%) rotate(-32deg)}
