@@ -21,7 +21,8 @@ html.pet-page #ciro-boot{display:none}
 .pet-sprite--angry{animation:pet-shake .32s linear 3}
 .pet-sprite--sleep .pet-body,.pet-sprite--sleep img{animation:pet-breathe 5.5s ease-in-out infinite}
 .pet-sprite--sleep{filter:saturate(.9)}
-.pet-sprite--drag{animation:pet-dangle 1s ease-in-out infinite;transform-origin:50% 12%}
+/* A held pet stays under the pointer rather than oscillating during movement. */
+.pet-sprite--drag{animation:none;transform-origin:50% 12%}
 .pet-sprite--think .pet-head{animation:pet-tilt 2.4s ease-in-out infinite;transform-origin:100px 140px}
 .pet-sprite--wave .pet-arm--r{animation:pet-wave .5s ease-in-out 5;transform-origin:126px 150px}
 .pet-sprite--shy .pet-head{transform:rotate(-4deg);transform-origin:100px 140px;transition:transform .3s}
