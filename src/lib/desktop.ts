@@ -38,6 +38,7 @@ export type PetBridge = {
   onCursor: (handler: (p: { x: number; y: number }) => void) => () => void;
   onSignal: (handler: (p: { signal: string; focused: boolean }) => void) => () => void;
   resize?: (scale: number) => void;
+  onScale?: (handler: (scale: number) => void) => () => void;
   expand?: (on: boolean) => void;
   /** Walk sideways by dx px (kept on screen); done: last step, remember the place. */
   move?: (dx: number, done?: boolean) => void;

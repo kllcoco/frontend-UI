@@ -45,6 +45,11 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
     toggle: (on) => ipcRenderer.send("ciro:pet-toggle", Boolean(on)),
     resize: (scale) => { const v = Number(scale); if (Number.isFinite(v)) ipcRenderer.send("ciro:pet-resize", v); },
     move: (dx, done) => { const v = Number(dx); if (Number.isFinite(v)) ipcRenderer.send("ciro:pet-move", { dx: Math.max(-40, Math.min(40, v)), done: Boolean(done) }); },
+    onScale: (handler) => {
+      const listener = (_event, v) => handler(Number(v));
+      ipcRenderer.on("ciro:pet-scale", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-scale", listener);
+    },
     expand: (on) => ipcRenderer.send("ciro:pet-expand", Boolean(on)),
     stream: (s) => ipcRenderer.send("ciro:pet-stream", { id: String(s?.id || "").slice(0, 80), text: String(s?.text || "").slice(-4000),
       done: Boolean(s?.done), error: Boolean(s?.error), title: String(s?.title || "").slice(0, 80) }),

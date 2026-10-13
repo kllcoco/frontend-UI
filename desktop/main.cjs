@@ -319,6 +319,7 @@ ipcMain.on("ciro:pet-resize", (_event, value) => {
   const y = b.y + b.height - size.height;
   petWindow.setBounds({ x, y, ...size });
   savePet({ scale, x, y: petExpanded ? y + REPLY_ROOM.extra : y });
+  toPet("ciro:pet-scale", scale); // when the size came from the settings slider in the main window
 });
 ipcMain.on("ciro:pet-action", (_event, action) => {
   if (action === "open") showWindow();

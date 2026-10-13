@@ -33,6 +33,32 @@ const INLINE_POS = "ciro.pet-pos.v1";
 const INLINE_SCALE = "ciro.pet-scale.v1";
 const INLINE_EDGE = "ciro.pet-edge.v1";
 export const MIN_SCALE = .5, MAX_SCALE = 1.6;
+/** Touch screens: the edges belong to system gestures (status bar pull-down, home / back swipes). She hides
+ *  behind a line this far inside them, so she can always be touched and dragged again. */
+function gutters(): { side: number; top: number; bottom: number } {
+  if (!window.matchMedia?.("(pointer: coarse)").matches) return { side: 0, top: 0, bottom: 0 };
+  let safeTop = 0, safeBottom = 0;
+  try {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe); safeTop = parseFloat(cs.paddingTop) || 0; safeBottom = parseFloat(cs.paddingBottom) || 0;
+    probe.remove();
+  } catch { /* no env() support */ }
+  return { side: 30, top: safeTop + 48, bottom: safeBottom + 60 };
+}
+/** In-app position (right / bottom offsets) for hiding at an edge. */
+function edgePos(edge: Exclude<PetEdge, null>, w: number, h: number, p: { x: number; y: number }) {
+  const g = gutters(), W = window.innerWidth, H = window.innerHeight;
+  const midY = Math.max(g.bottom, Math.min(H - h - g.top, p.y)), midX = Math.max(g.side, Math.min(W - w - g.side, p.x));
+  return edge === "right" ? { x: g.side, y: midY } : edge === "left" ? { x: W - w - g.side, y: midY }
+    : edge === "bottom" ? { x: midX, y: g.bottom } : { x: midX, y: H - h - g.top };
+}
+/** Inside the app and, on touch screens, away from the system gesture areas. */
+function keepIn(p: { x: number; y: number }, w: number, h: number) {
+  const g = gutters();
+  return { x: Math.max(g.side, Math.min(window.innerWidth - w - g.side, p.x)), y: Math.max(g.bottom, Math.min(window.innerHeight - h - g.top, p.y)) };
+}
 const clampScale = (v: number) => Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, v)) * 100) / 100;
 function stored(key: string): string { try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 function store(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* storage off */ } }
@@ -73,7 +99,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const replyHover = useRef(false);
   const replyTimer = useRef(0);
   const closeReply = () => { window.clearTimeout(replyTimer.current); setReply(null); if (!inline) bridge?.expand?.(false); };
-  const pinch = useRef<{ pointers: Map<number, { x: number; y: number }>; start: number; from: number } | null>(null);
+  // Pinch: the first finger is on her, the second may land anywhere on the screen.
+  const pinch = useRef<{ start: number; from: number } | null>(null);
+  const touchingPet = useRef(false);
   const [mood, setMood] = useState<Mood>("wave");
   const [say, setSay] = useState<string>(() => greeting(t));
   const [blink, setBlink] = useState(false);
@@ -245,6 +273,25 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     };
   }, []);
 
+  // Settings → 桌宠 → 回到默认位置
+  useEffect(() => {
+    if (!inline) return;
+    const reset = () => { setEdge(null); setScale(inline ? .85 : .8); scaleRef.current = .85; setPos({ x: 12, y: 150 }); act("happy", 2000); play("jump"); speak(t("我回来啦。"), 2200); };
+    window.addEventListener("ciro-pet-reset", reset);
+    return () => window.removeEventListener("ciro-pet-reset", reset);
+  }, []);
+  // In the app: a place saved by an older version may sit in a system gesture area; move it out once laid out.
+  useEffect(() => {
+    if (!inline) return;
+    const id = window.setTimeout(() => {
+      const box = rootRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const next = edgeRef.current ? edgePos(edgeRef.current, box.width, box.height, posRef.current) : keepIn(posRef.current, box.width, box.height);
+      if (next.x !== posRef.current.x || next.y !== posRef.current.y) { setPos(next); store(INLINE_POS, JSON.stringify(next)); }
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, []);
+
   // Follow the text as it is written, unless you scrolled up to read.
   useEffect(() => {
     const el = replyBox.current;
@@ -311,30 +358,16 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
 
   function onPointerDown(e: React.PointerEvent) {
     stopWalk();
-    const pts = pinch.current?.pointers || new Map<number, { x: number; y: number }>();
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // Only the first finger drags; a second one (anywhere) turns it into a pinch, handled by the touch listeners below.
+    if (!e.isPrimary || pinch.current) return;
+    if (e.pointerType === "touch") touchingPet.current = true;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    // A second finger: pinch to resize instead of dragging.
-    if (pts.size === 2) {
-      const [a, b] = [...pts.values()];
-      pinch.current = { pointers: pts, start: Math.hypot(a.x - b.x, a.y - b.y) || 1, from: scaleRef.current };
-      if (drag.current?.moving) { if (!inline) bridge?.drag("end"); }
-      drag.current = null;
-      return;
-    }
-    pinch.current = { pointers: pts, start: 0, from: scaleRef.current };
     if (e.button !== 0) return;
     wake();
     drag.current = { x: e.screenX, y: e.screenY, cx: e.clientX, cy: e.clientY, moving: false, ox: posRef.current.x, oy: posRef.current.y };
   }
   function onPointerMove(e: React.PointerEvent) {
-    const pc = pinch.current;
-    if (pc?.pointers.has(e.pointerId)) pc.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pc && pc.start && pc.pointers.size === 2) {
-      const [a, b] = [...pc.pointers.values()];
-      resize(pc.from * Math.hypot(a.x - b.x, a.y - b.y) / pc.start);
-      return;
-    }
+    if (pinch.current || !e.isPrimary) return;
     const d = drag.current;
     if (d) {
       if (!d.moving && Math.hypot(e.screenX - d.x, e.screenY - d.y) > 4) {
@@ -359,12 +392,18 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     s.at = now;
     if (s.dist > 420 && moodRef.current !== "shy") { s.dist = 0; wake(); act("shy", 3000); speak(t("唔……别、别一直摸啦。"), 3000); }
   }
+  /** The system took the touch (edge swipe, notification shade…): forget it. */
+  function onPointerCancel(_e: React.PointerEvent) {
+    touchingPet.current = false;
+    const d = drag.current;
+    drag.current = null;
+    if (d?.moving) { if (inline) { const box = rootRef.current?.getBoundingClientRect(); const next = keepIn(posRef.current, box?.width || 150, box?.height || 200); setPos(next); store(INLINE_POS, JSON.stringify(next)); } else bridge?.drag("end"); act("idle", 0); setSay(""); }
+  }
   function onPointerUp(e: React.PointerEvent) {
-    const pc = pinch.current;
-    pc?.pointers.delete(e.pointerId);
     (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-    if (pc?.start) { if (pc.pointers.size === 0) { pinch.current = null; speak(t("这个大小刚刚好。"), 1800); } drag.current = null; return; }
-    if (pc && pc.pointers.size === 0) pinch.current = null;
+    if (!e.isPrimary) return;
+    touchingPet.current = false;
+    if (pinch.current) { drag.current = null; return; }
     const d = drag.current;
     drag.current = null;
     if (d?.moving) {
@@ -374,9 +413,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
         const p = posRef.current;
         const hide: PetEdge = p.x < -w * .3 ? "right" : p.x > window.innerWidth - w * .7 ? "left" : p.y < -h * .25 ? "bottom"
           : p.y > window.innerHeight - h * 1.02 ? "top" : null;
-        const inX = Math.max(0, Math.min(window.innerWidth - w, p.x));
-        const next = hide === "right" ? { x: 0, y: Math.max(0, p.y) } : hide === "left" ? { x: window.innerWidth - w, y: Math.max(0, p.y) }
-          : hide === "bottom" ? { x: inX, y: 0 } : hide === "top" ? { x: inX, y: window.innerHeight - h } : { x: Math.max(0, p.x), y: Math.max(0, p.y) };
+        const next = hide ? edgePos(hide, w, h, p) : keepIn(p, w, h);
         setPos(next);
         store(INLINE_POS, JSON.stringify(next));
         if (hide) { setEdge(hide); store(INLINE_EDGE, hide); act("shy", 2200); speak(t("我躲在这里哦。"), 2400); return; }
@@ -392,6 +429,47 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     play(pick<PetAction>(["wave", "nod", "jump", "spin", "magic", "giggle", "sparkle"]));
     speak([t("嗯？"), t("我在哦。"), t("找我有事吗？"), t("嘿嘿。")][Math.floor(Math.random() * 4)], 2400);
   }
+  // Two-finger pinch: started with a finger on her, the second finger can be anywhere; she follows smoothly.
+  useEffect(() => {
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
+    let frame = 0, want = 0;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !touchingPet.current) return;
+      const d = drag.current;
+      if (d?.moving && !inline) bridge?.drag("end");
+      drag.current = null;
+      pinch.current = { start: dist(e.touches), from: scaleRef.current };
+      act("shy", 0); setSay("");
+      e.preventDefault();
+    };
+    const onMove = (e: TouchEvent) => {
+      const p = pinch.current;
+      if (!p || e.touches.length < 2) return;
+      e.preventDefault();
+      want = p.from * dist(e.touches) / p.start;
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; resize(want); });
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) touchingPet.current = false;
+      if (pinch.current && e.touches.length < 2) { pinch.current = null; act("happy", 1600); speak(t("这个大小刚刚好。"), 1800); }
+    };
+    document.addEventListener("touchstart", onStart, { passive: false, capture: true });
+    document.addEventListener("touchmove", onMove, { passive: false, capture: true });
+    document.addEventListener("touchend", onEnd, true);
+    document.addEventListener("touchcancel", onEnd, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("touchstart", onStart, true); document.removeEventListener("touchmove", onMove, true);
+      document.removeEventListener("touchend", onEnd, true); document.removeEventListener("touchcancel", onEnd, true);
+    };
+  }, []);
+  // Size from the settings slider (in the app, the desktop window and the Android floating pet).
+  useEffect(() => {
+    const onScale = (e: Event) => { const v = Number((e as CustomEvent<number>).detail); if (inline && Number.isFinite(v)) resize(v); };
+    window.addEventListener("ciro-pet-scale", onScale);
+    const off = bridge?.onScale?.((v) => { const c = clampScale(v); if (c !== scaleRef.current) { scaleRef.current = c; setScale(c); } });
+    return () => { window.removeEventListener("ciro-pet-scale", onScale); off?.(); };
+  }, []);
   // Mouse wheel / trackpad pinch (Ctrl+wheel) over her changes her size.
   useEffect(() => {
     const el = sprite.current;
@@ -438,6 +516,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     <div ref={sprite} className={"pet-sprite pet-sprite--" + shown + (image ? " pet-sprite--art" : "")} aria-label="Ciro" role="img"
       onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); play("magic"); if (inline) onAsk?.(); else bridge?.action("quick"); }}
       onContextMenu={(e) => { e.preventDefault(); wake(); setMenu((v) => !v); }}>
       {image ? <LivePet src={image} mood={shown} look={look} action={gesture} walking={walking}/> : <Chibi mood={shown} blink={blink} look={look}/>}

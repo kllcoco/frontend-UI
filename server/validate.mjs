@@ -27,6 +27,20 @@ export const PET_PROMPT = "The user has your chibi avatar (Ciro) on their screen
   "optionally add ONE tag <pet mood=\"MOOD\" action=\"ACTION\">SHORT LINE</pet>; ACTION (optional) is one of wave, nod, shake, bow, jump, stretch, magic, spin, lookaround, yawn, hum, doze, tidy, giggle, sparkle, peek; MOOD is one of idle, happy, love, shy, angry, sad, think, work, sleep, wave, eat " +
   "and SHORT LINE is at most 20 characters she says in a speech bubble, in the user's language. Use it naturally to react to the conversation " +
   "(cheer after good news, wave when greeting, sleep when the user says good night); skip it when nothing fits. Never mention the tag.";
+// Voice from the Android app: the model may operate the phone with fixed, whitelisted actions (the app executes them;
+// calls and messages only open a prepared screen the user confirms).
+export const PHONE_PROMPT = (now) => "The user is talking to you by voice through the Ciro Android app (wake word \"Ciro\") and you can operate their phone. " +
+  "Local time now: " + now + ". To act, put one tag per action at the very end of your reply: <phone>{JSON}</phone>. Actions: " +
+  "{\"action\":\"alarm\",\"hour\":7,\"minute\":30,\"label\":\"...\",\"days\":[1,2,3,4,5]} (days optional, 1=Monday … 7=Sunday); " +
+  "{\"action\":\"timer\",\"seconds\":300,\"label\":\"...\"}; {\"action\":\"alarms\"} (show alarms); " +
+  "{\"action\":\"open_app\",\"name\":\"微信\"}; {\"action\":\"call\",\"number\":\"...\"}; {\"action\":\"sms\",\"number\":\"...\",\"body\":\"...\"}; " +
+  "{\"action\":\"navigate\",\"place\":\"...\"}; {\"action\":\"web_search\",\"query\":\"...\"}; {\"action\":\"open_url\",\"url\":\"https://...\"}; " +
+  "{\"action\":\"flashlight\",\"on\":true}; {\"action\":\"volume\",\"level\":\"up|down|mute|unmute\" or 0-100}; " +
+  "{\"action\":\"settings\",\"page\":\"wifi|bluetooth|display|sound|battery|location|airplane|notifications|apps|general\"}; " +
+  "{\"action\":\"calendar\",\"title\":\"...\",\"start\":\"YYYY-MM-DDTHH:mm\",\"end\":\"YYYY-MM-DDTHH:mm\",\"location\":\"...\"}. " +
+  "Only act when the user clearly asks for it; work out exact times from the local time above; at most 3 actions. " +
+  "Calls and messages open a prepared screen the user confirms. Your reply is read aloud: one or two short sentences in the user's language, " +
+  "no markdown, no lists, and say what you did (e.g. \"好的，明早七点半叫你起床\"). Never mention the tags.";
 export function validateChat(input, availableModels, supportedModes=["fast"], forwardEffort=true, webSearch=false) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new ValidationError("请求格式不正确");
@@ -146,6 +160,11 @@ export function validateChat(input, availableModels, supportedModes=["fast"], fo
   // Desktop pet on: the model may steer the pet with one tag per reply (the app removes it from the text).
   if (input.pet !== undefined && typeof input.pet !== "boolean") throw new ValidationError("Invalid pet flag");
   if (input.pet === true) sanitized.unshift({ role: "system", content: PET_PROMPT });
+  if (input.phone !== undefined && (typeof input.phone !== "object" || input.phone === null || Array.isArray(input.phone))) throw new ValidationError("Invalid phone flag");
+  if (input.phone) {
+    const now = typeof input.phone.now === "string" ? input.phone.now.replace(/[^\p{L}\p{N} :\-+./]/gu, "").slice(0, 48) : "";
+    sanitized.unshift({ role: "system", content: PHONE_PROMPT(now || "unknown") });
+  }
   if (input.webSearch === true && !webSearch) throw new ValidationError("Web search is not enabled on this server");
   return { model, messages: sanitized, stream: true,
     ...(input.webSearch === true ? { ciro_web_search: true } : {}),

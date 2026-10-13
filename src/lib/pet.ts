@@ -6,7 +6,8 @@ import type { Mood } from "../pet/Chibi";
 const KEY = "ciro.pet.v1";
 /** Android app: the pet that floats over other apps while Ciro is in the background (PetOverlay.java). */
 type NativePet = { setEnabled?: (on: boolean) => void; command?: (json: string) => void; progress?: (json: string) => void;
-  stream?: (json: string) => void; signal?: (signal: string) => void; overlayAllowed?: () => boolean; requestOverlay?: () => void };
+  stream?: (json: string) => void; signal?: (signal: string) => void; overlayAllowed?: () => boolean; requestOverlay?: () => void; resetPlace?: () => void;
+  setScale?: (v: number) => void };
 export const nativePet = (): NativePet | undefined => (window as unknown as { CiroPet?: NativePet }).CiroPet;
 export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave", "eat"];
 export const PET_ACTIONS = ["wave", "nod", "shake", "bow", "jump", "stretch", "magic", "spin", "lookaround", "yawn", "hum", "doze", "tidy", "giggle", "sparkle", "peek"] as const;
@@ -89,4 +90,23 @@ export function petStream(s: PetStream): void {
   // at most ~6 updates a second while streaming; the last one always goes out
   if (s.done) { window.clearTimeout(streamTimer); send(); }
   else if (!streamTimer) streamTimer = window.setTimeout(send, 160);
+}
+
+/** Back to her default place and size (in the app, and the Android floating pet). */
+export function resetPetPlace(): void {
+  try { for (const k of ["ciro.pet-pos.v1", "ciro.pet-edge.v1", "ciro.pet-scale.v1"]) localStorage.removeItem(k); } catch { /* storage off */ }
+  try { nativePet()?.resetPlace?.(); } catch { /* not the Android app */ }
+  window.dispatchEvent(new Event("ciro-pet-reset"));
+}
+
+/** Her size (0.5–1.6), from the settings slider: in the app, the desktop pet window and the Android floating pet. */
+export function petScale(): number {
+  try { const v = Number(localStorage.getItem("ciro.pet-scale.v1")); return v >= .5 && v <= 1.6 ? v : .85; } catch { return .85; }
+}
+export function setPetScale(v: number): void {
+  const s = Math.round(Math.min(1.6, Math.max(.5, v)) * 100) / 100;
+  try { localStorage.setItem("ciro.pet-scale.v1", String(s)); } catch { /* storage off */ }
+  window.dispatchEvent(new CustomEvent("ciro-pet-scale", { detail: s }));
+  desktop()?.pet?.resize?.(s);
+  try { nativePet()?.setScale?.(s); } catch { /* not the Android app */ }
 }

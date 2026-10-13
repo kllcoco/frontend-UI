@@ -39,6 +39,15 @@
 - Android：应用切到后台时，她作为悬浮窗待在手机桌面上（需要“显示在其他应用上层”权限，设置 → 桌宠 → 去允许），回到应用后回到应用内。
 - 自由活动：各图层持续有小幅随机动作（重心、手臂、视线、歪头），偶尔沿着底边散步。
 
+## 语音唤醒（Android）
+
+设置 → 桌宠 → 语音唤醒。开启后前台服务 `WakeService` 用手机的语音识别持续听“Ciro”（也认西罗、希罗等写法）：
+
+- “Ciro，明早七点半叫我起床” → 直接执行；只喊“Ciro” → 她答“我在”，下一句就是指令。
+- 指令交给 App（`window.ciroVoiceCommand`），在“语音助手”对话里问模型，请求带 `phone: { now }`，服务器加上固定的手机操作协议（`PHONE_PROMPT`）。
+- 模型在回复末尾写 `<phone>{"action":"alarm","hour":7,"minute":30}</phone>`；App 只接受白名单动作（`src/lib/phone.ts`），最多 3 个，交给 `PhoneActions.java` 通过系统应用执行：alarm、timer、alarms、open_app、call（只打开拨号盘）、sms（只填好短信）、navigate、web_search、open_url、flashlight、volume、settings、calendar。
+- 回答用系统 TTS 读出来（`Speaker.java`，说话时不监听，避免听到自己），同时显示在悬浮桌宠的气泡里。
+
 ## 模型控制
 
 桌宠打开时，服务器会在对话里加一段固定说明，模型可以在回复末尾加一个标签：

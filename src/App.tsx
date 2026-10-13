@@ -30,6 +30,8 @@ import type { SavedPrompt } from "./lib/prompts";
 import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
 import RemoteWork from "./components/RemoteWork";
 import DesktopPet from "./pet/DesktopPet";
+import { localNow, nativeVoice, phoneActions, runPhoneActions, stripPhoneTags } from "./lib/phone";
+import { bubbleText as spokenText } from "./lib/pet";
 import { commandPet, nativePet, petCommand, petEnabled, petMirror, petProgress, petStream, setPetEnabled, stripPetTags } from "./lib/pet";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
@@ -708,7 +710,9 @@ export default function App() {
     ));
   }
 
-  async function generateReply(conversationId: string, history: ChatMessage[], projectId?: string, replace?: ChatMessage) {
+  async function generateReply(conversationId: string, history: ChatMessage[], projectId?: string, replace?: ChatMessage, opts?: { phone?: boolean }) {
+    // Text shown, mirrored and read aloud never contains the pet / phone tags.
+    const clean = (text: string) => stripPhoneTags(stripPetTags(text));
     const assistantId = replace?.id ?? newId();
     const level = THINKING_LEVELS[thinkingLevel];
     const fresh: ChatMessage = { id: assistantId, role: "assistant", content: "", createdAt: Date.now(),
@@ -765,6 +769,7 @@ export default function App() {
         signal: controller.signal,
         webSearch: useWeb,
         pet: petOnRef.current,
+        ...(opts?.phone ? { phone: { now: localNow(language) } } : {}),
         usageKind: "chat", chatId: conversationId,
         onUsage: (usage) => patchMessage(conversationId, assistantId, { usage }),
         onSources: (found) => {
@@ -786,19 +791,30 @@ export default function App() {
         },
         onDelta: (text) => {
           answer += text;
-          if (mirror) petStream({ id: assistantId, text: stripPetTags(answer), onScreen: onScreen() });
-          else step(t("正在写回答") + "（" + stripPetTags(answer).length + " " + t("字") + "）");
-          const patch: Partial<ChatMessage> = { content: stripPetTags(answer) };
+          if (mirror) petStream({ id: assistantId, text: clean(answer), onScreen: onScreen() });
+          else step(t("正在写回答") + "（" + clean(answer).length + " " + t("字") + "）");
+          const patch: Partial<ChatMessage> = { content: clean(answer) };
           if (thought && !thoughtDone) { thoughtDone = true; patch.thinkingMs = Date.now() - started; }
           patchMessage(conversationId, assistantId, patch);
         }
       });
       // The model may steer the pet with a <pet mood="…">line</pet> tag; it never shows in the chat.
       const petCmd = petCommand(answer);
-      if (petCmd) { answer = stripPetTags(answer); patchMessage(conversationId, assistantId, { content: answer }); commandPet(petCmd); }
+      // Spoken to the Android app: carry out the phone actions the model asked for (fixed list, see lib/phone.ts).
+      const actions = opts?.phone ? phoneActions(answer) : [];
+      if (petCmd || actions.length || answer !== clean(answer)) { answer = clean(answer); patchMessage(conversationId, assistantId, { content: answer }); }
+      if (petCmd) commandPet(petCmd);
+      if (actions.length) {
+        const results = runPhoneActions(actions);
+        const failed = results.filter((r) => r !== "ok");
+        if (failed.length) {
+          answer += "\n\n" + t("没能完成：") + failed.join("；");
+          patchMessage(conversationId, assistantId, { content: answer });
+        }
+      }
       if (!answer) throw new Error(t("接口未返回任何文本"));
       applyCanvasReply(conversationId, answer);
-      if (preferencesRef.current.autoTitle && history.length === 1) void autoTitle(conversationId, history[0].content, answer);
+      if (preferencesRef.current.autoTitle && history.length === 1 && !opts?.phone) void autoTitle(conversationId, history[0].content, answer);
       const chatNow = conversationsRef.current.find((c) => c.id === conversationId);
       if (preferencesRef.current.memoryEnabled && preferencesRef.current.autoMemory && !chatNow?.temporary) {
         const said = [...history].reverse().find((m) => m.role === "user")?.content || "";
@@ -817,13 +833,13 @@ export default function App() {
     } catch (error) {
       if (controller.signal.aborted) {
         if (!answer) patchMessage(conversationId, assistantId, { content: t("生成已停止。") });
-        if (mirror) petStream({ id: assistantId, text: stripPetTags(answer) || t("生成已停止。"), done: true });
+        if (mirror) petStream({ id: assistantId, text: clean(answer) || t("生成已停止。"), done: true });
       } else {
         const message = error instanceof Error ? error.message : t("未知错误");
         patchMessage(conversationId, assistantId, {
           content: (answer ? answer + "\n\n---\n\n" : "") + "⚠️ " + t("生成中断：") + message });
         notify("请求失败，请检查 CIRO 后端");
-        if (mirror) petStream({ id: assistantId, text: (answer ? stripPetTags(answer) + "\n\n" : "") + t("生成中断：") + message, done: true, error: true });
+        if (mirror) petStream({ id: assistantId, text: (answer ? clean(answer) + "\n\n" : "") + t("生成中断：") + message, done: true, error: true });
       }
     } finally {
       if (thought && !thoughtDone) patchMessage(conversationId, assistantId, { thinkingMs: Date.now() - started });
@@ -1179,6 +1195,32 @@ export default function App() {
     const answer = await generateReply(conversationId, history, chat?.projectId);
     return answer || previewText(language);
   }
+
+  /** "Ciro, …" said to the Android app (wake word, WakeService.java): answered in the 语音助手 chat, phone actions
+   *  carried out, the answer read aloud and shown in her bubble. */
+  async function voiceCommand(text: string) {
+    const KEY = "ciro.voice-chat.v1";
+    let id = ""; try { id = localStorage.getItem(KEY) || ""; } catch { /* storage off */ }
+    const now = Date.now();
+    const chat = conversationsRef.current.find((c) => c.id === id);
+    const user: ChatMessage = { id: newId(), role: "user", content: text, createdAt: now };
+    if (!chat) {
+      id = newId();
+      try { localStorage.setItem(KEY, id); } catch { /* storage off */ }
+      setConversations((prev) => [{ id, title: t("语音助手"), createdAt: now, updatedAt: now, messages: [user] }, ...prev]);
+    } else setConversations((prev) => prev.map((c) => c.id === id ? { ...c, messages: [...c.messages, user], updatedAt: now } : c));
+    petProgress({ text: t("好的，我想想…"), source: "voice" });
+    const answer = await generateReply(id, [...(chat?.messages || []), user], undefined, undefined, { phone: true });
+    const spoken = spokenText(answer || (status.configured ? "" : t("还没有连接模型，打开 Ciro 设置一下吧。"))).split("\n\n")[0].slice(0, 400);
+    if (spoken) nativeVoice()?.speak?.(spoken);
+  }
+  const voiceRef = useRef(voiceCommand);
+  voiceRef.current = voiceCommand;
+  useEffect(() => {
+    const w = window as unknown as { ciroVoiceCommand?: (text: string) => void };
+    w.ciroVoiceCommand = (text: string) => { if (typeof text === "string" && text.trim()) void voiceRef.current(text.trim().slice(0, 1000)); };
+    return () => { delete w.ciroVoiceCommand; };
+  }, []);
 
   /** "Create image" mode: proxied to the server's OpenAI-compatible /images/generations. */
   async function generateImage(prompt: string) {

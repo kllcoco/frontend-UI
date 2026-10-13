@@ -37,6 +37,12 @@
 
         </activity>
 
+        <!-- Voice wake: listens for "Ciro" while the user has it turned on (Settings → 桌宠 → 语音唤醒). -->
+        <service
+            android:name=".WakeService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -62,5 +68,26 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Ciro pet floating over other apps while Ciro is in the background (only when the user turns it on). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Voice wake ("Ciro, …") keeps listening in a foreground service while it is turned on -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- "Set an alarm for 7:30" -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Apps and services voice commands use (package visibility on Android 11+) -->
+    <queries>
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+        <intent><action android:name="android.intent.action.SET_ALARM" /></intent>
+        <intent><action android:name="android.intent.action.SET_TIMER" /></intent>
+        <intent><action android:name="android.intent.action.SHOW_ALARMS" /></intent>
+        <intent><action android:name="android.intent.action.DIAL" /></intent>
+        <intent><action android:name="android.intent.action.SENDTO" /><data android:scheme="smsto" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="geo" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
+        <intent><action android:name="android.intent.action.WEB_SEARCH" /></intent>
+        <intent><action android:name="android.intent.action.INSERT" /><data android:mimeType="vnd.android.cursor.dir/event" /></intent>
+    </queries>
 </manifest>

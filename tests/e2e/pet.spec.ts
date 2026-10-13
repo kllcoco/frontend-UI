@@ -74,3 +74,18 @@ test("pet: mirrors replies and progress, hides behind an edge, resizes and works
   await pet.locator(".pet-sprite").click({ force: true });
   await expect(pet).not.toHaveClass(/pet-root--edge/);
 });
+
+test("pet: size slider in settings and calling her back", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.evaluate(() => { localStorage.setItem("ciro.pet.v1", "on"); localStorage.setItem("ciro.pet-edge.v1", "bottom"); });
+  await page.reload();
+  const pet = page.locator(".pet-root--inline");
+  await expect(pet).toHaveClass(/pet-root--edge-bottom/);
+  const before = (await pet.locator(".pet-sprite").boundingBox())!.width;
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "桌宠", exact: true }).click();
+  await page.getByRole("slider", { name: "她的大小" }).fill("140");
+  await expect.poll(async () => (await pet.locator(".pet-sprite").boundingBox())!.width).toBeGreaterThan(before * 1.3);
+  await page.getByRole("button", { name: "叫她回来" }).click();
+  await expect(pet).not.toHaveClass(/pet-root--edge/);
+});

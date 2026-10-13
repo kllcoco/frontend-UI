@@ -22,8 +22,9 @@ import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
 import AnnouncementEditor from "./components/AnnouncementEditor";
 import UserAdmin from "./components/UserAdmin";
-import { nativePet, petEnabled, petMirror, setPetEnabled, setPetMirror } from "./lib/pet";
+import { nativePet, petEnabled, petMirror, petScale, resetPetPlace, setPetEnabled, setPetMirror, setPetScale } from "./lib/pet";
 import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
+import { nativeVoice } from "./lib/phone";
 import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
 import { loadAnnouncements } from "./lib/announcements";
@@ -132,6 +133,9 @@ export default function SettingsCenter({
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
   const [petShown, setPetShown] = useState(petEnabled);
   const [mirrorOn, setMirrorOn] = useState(petMirror);
+  const [wakeOn, setWakeOn] = useState(() => { try { return Boolean(nativeVoice()?.wakeOn?.()); } catch { return false; } });
+  const [wakeNote, setWakeNote] = useState("");
+  const [petSize, setPetSizeState] = useState(() => Math.round(petScale() * 100));
   // Android: "display over other apps" permission (checked again when you come back from the system settings).
   const [overlayOk, setOverlayOk] = useState(() => { try { return Boolean(nativePet()?.overlayAllowed?.()); } catch { return false; } });
   useEffect(() => {
@@ -256,8 +260,21 @@ export default function SettingsCenter({
               {nativePet()?.overlayAllowed && <SettingRow title={t("在手机桌面上显示")} description={t("Ciro 切到后台时，她浮在其他应用上面，继续告诉你回答和工作进度。需要允许“显示在其他应用上层”。")}>
                 {overlayOk ? <span className="sc-static-value">{t("已允许")}</span>
                   : <button type="button" className="sc-action-secondary" onClick={() => { nativePet()?.requestOverlay?.(); }}>{t("去允许")}</button>}</SettingRow>}
+              {nativeVoice()?.setWake && <SettingRow title={t("语音唤醒")} description={wakeNote || t("喊一声“Ciro”就能直接跟她说话：设闹钟和倒计时、打开应用、打电话和发短信（由你确认发送）、导航、搜索、手电筒、音量、加日程。开启后通知栏会显示“Ciro 在听”；有些手机每次识别会有提示音。")}>
+                <Toggle checked={wakeOn} title={t("语音唤醒")} onChange={(v) => {
+                  const r = String(nativeVoice()?.setWake?.(v) ?? "");
+                  const done = (status: string) => {
+                    setWakeOn(v && status === "ok");
+                    setWakeNote(status === "unavailable" ? t("这台手机没有可用的语音识别服务（一般需要系统语音服务或 Google 应用）。")
+                      : status === "no-permission" ? t("需要麦克风权限才能听到你叫她。") : "");
+                  };
+                  if (r === "asking") (window as unknown as { ciroWakeResult?: (s: string) => void }).ciroWakeResult = done; else done(r);
+                }}/></SettingRow>}
               <SettingRow title={t("同步显示回答")} description={t("Ciro 回答时，回答内容会在她的气泡里同步出现；工作模式、后台回答、定时任务和更新下载的进度也由她告诉你。")}>
                 <Toggle checked={mirrorOn} title={t("同步显示回答")} onChange={(v) => { setPetMirror(v); setMirrorOn(v); }}/></SettingRow>
+              <Slider title={t("她的大小")} value={petSize} min={50} max={160} suffix="%" onChange={(v) => { setPetSizeState(v); setPetScale(v / 100); }}/>
+              <SettingRow title={t("回到默认位置")} description={t("她躲在角落里拖不出来、或者大小不合适时，用这个把她叫回来。")}>
+                <button type="button" className="sc-action-secondary" onClick={() => { resetPetPlace(); setPetSizeState(85); }}>{t("叫她回来")}</button></SettingRow>
               <SettingRow title={t("怎么和她相处")} description={t(window.ciroDesktop?.pet
                 ? "拖到屏幕边缘松手，她会躲进去只露出头，点她就出来；双指捏合、触控板缩放或在她身上滚动滚轮可以调整大小；关掉主窗口后她仍然留在桌面上。"
                 : "拖到屏幕边缘松手，她会躲进去只露出头，点她就出来；双指捏合可以调整大小。Android 应用切到后台后，她会浮在手机桌面上（需要允许“显示在其他应用上层”）。")}><span/></SettingRow>

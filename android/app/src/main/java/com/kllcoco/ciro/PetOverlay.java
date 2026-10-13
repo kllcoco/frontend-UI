@@ -15,6 +15,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
@@ -71,6 +72,23 @@ final class PetOverlay {
     private float scale() { return Math.max(0.5f, Math.min(1.6f, prefs().getFloat("scale", 0.7f))); }
     private int widthPx() { float s = scale(); return Math.round(Math.max(expanded ? 280 : 150, 186 * s + 40) * density()); }
     private int heightPx() { float s = scale(); return Math.round((248 * s + (expanded ? 250 : 80)) * density()); }
+    /** System bar heights: the screen edges there belong to the notification shade and home / back gestures. */
+    private int dimen(String name) {
+        int id = activity.getResources().getIdentifier(name, "dimen", "android");
+        return id > 0 ? activity.getResources().getDimensionPixelSize(id) : 0;
+    }
+    private int gutterSide() { return Math.round(30 * density()); }
+    private int gutterTop() { return dimen("status_bar_height") + Math.round(40 * density()); }
+    private int gutterBottom() { return dimen("navigation_bar_height") + Math.round(48 * density()); }
+    /** Where she sits when hiding at an edge: just inside the gesture areas, so she can always be dragged again. */
+    private void snapTo(String edge) {
+        Rect s = screen();
+        int w = params.width, h = params.height;
+        if (edge.equals("left")) params.x = gutterSide();
+        else if (edge.equals("right")) params.x = s.right - w - gutterSide();
+        else if (edge.equals("bottom")) params.y = s.bottom - h - gutterBottom();
+        else if (edge.equals("top")) params.y = gutterTop();
+    }
     private Rect screen() {
         DisplayMetrics m = activity.getResources().getDisplayMetrics();
         return new Rect(0, 0, m.widthPixels, m.heightPixels);
@@ -83,6 +101,8 @@ final class PetOverlay {
         if (wm == null) return;
         view = new WebView(activity);
         view.setBackgroundColor(Color.TRANSPARENT);
+        // Her picture is drawn with WebGL: the floating window must be hardware accelerated, or it stays empty.
+        view.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         WebSettings ws = view.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
@@ -98,14 +118,40 @@ final class PetOverlay {
         int w = widthPx(), h = heightPx();
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
         params = new WindowManager.LayoutParams(w, h, type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT);
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = prefs().getInt("x", s.right - w - Math.round(8 * density()));
         params.y = prefs().getInt("y", s.bottom - h - Math.round(96 * density()));
         clamp();
+        String saved = prefs().getString("edge", "");
+        if (!saved.isEmpty()) snapTo(saved); // also moves a spot saved by an older version out of the gesture areas
         try { wm.addView(view, params); } catch (Exception e) { view.destroy(); view = null; return; }
+        view.onResume();
+        view.resumeTimers(); // the app's own WebView may have paused the shared JS timers when it went to the background
         String edge = prefs().getString("edge", "");
         view.loadUrl(ORIGIN + "index.html?pet=1&overlay=1&scale=" + scale() + (edge.isEmpty() ? "" : "&edge=" + edge));
+    }
+
+    /** New size (pinch on her, or the settings slider: then the page is told too). */
+    void applyScale(float value, boolean tellPage) {
+        float v = Math.max(0.5f, Math.min(1.6f, value));
+        prefs().edit().putFloat("scale", v).apply();
+        if (view == null) return;
+        int oldW = params.width, oldH = params.height;
+        params.width = widthPx(); params.height = heightPx();
+        params.x += (oldW - params.width) / 2;
+        params.y += oldH - params.height;
+        clamp();
+        apply();
+        save();
+        if (tellPage) send("scale", String.valueOf(v));
+    }
+
+    /** Settings → 桌宠 → 回到默认位置: forget the place, size and edge. */
+    void resetPlace() {
+        prefs().edit().remove("x").remove("y").remove("edge").remove("scale").apply();
+        main.post(() -> { if (view != null) { hide(); show(); } });
     }
 
     void hide() {
@@ -129,11 +175,12 @@ final class PetOverlay {
     }
     private void flush() { while (view != null && !queue.isEmpty()) view.evaluateJavascript(queue.poll(), null); }
 
+    /** Fully on screen and out of the system gesture areas (edges, status bar, navigation bar). */
     private void clamp() {
         Rect s = screen();
         int w = params.width, h = params.height;
-        params.x = Math.max(-w / 2, Math.min(params.x, s.right - w / 2));
-        params.y = Math.max(0, Math.min(params.y, s.bottom - h / 3));
+        params.x = Math.max(gutterSide(), Math.min(params.x, s.right - w - gutterSide()));
+        params.y = Math.max(gutterTop() - Math.round(40 * density()), Math.min(params.y, s.bottom - h - gutterBottom()));
     }
     private void apply() { if (view != null) try { wm.updateViewLayout(view, params); } catch (Exception ignored) { /* removed meanwhile */ } }
     private void save() { prefs().edit().putInt("x", params.x).putInt("y", params.y + (expanded ? Math.round(170 * density()) : 0)).apply(); }
@@ -179,11 +226,8 @@ final class PetOverlay {
                 int w = params.width, h = params.height;
                 // Pulled partly past an edge: she hides there with only her head showing.
                 String edge = params.x < -w / 4 ? "left" : params.x + w > s.right + w / 4 ? "right" : params.y + h > s.bottom + h / 5 ? "bottom" : params.y < -h / 4 ? "top" : "";
-                if (edge.equals("left")) params.x = 0;
-                else if (edge.equals("right")) params.x = s.right - w;
-                else if (edge.equals("bottom")) params.y = s.bottom - h;
-                else if (edge.equals("top")) params.y = 0;
                 clamp();
+                if (!edge.isEmpty()) snapTo(edge);
                 apply();
                 save();
                 prefs().edit().putString("edge", edge).apply();
@@ -196,33 +240,21 @@ final class PetOverlay {
                 Rect s = screen();
                 if ("auto".equals(what)) {
                     String edge = params.x + params.width / 2 < s.centerX() ? "left" : "right";
-                    params.x = edge.equals("left") ? 0 : s.right - params.width;
+                    snapTo(edge);
                     prefs().edit().putString("edge", edge).apply();
                     send("edge", JSONObject.quote(edge));
                 } else {
                     String prev = prefs().getString("edge", "");
-                    if (prev.equals("left")) params.x = Math.round(8 * density());
-                    else if (prev.equals("right")) params.x = s.right - params.width - Math.round(8 * density());
-                    else if (prev.equals("top")) params.y = Math.round(params.height * 0.25f);
+                    if (prev.equals("top")) params.y += Math.round(params.height * 0.25f);
+                    else if (prev.equals("bottom")) params.y -= Math.round(params.height * 0.15f);
+                    clamp();
                     prefs().edit().putString("edge", "").apply();
                 }
                 apply();
                 save();
             });
         }
-        @JavascriptInterface public void resize(double value) {
-            main.post(() -> {
-                if (view == null) return;
-                float v = (float) Math.max(0.5, Math.min(1.6, value));
-                prefs().edit().putFloat("scale", v).apply();
-                int oldW = params.width, oldH = params.height;
-                params.width = widthPx(); params.height = heightPx();
-                params.x += (oldW - params.width) / 2;
-                params.y += oldH - params.height;
-                apply();
-                save();
-            });
-        }
+        @JavascriptInterface public void resize(double value) { main.post(() -> applyScale((float) value, false)); }
         @JavascriptInterface public void expand(boolean on) {
             main.post(() -> {
                 if (view == null || on == expanded) return;

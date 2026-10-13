@@ -45,6 +45,10 @@ public class MainActivity extends BridgeActivity {
     private static final String CHANNEL = "replies";
     private static final String EXTRA_CHAT = "ciro_chat";
     private static final int REQ_NOTIFY = 7301;
+    private static final int REQ_MIC = 7302;
+    private volatile boolean wakeAfterPermission = false;
+    // The running activity, for the wake service (voice commands go to the web app) — never keeps it alive.
+    private static java.lang.ref.WeakReference<MainActivity> current = new java.lang.ref.WeakReference<>(null);
     private volatile boolean inBackground = false;
     private volatile String pendingChat = null;
 
@@ -66,7 +70,13 @@ public class MainActivity extends BridgeActivity {
             view.addJavascriptInterface(new FilesBridge(), "CiroFiles");
             view.addJavascriptInterface(new UpdateBridge(), "CiroUpdate");
             view.addJavascriptInterface(new PetBridge(), "CiroPet");
+            view.addJavascriptInterface(new VoiceBridge(), "CiroVoice");
+            view.addJavascriptInterface(new PhoneBridge(), "CiroPhone");
         }
+        current = new java.lang.ref.WeakReference<>(this);
+        Speaker.init(this);
+        // Voice wake was on last time: keep listening (allowed: the app is in the foreground now).
+        if (getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean("wake", false) && !WakeService.running) WakeService.start(this);
         petOverlay = new PetOverlay(this);
         captureShare(getIntent());
         captureChat(getIntent());
@@ -121,6 +131,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == REQ_MIC) {
+            boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+            String status = ok && wakeAfterPermission ? WakeService.start(this) : ok ? "ok" : "no-permission";
+            wakeAfterPermission = false;
+            evaluate("(function(){try{window.ciroWakeResult&&window.ciroWakeResult(" + JSONObject.quote(status) + ");}catch(e){}})()");
+            return;
+        }
         if (requestCode != REQ_NOTIFY) return;
         evaluate("(function(){try{window.ciroNotifyResult&&window.ciroNotifyResult('" + notifyStatus() + "');}catch(e){}})()");
     }
@@ -393,11 +410,56 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    /** From the wake service: an event for the floating pet. */
+    static void petEvent(String kind, String json) {
+        MainActivity a = current.get();
+        if (a != null && a.petOverlay != null && a.petOverlay.showing()) a.petOverlay.send(kind, json);
+    }
+    /** From the wake service: "Ciro, …" — the web app answers, acts and speaks. False when the app is not running. */
+    static boolean voiceCommand(String text) {
+        MainActivity a = current.get();
+        if (a == null || a.isDestroyed()) return false;
+        a.evaluate("(function(){try{window.ciroVoiceCommand&&window.ciroVoiceCommand(" + JSONObject.quote(text) + ");}catch(e){}})()");
+        return true;
+    }
+
+    /** window.CiroVoice: read answers aloud, turn voice wake on / off. */
+    private class VoiceBridge {
+        @JavascriptInterface public void speak(String text) { Speaker.say(text); }
+        @JavascriptInterface public void stopSpeaking() { Speaker.stop(); }
+        @JavascriptInterface public boolean available() { return WakeService.available(MainActivity.this); }
+        @JavascriptInterface public boolean wakeOn() { return WakeService.running; }
+        /** "ok", "asking" (microphone permission dialog shown; answer via window.ciroWakeResult), "unavailable", "no-permission" */
+        @JavascriptInterface public String setWake(boolean on) {
+            if (!on) { WakeService.stop(MainActivity.this); return "ok"; }
+            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                wakeAfterPermission = true;
+                runOnUiThread(() -> ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.RECORD_AUDIO }, REQ_MIC));
+                return "asking";
+            }
+            return WakeService.start(MainActivity.this);
+        }
+    }
+
+    /** window.CiroPhone: carry out one whitelisted phone action (see PhoneActions). */
+    private class PhoneBridge {
+        @JavascriptInterface public String run(String json) {
+            if (json == null || json.length() > 4000) return "invalid";
+            final String[] out = { "error" };
+            final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+            runOnUiThread(() -> { out[0] = PhoneActions.run(MainActivity.this, json); done.countDown(); });
+            try { done.await(3, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) { /* answer what we have */ }
+            return out[0];
+        }
+    }
+
     /** window.CiroPet in the app: whether she is on, and what she should show while floating over other apps. */
     private class PetBridge {
         @JavascriptInterface public void setEnabled(boolean on) { petOverlay.setEnabled(on); }
         @JavascriptInterface public boolean overlayAllowed() { return petOverlay.allowed(); }
         @JavascriptInterface public void requestOverlay() { runOnUiThread(petOverlay::requestPermission); }
+        @JavascriptInterface public void resetPlace() { petOverlay.resetPlace(); }
+        @JavascriptInterface public void setScale(double v) { runOnUiThread(() -> petOverlay.applyScale((float) v, true)); }
         @JavascriptInterface public void command(String json) { forward("command", json); }
         @JavascriptInterface public void progress(String json) { forward("progress", json); }
         @JavascriptInterface public void stream(String json) { forward("stream", json); }

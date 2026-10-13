@@ -35,6 +35,8 @@ type StreamOptions = {
   instructions?: CustomInstructions;
   /** The pet is on: let the model steer it with a <pet> tag. */
   pet?: boolean;
+  /** Spoken from the Android app: the model may operate the phone (<phone> tags); now = local time for "tomorrow 7:30". */
+  phone?: { now: string };
   reasoning?:ReasoningRequest;
   project?:{name:string;instructions:string;files:{name:string;content:string}[]};
   signal: AbortSignal;
@@ -129,7 +131,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
   }
 }
 
-async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet }: StreamOptions): Promise<void> {
+async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet, phone }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -142,7 +144,8 @@ async function streamChatInner({ messages, model, instructions, reasoning, proje
       ...(project&&(project.instructions.trim()||project.files.length)?{project}:{}),
       ...(webSearch?{webSearch:true}:{}),
       ...(memories?.length?{memories}:{}),
-      ...(pet?{pet:true}:{})
+      ...(pet?{pet:true}:{}),
+      ...(phone?{phone}:{})
     })
   });
 

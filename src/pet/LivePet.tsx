@@ -235,7 +235,7 @@ export default function LivePet({ src, mood, look, action, walking = false }: {
     // so she never holds one pose — shifts her weight, lets an arm drift, glances around, tilts her head.
     const drift = { armL: 0, armR: 0, head: 0, nod: 0, lx: 0, ly: 0 };
     const goal = { armL: 0, armR: 0, head: 0, nod: 0, lx: 0, ly: 0 };
-    let nextDrift = 0, nextGlance = 0;
+    let nextDrift = 0, nextGlance = 0, lastFrame = performance.now(), drawn = 0;
     let nextBlink = performance.now() + 2500, blinkStart = -1;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // ?pet=1&blink=0.5 holds the closed-eye cross-fade at a fixed amount (only with eyes-closed.webp)
@@ -330,6 +330,8 @@ export default function LivePet({ src, mood, look, action, walking = false }: {
       gl.uniform1f(U.lookX, cur.lx); gl.uniform1f(U.lookY, cur.ly);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       // base first, then the arms on top, each with its own texture
+      lastFrame = now;
+      if (layers[0]) drawn += 1;
       layers.forEach((tex, i) => {
         if (!tex) return;
         gl.activeTexture(gl.TEXTURE0 + [0, 2, 3][i]); gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -338,10 +340,22 @@ export default function LivePet({ src, mood, look, action, walking = false }: {
       });
     };
     raf = requestAnimationFrame(frame);
+    // Some hosts (the Android floating pet) throttle or stop requestAnimationFrame; keep her moving with a timer
+    // then, and show the still picture if nothing could be drawn at all — she must never be invisible.
+    const floating = new URLSearchParams(window.location.search).has("overlay");
+    const keepAlive = window.setInterval(() => {
+      if (!alive || (document.hidden && !floating)) return;
+      const now = performance.now();
+      if (now - lastFrame > 250) { cancelAnimationFrame(raf); frame(now); }
+    }, 60);
+    const watchdog = window.setTimeout(() => {
+      if (drawn === 0 && fallback.current) { cv.style.display = "none"; fallback.current.style.display = "block"; }
+    }, 4000);
     // Pause when hidden (minimised window, background tab).
     const vis = () => { if (document.hidden) cancelAnimationFrame(raf); else raf = requestAnimationFrame(frame); };
     document.addEventListener("visibilitychange", vis);
-    return () => { alive = false; cancelAnimationFrame(raf); document.removeEventListener("visibilitychange", vis); };
+    cv.addEventListener("webglcontextlost", () => { cv.style.display = "none"; if (fallback.current) fallback.current.style.display = "block"; });
+    return () => { alive = false; cancelAnimationFrame(raf); window.clearInterval(keepAlive); window.clearTimeout(watchdog); document.removeEventListener("visibilitychange", vis); };
   }, [src]);
 
   return <>
