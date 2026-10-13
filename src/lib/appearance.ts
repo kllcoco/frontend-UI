@@ -25,12 +25,12 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const VALID_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
 
 export const WALLPAPER_PRESETS: Array<{ id: Exclude<PresetId, "custom">; name: string; url: string }> = [
-  { id: "white", name: "纯白背景", url: "/backgrounds/white.svg" },
-  { id: "night", name: "青绿月夜", url: "/backgrounds/night-lake.svg" },
-  { id: "aurora", name: "北境极光", url: "/backgrounds/aurora.svg" },
-  { id: "summit", name: "远山晨雾", url: "/backgrounds/summit.svg" },
-  { id: "city", name: "城市夜色", url: "/backgrounds/city.svg" },
-  { id: "minimal", name: "纯色极简", url: "/backgrounds/minimal.svg" }
+  { id: "white", name: "象牙白", url: "/backgrounds/white.svg" },
+  { id: "night", name: "黑金星夜", url: "/backgrounds/night-lake.svg" },
+  { id: "aurora", name: "金色星轨", url: "/backgrounds/aurora.svg" },
+  { id: "summit", name: "暮金远山", url: "/backgrounds/summit.svg" },
+  { id: "city", name: "黑金夜城", url: "/backgrounds/city.svg" },
+  { id: "minimal", name: "曜石纯黑", url: "/backgrounds/minimal.svg" }
 ];
 
 export function backgroundUrl(preset: PresetId, customUrl: string | null): string {

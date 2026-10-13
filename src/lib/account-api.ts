@@ -1,9 +1,25 @@
 export type SessionSnapshot={
   enabled:boolean;authenticated:boolean;user:{
-    id:string;email:string;displayName:string;memoryEnabled:boolean;createdAt:string
+    id:string;email:string;phone?:string;hasPassword?:boolean;displayName:string;memoryEnabled:boolean;createdAt:string;role?:"owner"|"user"
   }|null;csrf:string|null;mode:string|null;bootstrapAvailable:boolean;
+  /** Whether new people can create accounts on this server. */
+  registration?:"open"|"invite"|"closed";
+  /** Phone number + SMS code sign-up / sign-in is available (email stays the default). */
+  phoneSignIn?:boolean;
 };
 export type AccountTab="account"|"subscription"|"api-keys"|"spending"|"notifications"|"memory"|"sync";
+/** Parses an API response. A page served instead of JSON (offline app, wrong server, proxy page) is an error,
+    never an empty object that later crashes the screen reading missing fields. */
+export async function readApiJson<T>(response:Response,fallback:string):Promise<T>{
+  const isJson=/json/i.test(response.headers.get("content-type")||"");
+  const data:unknown=isJson?await response.json().catch(()=>null):null;
+  if(!response.ok){
+    const msg=data&&typeof data==="object"&&"error" in data?String((data as {error:unknown}).error):fallback+" (HTTP "+response.status+")";
+    throw new Error(msg);
+  }
+  if(!isJson||data===null||typeof data!=="object")throw new Error("未连接到 Ciro 服务：服务器没有返回数据");
+  return data as T;
+}
 let cachedSession:SessionSnapshot|null=null;
 let pending:Promise<SessionSnapshot>|null=null;
 export function invalidateAccountSession(){cachedSession=null;pending=null;}
@@ -11,8 +27,7 @@ export async function getAccountSession(force=false):Promise<SessionSnapshot>{
   if(!force&&cachedSession)return cachedSession;
   if(!force&&pending)return pending;
   pending=fetch("/api/account/session",{cache:"no-store",credentials:"same-origin"}).then(async result=>{
-    if(!result.ok)throw new Error("Unable to contact account service");
-    const data=await result.json() as SessionSnapshot;
+    const data=await readApiJson<SessionSnapshot>(result,"Unable to contact account service");
     cachedSession=data;
     return data;
   }).finally(()=>{pending=null;});
@@ -22,7 +37,7 @@ export async function accountFetch(path:string,init:RequestInit={}):Promise<Resp
   const method=(init.method||"GET").toUpperCase();
   const headers=new Headers(init.headers);
   if(["POST","PUT","DELETE","PATCH"].includes(method)&&
-    !["/api/account/login","/api/account/bootstrap"].includes(path)){
+    !["/api/account/login","/api/account/bootstrap","/api/account/register"].includes(path)){
     const status=await getAccountSession();
     if(status.enabled){
       if(!status.authenticated)throw new Error("请先登录 Ciro 账户");
@@ -37,12 +52,7 @@ export async function accountApi<T>(path:string,method="GET",body?:unknown):Prom
     method,
     ...(body===undefined?{}:{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
   });
-  const result:unknown=await response.json().catch(()=>({}));
-  if(!response.ok){
-    const msg=result&&typeof result==="object"&&"error" in result?String(result.error):"HTTP "+response.status;
-    throw new Error(msg);
-  }
-  return result as T;
+  return readApiJson<T>(response,"Account request failed");
 }
 export async function refreshAuthAfterLogin():Promise<SessionSnapshot>{
   invalidateAccountSession();
@@ -53,4 +63,10 @@ export function openVerifiedCheckout(url:string):void{
   if(candidate.protocol!=="https:"||!["checkout.stripe.com","billing.stripe.com"].includes(candidate.hostname))
     throw new Error("不可信的付款地址");
   window.location.assign(candidate.href);
+}
+/** "owner" runs this server (also the local, account-less mode); "user" is a registered member who
+    has their own chats, keys and sync but not the shared workbench, studio, plugins or billing. */
+export type AccountRole="owner"|"user";
+export function roleOf(s:SessionSnapshot|null):AccountRole{
+  return s?.enabled&&s.authenticated&&s.user?.role==="user"?"user":"owner";
 }

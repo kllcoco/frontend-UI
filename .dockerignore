@@ -1,0 +1,9 @@
+node_modules
+dist
+release
+build/npm
+artifacts
+test-results
+.ciro-runtime
+.env
+.git

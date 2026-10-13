@@ -1,0 +1,16 @@
+{
+  "appId": "com.kllcoco.ciro",
+  "appName": "Ciro",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "appendUserAgent": "CiroMobile/0.10.3",
+    "backgroundColor": "#f8f5ef"
+  },
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": ["*"],
+    "errorPath": "mobile-offline.html"
+  }
+}

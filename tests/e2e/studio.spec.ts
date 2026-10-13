@@ -1,11 +1,12 @@
 import {test,expect} from "@playwright/test";
+import { go, setLanguage } from "./helpers";
 import {mkdirSync} from "node:fs";
 const imageDir="artifacts/ui-screenshots";
 mkdirSync(imageDir,{recursive:true});
 async function openStudio(page:import("@playwright/test").Page){
   await page.goto("/",{waitUntil:"domcontentloaded"});
   await expect(page.getByText("当前为客户端预览，尚未连接真实 CIRO 推理服务")).toBeVisible();
-  await page.locator(".studio-hub-launch").click();
+  await go(page,"融合工作台");
   await expect(page.locator(".stu-header").getByRole("heading",{name:"融合工作台"})).toBeVisible();
 }
 test("the integrated Studio dashboard keeps the chat style and opens all ten functional areas",async({page})=>{
@@ -39,8 +40,8 @@ test("the IDE really creates versioned source, saves checkpoints and restores sa
   await page.getByRole("button",{name:"恢复此版本"}).click();
   await expect(page.getByRole("textbox",{name:"文件内容"})).toHaveValue('export const stable = "yes";');
   await page.reload({waitUntil:"domcontentloaded"});
-  await page.locator(".studio-quick-link").filter({hasText:"代码工作区"}).click().catch(async()=>{
-    await page.getByRole("button",{name:"代码工作区",exact:true}).click();
+  await go(page,"代码工作区").catch(async()=>{
+    await go(page,"代码工作区");
   });
   await page.getByRole("combobox",{name:"项目文件"}).selectOption({label:"Ciro IDE regression"});
   await expect(page.getByRole("textbox",{name:"文件内容"})).toHaveValue('export const stable = "yes";');
@@ -78,7 +79,7 @@ test("conversation library folders, checkpoints, and branches operate on actual 
   await page.goto("/",{waitUntil:"domcontentloaded"});
   await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("Versioned conversation source");
   await page.getByRole("button",{name:"发送消息"}).click();
-  await page.locator(".studio-hub-launch").click();
+  await go(page,"融合工作台");
   await page.locator(".stu-module").filter({hasText:"历史对话与版本"}).click();
   await page.locator(".stu-library-list>button").first().click();
   await page.getByRole("textbox",{name:"文件夹名称"}).fill("Architecture");
@@ -88,7 +89,7 @@ test("conversation library folders, checkpoints, and branches operate on actual 
   await page.screenshot({path:imageDir+"/47-chat-branches-and-checkpoints.png",fullPage:true,animations:"disabled"});
   await page.getByRole("button",{name:"创建分支"}).click();
   await expect(page.getByRole("textbox",{name:"向 Ciro 发送消息"})).toBeVisible();
-  await page.locator(".studio-hub-launch").click();
+  await go(page,"融合工作台");
   await page.locator(".stu-module").filter({hasText:"历史对话与版本"}).click();
   await expect(page.locator(".stu-library-list>button")).toHaveCount(2);
 });
@@ -109,9 +110,9 @@ test("signed marketplace and installable-device views are labeled accurately",as
 test("mobile English Studio shows real feature titles without viewport overflow",async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await page.goto("/",{waitUntil:"domcontentloaded"});
-  await page.getByRole("button",{name:"切换语言"}).click();
+  await setLanguage(page,"en");
   await page.getByRole("button",{name:"Open sidebar"}).click();
-  await page.locator(".studio-hub-launch").click();
+  await go(page,"融合工作台");
   await expect(page.locator(".stu-header").getByRole("heading",{name:"Unified Studio"})).toBeVisible();
   await page.screenshot({path:imageDir+"/50-studio-mobile-en.png",fullPage:true,animations:"disabled"});
   const dimensions=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,viewport:window.innerWidth}));

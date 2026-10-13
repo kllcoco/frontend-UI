@@ -19,3 +19,12 @@ test("single-owner and development configurations remain available under explici
  assert.throws(()=>assertPluginDeploymentSafe({CIRO_DEPLOYMENT_MODE:"single-owner",
   CIRO_ACCOUNTS_ENABLED:"true",HOST:"0.0.0.0"}),/loopback/);
 });
+test("multi-user hosting needs accounts, loopback and a public https origin",()=>{
+ const ok={CIRO_DEPLOYMENT_MODE:"multi-user",CIRO_ACCOUNTS_ENABLED:"true",HOST:"127.0.0.1",CIRO_PUBLIC_ORIGIN:"https://ciro.example.org"};
+ assert.equal(assertPluginDeploymentSafe(ok).mode,"multi-user");
+ assert.equal(assertPluginDeploymentSafe(ok).publicMultiTenantQualified,false);
+ assert.throws(()=>assertPluginDeploymentSafe({...ok,CIRO_ACCOUNTS_ENABLED:"false"}),/requires authenticated/);
+ assert.throws(()=>assertPluginDeploymentSafe({...ok,HOST:"0.0.0.0"}),/loopback/);
+ assert.throws(()=>assertPluginDeploymentSafe({...ok,CIRO_PUBLIC_ORIGIN:"http://x"}),/https/);
+ assert.throws(()=>assertPluginDeploymentSafe({...ok,CIRO_PUBLIC_MULTI_TENANT:"true"}),/public multi-tenant launch refused/);
+});

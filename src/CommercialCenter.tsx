@@ -1,3 +1,4 @@
+import { localeTag } from "./lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
@@ -24,7 +25,7 @@ const iconMap:Record<string,typeof Wallet>={
   chat:MessageCircle,workbench:Workflow,github:GitBranch,scheduler:CalendarClock,
   skills:Blocks,research:Search,files:FolderOpen,code:Terminal
 };
-const unit= (n:number,language:Language)=>new Intl.NumberFormat(language==="en"?"en-US":"zh-CN").format(n);
+const unit= (n:number,language:Language)=>new Intl.NumberFormat(localeTag(language)).format(n);
 function statusReady(ready:boolean,t:(value:string)=>string){
   return <span className={ready?"com-status com-status--ready":"com-status"}>
     {ready?<CheckCircle2 size={13}/>:<CircleAlert size={13}/>}
@@ -36,7 +37,7 @@ function BillingPage({state,language,save,loading}:{
 }){
   const t=(value:string)=>commerceTranslate(language,value);
   const b=state.billing;
-  const locale=language==="en"?"en-US":"zh-CN";
+  const locale=localeTag(language);
   const [view,setView]=useState<"usage"|"invoices">("usage");
   const [cap,setCap]=useState(b.monthlyBudgetMicros===null?"":(b.monthlyBudgetMicros/1e6).toFixed(2));
   const [alert,setAlert]=useState(String(b.alertThresholdPct));
@@ -164,8 +165,8 @@ function AppsPage({state,language,call,onNavigate}:{
             aria-label={t(app.pinned?"取消收藏":"收藏")+": "+app.name}
             title={t(app.pinned?"取消收藏":"收藏")} onClick={()=>void call("/apps/"+app.id+"/pin",{pinned:!app.pinned},t("操作成功"))}>
             <Star size={17} fill={app.pinned?"currentColor":"none"}/></button></div>
-        <h3>{language==="en"?app.name:app.zh}</h3><small>{app.name}</small>
-        <p>{language==="en"?app.descriptionEn:app.description}</p>
+        <h3>{language==="zh-CN"||language==="zh-TW"?t(app.zh):app.name}</h3><small>{app.name}</small>
+        <p>{language==="zh-CN"||language==="zh-TW"?t(app.description):app.descriptionEn}</p>
         <div className="com-app-bottom">{statusReady(app.ready,t)}
           {app.route && onNavigate &&
             <button className="com-open" onClick={()=>onNavigate(app.route!)} type="button">
@@ -197,9 +198,9 @@ function SkillsPage({state,language,call}:{
     <div className="com-skill-list">{visible.map(skill=><article className="com-skill" key={skill.id}>
       <div className="com-skill-mark"><Blocks size={22}/></div>
       <div className="com-skill-details"><div className="com-skill-title">
-        <h3>{language==="en"?skill.name:skill.zh}</h3>
+        <h3>{language==="zh-CN"||language==="zh-TW"?t(skill.zh):skill.name}</h3>
         <span>v{skill.version}</span></div>
-        <p>{language==="en"?skill.descriptionEn:skill.description}</p>
+        <p>{language==="zh-CN"||language==="zh-TW"?t(skill.description):skill.descriptionEn}</p>
         <div className="com-skill-tags"><span>{t("所需权限")}</span>
           {skill.scope.map(scope=><code key={scope}>{scope}</code>)}</div>
         <span className="com-skill-ready">{skill.enabled && !skill.ready?t("已选择，等待执行器"):
@@ -222,10 +223,17 @@ export default function CommercialCenter({language,section,onNavigate}:Props){
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const mounted=useRef(true);
+  const [loadingState,setLoadingState]=useState(true);
+  // Loads (or reloads after a failure); a failed retry shows the error and the retry button again.
+  async function load(){
+    setLoadingState(true);setError("");
+    try{const s=await commercialApi<CommerceState>("/state");if(mounted.current)setState(s);}
+    catch(e){if(mounted.current)setError(e instanceof Error?e.message:String(e));}
+    finally{if(mounted.current)setLoadingState(false);}
+  }
   useEffect(()=>{
     mounted.current=true;
-    commercialApi<CommerceState>("/state").then(s=>{if(mounted.current)setState(s);})
-      .catch(e=>{if(mounted.current)setError(e instanceof Error?e.message:String(e));});
+    void load();
     return ()=>{mounted.current=false;};
   },[]);
   async function refresh(){
@@ -240,9 +248,9 @@ export default function CommercialCenter({language,section,onNavigate}:Props){
   }
   return <section className="com-root" aria-label={t(section==="billing"?"账单与用量":section==="apps"?"官方应用":"技能中心")}>
     {error&&<div className="com-error" role="alert"><CircleAlert size={17}/>{error}
-      <button onClick={()=>{setError("");void refresh();}}><RefreshCcw size={15}/>{t("重新加载")}</button></div>}
+      <button disabled={loadingState} onClick={()=>void (state?refresh().catch(e=>setError(e instanceof Error?e.message:String(e))):load())}><RefreshCcw size={15}/>{t("重新加载")}</button></div>}
     {notice&&<p className="com-success" role="status"><CheckCircle2 size={15}/>{notice}</p>}
-    {!state&&!error&&<div className="com-empty"><Activity size={24}/>{t("本地管理")}</div>}
+    {!state&&!error&&<div className="com-empty"><Activity size={24}/>{t(loadingState?"正在加载…":"本地管理")}</div>}
     {state&&section==="billing"&&<BillingPage key={state.billing.period+"-"+state.billing.monthlyBudgetMicros}
       state={state} language={language} save={call} loading={busy}/>}
     {state&&section==="apps"&&<AppsPage state={state} language={language} call={call} onNavigate={onNavigate}/>}

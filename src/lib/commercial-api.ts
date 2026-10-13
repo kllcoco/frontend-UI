@@ -1,4 +1,4 @@
-import {accountFetch} from "./account-api";
+import {accountFetch,readApiJson} from "./account-api";
 export type CommerceTab="billing"|"apps"|"skills";
 export type MeterUnit="CWU"|"GWU";
 export type UsageEvent={
@@ -33,12 +33,7 @@ export async function commercialApi<T>(path:string,body?:unknown):Promise<T>{
     headers:body===undefined?undefined:{"Content-Type":"application/json"},
     ...(body===undefined?{}:{body:JSON.stringify(body)})
   });
-  const data:unknown=await result.json().catch(()=>({}));
-  if(!result.ok){
-    const message=(data&&typeof data==="object"&&"error" in data)?String(data.error):"HTTP "+result.status;
-    throw new Error(message);
-  }
-  return data as T;
+  return readApiJson<T>(result,"Billing request failed");
 }
 export function formatUsdMicros(micros:number|null,locale="zh-CN"){
   if(micros===null)return "—";

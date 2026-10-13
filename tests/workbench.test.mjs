@@ -232,6 +232,27 @@ test("switching repo scope reverts full access to Request mode",async()=>{
     assert.equal(r.policy.mode,"request");
   }finally{await ctx.close();}
 });
+test("scheduled runs report their outcome to the notification feed",async()=>{
+  const ctx=await createTestServer({envVars:env({CIRO_AGENT_RUNNER_URL:""})});
+  try{
+    await ctx.api("/permissions",{mode:"request",repo:"acme/repo"});
+    await ctx.api("/schedules",{title:"Nightly check",goal:"Run the checks",recurrence:"daily",hour:9,timezone:"UTC"});
+    ctx.tick(new Date("2026-01-04T09:00:01Z"));
+    let feed=await ctx.api("/schedule-events");
+    assert.equal(feed.events.length,1);
+    assert.match(feed.events[0].title,/Nightly check.*等待你批准/);
+    // Approve: the goal starts, cannot run without a runner, and that outcome is reported once.
+    const state=await ctx.api("/state");
+    const approved=await ctx.api("/approvals/"+state.approvals[0].id+"/decision",{decision:"approve"});
+    assert.equal(approved.status,"approved");
+    ctx.tick(new Date("2026-01-04T09:30:00Z"));
+    ctx.tick(new Date("2026-01-04T09:31:00Z"));
+    feed=await ctx.api("/schedule-events?after="+encodeURIComponent(feed.events[0].at));
+    assert.equal(feed.events.length,1);
+    assert.match(feed.events[0].title,/Nightly check.*无法运行/);
+  }finally{await ctx.close();}
+});
+
 test("server scheduler creates one approval per due slot and persists deduplication",async()=>{
   const ctx=await createTestServer({envVars:env({CIRO_AGENT_RUNNER_URL:""})});
   try{

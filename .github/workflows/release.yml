@@ -1,0 +1,297 @@
+name: Release desktop apps and packages
+on:
+  push:
+    tags: ["v*"]
+    branches: ["claude/**"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create/publish from the selected branch, e.g. v0.9.0"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Official hosted server offered as the default in the apps; set the repository variable once the domain exists.
+  VITE_CIRO_OFFICIAL_SERVER: ${{ vars.CIRO_OFFICIAL_SERVER }}
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  CHECKOUT_REF: ${{ github.sha }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.CHECKOUT_REF }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - name: Browser end-to-end suite
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots
+          path: artifacts/ui-screenshots/
+          if-no-files-found: ignore
+
+  desktop:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: --linux
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+    runs-on: ${{ matrix.os }}
+    env:
+      # Code signing turns on automatically once these repository secrets exist:
+      #   Windows: WIN_CSC_LINK (base64 .pfx) + WIN_CSC_KEY_PASSWORD
+      #   macOS:   MAC_CSC_LINK (base64 Developer ID .p12) + MAC_CSC_KEY_PASSWORD
+      #            APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID (notarization)
+      HAS_WIN_CERT: ${{ secrets.WIN_CSC_LINK != '' }}
+      HAS_MAC_CERT: ${{ secrets.MAC_CSC_LINK != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.CHECKOUT_REF }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Package installers
+        shell: bash
+        run: |
+          # Customers' desktop app opens the company's Ciro service when one is configured (repo variable).
+          node -e "require('fs').writeFileSync('desktop/official.json', JSON.stringify({ server: process.env.CIRO_OFFICIAL_SERVER || '' }))"
+          if [ "$RUNNER_OS" = "macOS" ] && [ "$HAS_MAC_CERT" = "true" ]; then
+            export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+            echo "macOS: signing with Developer ID${APPLE_ID:+ and notarizing}"
+          elif [ "$RUNNER_OS" = "Windows" ] && [ "$HAS_WIN_CERT" = "true" ]; then
+            export CSC_LINK="$WIN_CSC_LINK" CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
+            echo "Windows: signing with Authenticode certificate"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "No signing certificate configured for $RUNNER_OS: building unsigned"
+          fi
+          npx electron-builder ${{ matrix.target }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CIRO_OFFICIAL_SERVER: ${{ vars.CIRO_OFFICIAL_SERVER }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Desktop launch smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          CIRO_DESKTOP_SMOKE="$PWD/desktop-smoke.png" timeout 90 xvfb-run -a release/linux-unpacked/ciro-client --no-sandbox
+          test -s desktop-smoke.png
+          cat desktop-smoke.png.menu.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            release/*.exe
+            release/*.zip
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+            release/*.tar.gz
+            release/latest*.yml
+            release/*.blockmap
+            desktop-smoke.png
+          if-no-files-found: error
+
+  android:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.CHECKOUT_REF }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - name: Use the runner's preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build && npx cap sync android
+      - name: Decode signing key (optional)
+        env:
+          KEYSTORE_B64: ${{ secrets.CIRO_ANDROID_KEYSTORE_BASE64 }}
+          RAW_STORE_PW: ${{ secrets.CIRO_ANDROID_KEYSTORE_PASSWORD }}
+          RAW_KEY_PW: ${{ secrets.CIRO_ANDROID_KEY_PASSWORD }}
+          RAW_ALIAS: ${{ secrets.CIRO_ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/ciro.jks"
+            echo "Decoded keystore SHA-256: $(sha256sum "$RUNNER_TEMP/ciro.jks" | cut -c1-64)"
+            # Secrets pasted with a trailing space/newline are a common mistake: trim them.
+            trim() { printf '%s' "$1" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+            STORE_PW=$(trim "$RAW_STORE_PW"); KEY_PW=$(trim "$RAW_KEY_PW"); ALIAS=$(trim "$RAW_ALIAS")
+            echo "::add-mask::$STORE_PW"; echo "::add-mask::$KEY_PW"
+            if ! keytool -list -keystore "$RUNNER_TEMP/ciro.jks" -storepass "$STORE_PW" -alias "$ALIAS" > /dev/null 2>&1; then
+              echo "::error::Android keystore check failed: CIRO_ANDROID_KEYSTORE_PASSWORD or CIRO_ANDROID_KEY_ALIAS does not match CIRO_ANDROID_KEYSTORE_BASE64"
+              exit 1
+            fi
+            {
+              echo "CIRO_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/ciro.jks"
+              echo "CIRO_ANDROID_KEYSTORE_PASSWORD=$STORE_PW"
+              echo "CIRO_ANDROID_KEY_PASSWORD=$KEY_PW"
+              echo "CIRO_ANDROID_KEY_ALIAS=$ALIAS"
+            } >> "$GITHUB_ENV"
+          fi
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ -n "${CIRO_ANDROID_KEYSTORE_FILE:-}" ]; then echo "Android: release keystore"; else echo "::warning::Android APK is debug-signed (add CIRO_ANDROID_* secrets)"; fi
+          ./gradlew --no-daemon assembleRelease
+          version=$(node -p "require('../package.json').version")
+          mkdir -p ../release
+          cp app/build/outputs/apk/release/app-release.apk "../release/Android-Ciro-${version}.apk"
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --verbose --print-certs "../release/Android-Ciro-${version}.apk" | grep -iE "verified|certificate (DN|SHA-256)" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: release/*.apk
+          if-no-files-found: error
+
+  container:
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.CHECKOUT_REF }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: v
+        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ciro-client:${{ steps.v.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/ciro-client:latest
+
+  npm-package:
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.CHECKOUT_REF }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@kllcoco"
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build && npm run pack:npm
+      - name: Portable server for the one-click launchers
+        run: |
+          rm -rf build/portable && mkdir -p build/portable
+          cp -r build/npm build/portable/Ciro-Server
+          cd build/portable/Ciro-Server
+          # the server itself only needs express + dotenv; the rest is already bundled into dist/
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));p.dependencies={express:p.dependencies.express,dotenv:p.dependencies.dotenv};delete p.publishConfig;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+          npm install --omit=dev --no-audit --no-fund --no-package-lock
+          cd .. && zip -qr Server-Ciro-portable.zip Ciro-Server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-portable
+          path: build/portable/Server-Ciro-portable.zip
+      - name: Publish @kllcoco/ciro-client to GitHub Packages
+        working-directory: build/npm
+        run: |
+          if npm publish 2>&1 | tee publish.log; then exit 0; fi
+          if grep -qiE "cannot publish over|EPUBLISHCONFLICT|409 Conflict" publish.log; then
+            echo "::notice::This npm version is already published; skipping."
+          else
+            exit 1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm pack
+        working-directory: build/npm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: build/npm/*.tgz
+
+  publish:
+    needs: [desktop, android, container, npm-package]
+    if: always() && needs.desktop.result == 'success' && needs.android.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.CHECKOUT_REF }}" }
+      - uses: actions/download-artifact@v4
+        with: { path: out, pattern: "desktop-*", merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { path: out, name: android }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { path: out, name: npm-package }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { path: out, name: server-portable }
+      - name: Checksums
+        run: |
+          cd out
+          rm -rf ui-screenshots
+          # artifacts can keep sub-folders (e.g. release/); publish every file flat
+          find . -mindepth 2 -type f -exec mv -f {} . \;
+          find . -mindepth 1 -type d -exec rm -rf {} +
+          rm -f desktop-smoke.png
+          # Platform prefixes keep each platform's files together in the (alphabetical) asset list.
+          cp ../deploy/install.sh Server-install.sh
+          # One-click ("lazy") launchers: sorted after the other Server- files, i.e. at the bottom of the list.
+          if [ -e Server-Ciro-portable.zip ]; then
+            cp ../deploy/oneclick/ciro-server.bat "Server-oneclick-Windows.bat"
+            cp ../deploy/oneclick/ciro-server.sh "Server-oneclick-macOS.command"
+            cp ../deploy/oneclick/ciro-server.sh "Server-oneclick-Linux.sh"
+          fi
+          for f in kllcoco-ciro-client-*.tgz; do [ -e "$f" ] && mv "$f" "Server-ciro-client-${f#kllcoco-ciro-client-}"; done
+          sha256sum * > checksums-SHA256.txt
+          ls -la
+          cd ..
+          node scripts/release-body.mjs out "$RELEASE_TAG" "$GITHUB_REPOSITORY" > release-body.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Ciro ${{ env.RELEASE_TAG }}
+          body_path: release-body.md
+          files: out/*

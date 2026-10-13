@@ -1,6 +1,10 @@
+import { localize } from "./i18n";
 import type { Language } from "./i18n";
 const english: Readonly<Record<string,string>> = {
   "账单与用量": "Billing & usage",
+  "任务": "Tasks",
+  "连接与权限": "Connections",
+  "应用与账单": "Apps & billing",
   "官方应用": "Official apps",
   "技能中心": "Skills",
   "协作空间": "Collaboration Space",
@@ -18,6 +22,7 @@ const english: Readonly<Record<string,string>> = {
   "独立验证器已配置": "Independent verifier configured",
   "目标与项目": "Goals & projects",
   "权限与沙盒": "Permissions & sandbox",
+  "工作模式": "Work mode",
   "GitHub 仓库": "GitHub repositories",
   "插件中心": "Plugins",
   "定时任务": "Scheduled tasks",
@@ -167,5 +172,5 @@ const english: Readonly<Record<string,string>> = {
   "全部活动可追溯": "All activity is traceable"
 };
 export function workbenchTranslate(language:Language,text:string):string {
-  return language === "en" ? (english[text] || text) : text;
+  return localize(language, text, (k) => english[k]);
 }

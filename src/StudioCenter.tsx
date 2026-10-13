@@ -1,3 +1,4 @@
+import { localeTag } from "./lib/i18n";
 import {useEffect,useMemo,useRef,useState} from "react";
 import type {ChangeEvent,FormEvent,ReactNode} from "react";
 import {
@@ -38,6 +39,26 @@ const modules:{id:StudioTab;name:string;desc:string;icon:LucideIcon;gate:keyof S
   {id:"marketplace",name:"官方应用与技能",desc:"可信签名目录",icon:Layers,gate:"marketplace"},
   {id:"devices",name:"跨平台终端",desc:"浏览器 PWA",icon:TabletSmartphone,gate:"devices"}
 ];
+// What each entry can actually do on this server right now (from /api/studio/capabilities), not a fixed list.
+type ModuleLevel="ok"|"partial"|"off"|"unknown";
+function serviceState(x:NativeService|undefined):{level:ModuleLevel;label:string}{
+  if(!x)return {level:"unknown",label:"检测中…"};
+  return x.configured?(x.verified?{level:"ok",label:"可用"}:{level:"partial",label:"已配置，待验证"}):{level:"off",label:"未连接"};
+}
+function moduleState(id:string,caps:StudioCapabilities|null):{level:ModuleLevel;label:string}{
+  if(!caps)return {level:"unknown",label:"检测中…"};
+  switch(id){
+    case "thinking":return serviceState(caps.thinking.provider);
+    case "research":return serviceState(caps.research);
+    case "media":return serviceState(caps.media);
+    case "compute":return serviceState(caps.compute.modelControl);
+    case "ide":return caps.ide.sandboxExecution.configured?{level:"ok",label:"可用"}:{level:"partial",label:"可编辑，运行需连接"};
+    case "knowledge":return caps.knowledge.embedding.configured?{level:"ok",label:"可用"}:{level:"partial",label:"本地搜索可用"};
+    case "marketplace":return caps.marketplace.remoteRegistry.configured?{level:"ok",label:"可用"}:{level:"partial",label:"内置目录可用"};
+    case "library":case "devices":return {level:"ok",label:"可用"};
+    default:return {level:"unknown",label:"未知"};
+  }
+}
 function Status({ready,language}: {ready:boolean;language:Language}){
   const t=(s:string)=>studioTranslate(language,s);
   return <span className={ready?"stu-status stu-status--ready":"stu-status"}>
@@ -101,6 +122,15 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   const [nativeShell,setNativeShell]=useState<NativeShellStatus|null>(null);
   const [noticePermission,setNoticePermission]=useState(typeof Notification==="undefined"?"unsupported":Notification.permission);
 
+  /** Buttons that need a native adapter stay clickable and explain exactly what to configure. */
+  function needs(configured:boolean|undefined,env:string){
+    if(configured)return {};
+    return {"aria-disabled":true as const,title:t("需要先在服务端配置：")+env,
+      onClickCapture:(event:{preventDefault:()=>void;stopPropagation:()=>void})=>{
+        event.preventDefault();event.stopPropagation();
+        setNotice("");setError(t("该功能需要连接原生服务。请在服务端 .env 配置 ")+env+t(" 后重启。"));
+      }};
+  }
   const chosen=useMemo(()=>selectedProject?.files.find(f=>f.path===selectedPath)||null,[selectedProject,selectedPath]);
   const libraryList=useMemo(()=>conversations.filter(c=>[c.title,...c.messages.map(m=>m.content)]
     .join(" ").toLowerCase().includes(libraryQuery.toLowerCase()))
@@ -293,16 +323,32 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     });
   }
   function labelledNumber(n:number|undefined,suffix=""){
-    return typeof n==="number"?new Intl.NumberFormat(language==="en"?"en-US":"zh-CN",{maximumFractionDigits:1}).format(n)+suffix:"—";
+    return typeof n==="number"?new Intl.NumberFormat(localeTag(language),{maximumFractionDigits:1}).format(n)+suffix:"—";
   }
-  return <div className="stu-root">
+  return <div className="stu-frame">
+    <nav className="stu-rail" aria-label={t("融合工作台")}>
+      <span className="stu-rail-label">{t("工具")}</span>
+      <button type="button" aria-current={section==="studio"?"page":undefined}
+        className={section==="studio"?"stu-rail-item stu-rail-item--active":"stu-rail-item"}
+        onClick={()=>onNavigate("studio")}><Layers size={17}/><span>{t("概览")}</span></button>
+      {modules.map(item=>{const Icon=item.icon;
+        return <button type="button" key={item.id} aria-current={section===item.id?"page":undefined}
+          className={section===item.id?"stu-rail-item stu-rail-item--active":"stu-rail-item"}
+          onClick={()=>onNavigate(item.id)}><Icon size={17}/><span>{t(item.name)}</span></button>;})}
+    </nav>
+    <div className="stu-root">
     <header className="stu-header">
       <div><div className="stu-eyebrow"><Sparkles size={15}/> CIRO UNIFIED STUDIO · V0.7</div>
         <h1>{section==="studio"?t("融合工作台"):t(modules.find(x=>x.id===section)?.name||"融合工作台")}</h1>
         <p>{section==="studio"?t("从灵感到交付，保持每一步可见。"):
           t(modules.find(x=>x.id===section)?.desc||"全能对话 + 自主执行")}</p>
       </div>
-      {section!=="studio"&&<button className="stu-light-button" onClick={()=>onNavigate("studio")}><ArrowLeft size={16}/>{t("融合工作台")}</button>}
+      {section!=="studio"&&<div className="stu-header-actions">
+        <button className="stu-light-button" onClick={()=>onNavigate("studio")}><ArrowLeft size={16}/>{t("融合工作台")}</button>
+        <select className="stu-switch" aria-label={t("切换模块")} value={section} onChange={e=>onNavigate(e.target.value)}>
+          <option value="studio">{t("概览")}</option>
+          {modules.map(item=><option key={item.id} value={item.id}>{t(item.name)}</option>)}
+        </select></div>}
     </header>
     {error&&<div className="stu-alert stu-alert--error" role="alert"><CircleAlert size={17}/><span>{error}</span>
       <button onClick={()=>setError("")}><X size={14}/></button></div>}
@@ -331,11 +377,11 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </button>
         {modules.map(item=>{
           const Icon=item.icon;
-          const ready=["ide","knowledge","library","devices","marketplace"].includes(item.id);
+          const state=moduleState(item.id,caps);
           return <button className="stu-module" key={item.id} onClick={()=>onNavigate(item.id)}>
             <span className="stu-module-icon"><Icon size={24}/></span>
             <strong>{t(item.name)}</strong><p>{t(item.desc)}</p>
-            <span className="stu-mini-state">{ready?t("已具备"):t("待连接")}</span>
+            <span className={"stu-mini-state stu-mini-state--"+state.level}>{t(state.label)}</span>
             <ChevronRight size={16} className="stu-module-arrow"/>
           </button>;
         })}
@@ -357,7 +403,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
               <label>{t("算力优先级")}<select value={priority} onChange={e=>setPriority(Number(e.target.value))}>
                 {[1,2,5].map(n=><option key={n} value={n}>{n}×</option>)}</select></label>
             </div>
-            <button className="stu-primary" disabled={loading||!caps?.thinking.provider.configured}><Play size={15}/>{t("创建思考任务")}</button>
+            <button className="stu-primary" disabled={loading} {...needs(caps?.thinking.provider.configured,"CIRO_REASONING_URL / CIRO_REASONING_TOKEN")}><Play size={15}/>{t("创建思考任务")}</button>
           </form>
         </section>
         <section className="stu-card stu-split-info"><h3>{t("推理策略")}</h3>
@@ -442,7 +488,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <div className="stu-inline-form"><select aria-label={t("运行任务")} value={runnerTask} onChange={e=>setRunnerTask(e.target.value)}>
               <option value="test">{t("运行测试")}</option><option value="build">{t("构建项目")}</option>
               <option value="lint">{t("检查代码")}</option></select>
-              <button className="stu-primary" disabled={loading||!caps?.ide.sandboxExecution.configured}
+              <button className="stu-primary" disabled={loading} {...needs(caps?.ide.sandboxExecution.configured,"CIRO_IDE_RUNNER_URL / CIRO_IDE_RUNNER_TOKEN")}
                 onClick={()=>void run(async()=>{
                   const data=await studioApi<{jobId:string}>("/projects/"+selectedProject.id+"/run","POST",{task:runnerTask});
                   setNotice(data.jobId);
@@ -472,7 +518,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <input aria-label={t("搜索知识库")} value={knowledgeQuery} required maxLength={120}
               onChange={e=>setKnowledgeQuery(e.target.value)} placeholder={t("搜索文本和代码来源")}/>
             <button className="stu-primary"><Search size={15}/>{t("搜索知识库")}</button>
-            <button type="button" className="stu-light-button" disabled={!caps?.knowledge.embedding.configured}
+            <button type="button" className="stu-light-button" {...needs(caps?.knowledge.embedding.configured,"CIRO_KNOWLEDGE_INDEX_URL / CIRO_KNOWLEDGE_INDEX_TOKEN")}
               onClick={()=>void run(async()=>{
                 const data=await studioApi<{results:KnowledgeHit[]}>("/knowledge/semantic","POST",{query:knowledgeQuery.trim()});
                 setKnowledgeHits(data.results);
@@ -485,7 +531,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       <section className="stu-card"><div className="stu-section-head"><h3><BookOpen size={17}/>{t("文档数量")}: {documents.length}</h3></div>
         {documents.map(doc=><div className="stu-document" key={doc.id}>
           <FileText size={17}/><span><strong>{doc.title}</strong><small>{humanBytes(doc.bytes,language)} · SHA256 {doc.sha256.slice(0,12)}</small></span>
-          <button className="stu-light-button" disabled={!caps?.knowledge.embedding.configured||Boolean(doc.indexedAt)}
+          <button className="stu-light-button" disabled={Boolean(doc.indexedAt)} {...needs(caps?.knowledge.embedding.configured,"CIRO_KNOWLEDGE_INDEX_URL / CIRO_KNOWLEDGE_INDEX_TOKEN")}
             onClick={()=>{if(window.confirm(t("建立语义索引需将该文档发送到你配置的原生服务，是否继续？")))
               void run(async()=>{
                 await studioApi("/knowledge/"+doc.id+"/index","POST",{confirmExternalUpload:true});
@@ -508,7 +554,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           <div className="stu-actions"><label>{t("研究深度")}
             <select value={researchDepth} onChange={e=>setResearchDepth(e.target.value)}>
               <option value="quick">{t("快速")}</option><option value="deep">{t("深入")}</option>
-            </select></label><button className="stu-primary" disabled={loading||!caps?.research.configured}>
+            </select></label><button className="stu-primary" disabled={loading} {...needs(caps?.research.configured,"CIRO_RESEARCH_SERVICE_URL / CIRO_RESEARCH_SERVICE_TOKEN")}>
               <Search size={16}/>{t("启动研究")}</button></div>
         </form>
         {!caps?.research.configured&&<p className="stu-small">{t("模型与搜索服务尚未接入。")}</p>}
@@ -528,7 +574,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
               <input type="file" aria-label={t("选择媒体文件")}
                 accept="image/png,image/jpeg,image/webp,audio/wav,audio/mpeg,audio/webm,audio/mp4,video/mp4,video/webm"
                 onChange={e=>setMediaFile(e.target.files?.[0]||null)}/></label>
-            <button className="stu-primary" disabled={!mediaFile||!caps?.media.configured||loading}>
+            <button className="stu-primary" disabled={!mediaFile||loading} {...needs(caps?.media.configured,"CIRO_MEDIA_SERVICE_URL / CIRO_MEDIA_SERVICE_TOKEN")}>
               <ArrowRight size={15}/>{t("上传并分析")}</button>
           </form>
         </section>
@@ -561,11 +607,10 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </div>
         <button className="stu-link" onClick={()=>onNavigate("billing")}>{t("查看账单")} <ArrowRight size={14}/></button>
       </section>
-    </>}
 
       <section className="stu-card stu-model-console">
         <div className="stu-section-head"><h3><BrainCircuit size={18}/>{t("模型与训练控制台")}</h3>
-          <button type="button" className="stu-light-button" disabled={!caps?.compute.modelControl.configured}
+          <button type="button" className="stu-light-button" {...needs(caps?.compute.modelControl.configured,"CIRO_MODEL_CONTROL_URL / CIRO_MODEL_CONTROL_TOKEN")}
             onClick={()=>void run(async()=>setModelOverview(await studioApi<ModelOverview>("/model-control")))}>
             <RefreshCcw size={15}/>{t("从原生模型读取")}</button></div>
         <NativeNote provider={caps?.compute.modelControl} language={language}/>
@@ -612,8 +657,9 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <span>SHA256: {trainingDetail.evidenceSha256||t("无独立证据")}</span></div>
         </div>}
       </section>
+    </>}
 
-        {section==="library"&&<>
+    {section==="library"&&<>
       <Banner>{t("本地会话可搜索、分支和恢复；打开跨设备同步后将随对话快照同步。")}</Banner>
       <label className="stu-search-bar"><Search size={17}/>
         <input aria-label={t("历史对话与版本")} value={libraryQuery} onChange={e=>setLibraryQuery(e.target.value)}
@@ -712,5 +758,6 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </section>
       </div>
     </>}
+    </div>
   </div>;
 }

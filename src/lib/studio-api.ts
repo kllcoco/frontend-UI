@@ -1,4 +1,6 @@
-import {accountFetch} from "./account-api";
+import { localeTag } from "./i18n";
+import type { Language } from "./i18n";
+import {accountFetch,readApiJson} from "./account-api";
 export type StudioTab="studio"|"thinking"|"ide"|"knowledge"|"research"|"media"|"compute"|"library"|"marketplace"|"devices";
 export type NativeService={configured:boolean;verified:boolean;status:string};
 export type StudioCapabilities={
@@ -39,16 +41,10 @@ export async function studioApi<T>(path:string,method="GET",body?:unknown):Promi
     method,headers:body===undefined?undefined:{"Content-Type":"application/json"},
     ...(body===undefined?{}:{body:JSON.stringify(body)})
   });
-  const data:unknown=await response.json().catch(()=>({}));
-  if(!response.ok){
-    const msg=data&&typeof data==="object"&&"error" in data?String(data.error):
-      "Studio request failed ("+response.status+")";
-    throw new Error(msg);
-  }
-  return data as T;
+  return readApiJson<T>(response,"Studio request failed");
 }
-export function humanBytes(value:number,language:"zh-CN"|"en"){
+export function humanBytes(value:number,language:Language){
   if(value<1024)return value+" B";
-  return new Intl.NumberFormat(language==="en"?"en-US":"zh-CN",{maximumFractionDigits:1})
+  return new Intl.NumberFormat(localeTag(language),{maximumFractionDigits:1})
     .format(value/1024)+" KB";
 }

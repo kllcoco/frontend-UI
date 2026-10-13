@@ -9,14 +9,16 @@ test("five offline wallpaper assets are present", () => {
   for (const item of ["night-lake", "aurora", "summit", "city", "minimal"]) {
     const content = file("public/backgrounds/" + item + ".svg");
     assert.match(content, /<svg\b/);
-    assert.match(content, /viewBox="0 0 1600 900"/);
+    assert.match(content, /viewBox="0 0 1920 1080"/);
     assert.doesNotMatch(content, /<script\b|<foreignObject\b|<image\b|<use\b|(?:href|xlink:href)\s*=\s*["\x27]https?:\/\//i);
   }
 });
-test("Ciro logo uses crescent and sparkle and sets favicon", () => {
+test("Ciro orbit-C logo uses gradient ring with star and sets favicon", () => {
   const logo = file("public/ciro-mark.svg");
   assert.match(logo, /linearGradient/);
-  assert.match(logo, /#bcffe0/i);
+  assert.match(logo, /stroke-linecap="round"/);
+  // The star in the gap is the four-pointed star from the character art.
+  assert.match(logo, /<path d="M51 23.5C/);
   assert.match(file("index.html"), /ciro-mark\.svg/);
 });
 test("settings UI contains eight configured views and indexedDB DIY controls", () => {

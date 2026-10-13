@@ -1,8 +1,41 @@
-# Ciro Client · White-first UI
+# Ciro Client
 
-CIRO / NCPA 的独立 AI 聊天客户端。设计：**绿色新月 Logo + 默认纯白界面，深绿月夜等背景可由用户选择**；布局参照经用户审核的左侧聊天历史、顶部模型选择、居中聊天区、底部输入框和双栏设置中心。
+CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **当前状态：UI V0.3，Draft PR。** 界面、背景 DIY 和本地对话可用；CIRO 正式推理服务尚未接入。不配置后端时是明确的预览模式，不生成虚假的模型回答。
+> **v0.9.1**：全新界面与个人菜单、项目、思考深度滑杆、⌘K 搜索、图片/PDF 附件、公式与代码高亮、分享链接、提示词库，以及桌面（自动更新）与 Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+
+## 安装与运行
+
+| 方式 | 说明 |
+| --- | --- |
+| 桌面客户端 | 从 Releases 下载对应平台安装包；首次运行后在“文件 → 编辑模型连接配置 (.env)”填写 `CIRO_API_BASE_URL` 等并重启 |
+| Android | 安装 `Android-Ciro-*.apk`；“设置 → 模型设置 → 连接 Ciro 服务器”填写服务器地址 |
+| 一键部署 | `sudo bash install.sh`（Release 附件 `Server-install.sh`，自动安装 Docker、配置 HTTPS 与账户，`install.sh upgrade` 升级） |
+| Docker | `docker run -d --name ciro -p 8787:8787 --env-file .env -v ciro-data:/data ghcr.io/kllcoco/ciro-client:latest`（详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
+| npm | `npm i -g @kllcoco/ciro-client` → `ciro-client init` → `ciro-client`（需先配置 GitHub Packages 令牌，详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
+| 源码开发 | `npm install && cp .env.example .env && npm run dev:all`，打开 http://127.0.0.1:5173 |
+
+常用脚本：`npm test`（单元）· `npm run test:e2e`（浏览器）· `npm run desktop`（本地运行桌面版）· `npm run dist:linux|dist:win|dist:mac`（打包）· `npx cap sync android && cd android && ./gradlew assembleRelease`（Android）。
+
+推送 `v*` 标签会触发 `.github/workflows/release.yml`：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
+
+### 安装包签名
+
+发布工作流会在检测到对应 Secrets 时自动签名，未配置时照常构建未签名版本：
+
+| 平台 | 需要的仓库 Secrets | 获取方式 |
+| --- | --- | --- |
+| Android | `CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD` | 自建 keystore（`keytool -genkeypair ...`），务必离线备份 |
+| Windows | `WIN_CSC_LINK`（.pfx 的 base64）、`WIN_CSC_KEY_PASSWORD` | 向 CA 购买代码签名证书（OV/EV）；开源项目可申请 SignPath Foundation 免费签名 |
+| macOS | `MAC_CSC_LINK`（Developer ID Application .p12 的 base64）、`MAC_CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` | Apple Developer Program（99 美元/年）；配置后自动签名并公证 |
+
+### 思考深度
+
+输入框中的“思考深度”五档会以 OpenAI 兼容的 `reasoning_effort`（low / medium / high）发送；服务端 `CIRO_REASONING_EFFORT=off` 可关闭透传。若原生 CIRO 模型声明 `CIRO_CHAT_REASONING_MODES=deep`，还会附带时间预算与优先级。流式返回中的 `reasoning_content` 会显示为可折叠的“思考过程”。
+
+---
+
+## 历史版本说明
 
 ## 功能清单
 

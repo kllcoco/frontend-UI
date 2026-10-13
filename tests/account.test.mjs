@@ -212,7 +212,7 @@ test("Stripe spoofed webhook fails; signed checkout and subscription events upda
   const ctx=await setup(cfg);
   try{
     await ctx.bootstrap();
-    const ownerId=ctx.service.store.get().owner.id;
+    const ownerId=ctx.service.store.owner().id;
     const a={id:"evt_checkout_1",type:"checkout.session.completed",data:{object:{
       client_reference_id:ownerId,customer:"cus_abc",subscription:"sub_abc"}}};
     async function webhook(body,sign=true){
@@ -288,7 +288,7 @@ test("verified Stripe subscription arriving before checkout is preserved and bou
   const ctx=await setup(cfg);
   try{
     await ctx.bootstrap();
-    const user=ctx.service.store.get().owner.id;
+    const user=ctx.service.store.owner().id;
     async function webhook(body){
       const raw=JSON.stringify(body),stamp=Math.floor(Date.now()/1000);
       const sig=createHmac("sha256",cfg.CIRO_STRIPE_WEBHOOK_SECRET).update(stamp+"."+raw).digest("hex");

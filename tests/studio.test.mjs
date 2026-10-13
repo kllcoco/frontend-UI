@@ -305,3 +305,44 @@ test("model training dashboard only returns native metadata, sanitized runs and 
   try{assert.equal((await empty.request("/model-control")).status,503);}
   finally{await empty.close();}
 });
+
+test("thinking depth slider forwards OpenAI-compatible reasoning_effort and rejects unknown levels",()=>{
+  const input={model:"ciro",messages:[{role:"user",content:"hi"}]};
+  const fast=validateChat({...input,reasoning:{mode:"fast",effort:"high"}},["ciro"]);
+  assert.equal(fast.reasoning_effort,"high");
+  assert.equal(fast.ciro_reasoning,undefined);
+  const deep=validateChat({...input,reasoning:{mode:"deep",effort:"medium",maxSeconds:180,priority:1}},["ciro"],["fast","deep"]);
+  assert.equal(deep.reasoning_effort,"medium");
+  assert.deepEqual(deep.ciro_reasoning,{mode:"deep",maxSeconds:180,priority:1});
+  assert.equal(validateChat({...input,reasoning:{mode:"fast",effort:"low"}},["ciro"],["fast"],false).reasoning_effort,undefined);
+  assert.throws(()=>validateChat({...input,reasoning:{mode:"fast",effort:"ultra"}},["ciro"]),ValidationError);
+});
+
+test("project context becomes a bounded system message and oversized projects are rejected",()=>{
+  const input={model:"ciro",messages:[{role:"user",content:"hi"}]};
+  const ok=validateChat({...input,project:{name:"Thesis",instructions:"Cite sources",files:[{name:"notes.md",content:"alpha"}]}},["ciro"]);
+  assert.equal(ok.messages[0].role,"system");
+  assert.match(ok.messages[0].content,/Thesis/);
+  assert.match(ok.messages[0].content,/notes\.md[\s\S]*alpha/);
+  assert.equal(validateChat({...input,project:{name:"Empty",instructions:"",files:[]}},["ciro"]).messages[0].role,"user");
+  assert.throws(()=>validateChat({...input,project:{name:"X",instructions:"y".repeat(4001)}},["ciro"]),ValidationError);
+  assert.throws(()=>validateChat({...input,project:{name:"X",files:Array.from({length:3},()=>({name:"a",content:"b".repeat(79_000)}))}},["ciro"]),ValidationError);
+});
+
+test("image attachments become OpenAI content parts and are bounded",()=>{
+  const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/+qkAAAAASUVORK5CYII=";
+  const ok=validateChat({model:"ciro",messages:[{role:"user",content:"看图",images:[png]}]},["ciro"]);
+  assert.deepEqual(ok.messages[0].content[0],{type:"text",text:"看图"});
+  assert.equal(ok.messages[0].content[1].image_url.url,png);
+  assert.throws(()=>validateChat({model:"ciro",messages:[{role:"user",content:"x",images:["https://evil.example/a.png"]}]},["ciro"]),ValidationError);
+  assert.throws(()=>validateChat({model:"ciro",messages:[{role:"user",content:"x",images:Array(6).fill(png)}]},["ciro"]),ValidationError);
+  assert.throws(()=>validateChat({model:"ciro",messages:[{role:"assistant",content:"x",images:[png]},{role:"user",content:"y"}]},["ciro"]),ValidationError);
+});
+
+test("web search flag is only forwarded when the server enables it",()=>{
+  const input={model:"ciro",messages:[{role:"user",content:"news"}],webSearch:true};
+  assert.throws(()=>validateChat(input,["ciro"]),ValidationError);
+  assert.equal(validateChat(input,["ciro"],["fast"],true,true).ciro_web_search,true);
+  assert.equal(validateChat({...input,webSearch:false},["ciro"]).ciro_web_search,undefined);
+  assert.throws(()=>validateChat({...input,webSearch:"yes"},["ciro"],["fast"],true,true),ValidationError);
+});

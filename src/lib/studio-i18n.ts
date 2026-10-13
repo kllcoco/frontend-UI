@@ -1,5 +1,9 @@
+import { localize } from "./i18n";
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
+  "概览": "Overview",
+  "工具": "Tools",
+  "切换模块": "Switch module",
   "模型与训练控制台": "Model & training console",
   "从原生模型读取": "Read from native runtime",
   "尚无来自 CIRO 的训练数据": "No verified CIRO training data yet",
@@ -28,6 +32,14 @@ const terms:Readonly<Record<string,string>>={
   "从灵感到交付，保持每一步可见。": "From an idea to evidence-backed delivery.",
   "模型运行时接入情况": "Native runtime readiness",
   "已具备": "Available locally",
+  "可用": "Available",
+  "未连接": "Not connected",
+  "检测中…": "Checking…",
+  "已配置，待验证": "Configured, not yet verified",
+  "可编辑，运行需连接": "Editing works; running needs a connection",
+  "本地搜索可用": "Local search available",
+  "内置目录可用": "Built-in directory available",
+  "未知": "Unknown",
   "已配置，待核验": "Configured; verification pending",
   "待连接": "Not connected",
   "功能入口": "Workspace modules",
@@ -176,6 +188,9 @@ const terms:Readonly<Record<string,string>>={
   "等待中": "Waiting",
   "保留证据": "Evidence retained",
   "关联协作空间": "Open project workbench",
-  "开始聊天": "Start chat"
+  "开始聊天": "Start chat",
+  "需要先在服务端配置：": "Requires server configuration: ",
+  "该功能需要连接原生服务。请在服务端 .env 配置 ": "This feature needs a native service. Configure ",
+  " 后重启。": " in the server .env and restart."
 };
-export function studioTranslate(language:Language,value:string){return language==="en"?(terms[value]||value):value;}
+export function studioTranslate(language:Language,value:string){return localize(language,value,(k)=>terms[k]);}

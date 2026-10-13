@@ -29,9 +29,10 @@ export function verifySingleTenantReadiness(env=process.env,{platform=process.pl
   // trusted operator completes a local, token-guarded initial bootstrap.
   const accountPath=join(absolute,"account-state.json");
   try{
+   // Version 1 stored a single owner; version 2 stores users with one "owner".
    const account=JSON.parse(readFileSync(accountPath,"utf8"));
-   const owner=account?.owner;
-   requireCondition(account?.version===1&&Array.isArray(account.sessions)&&
+   const owner=account?.version===2?account.users?.find(x=>x?.role==="owner"):account?.owner;
+   requireCondition([1,2].includes(account?.version)&&Array.isArray(account.sessions)&&
     Array.isArray(account.apiKeys)&&typeof owner?.id==="string"&&owner.id.length>10&&
     typeof owner?.email==="string"&&owner.email.includes("@")&&
     typeof owner?.passwordHash==="string"&&/^[a-f0-9]{128}$/.test(owner.passwordHash)&&

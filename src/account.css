@@ -1,14 +1,14 @@
 /* CIRO account settings V0.6: responsive white/emerald account operations */
 .acc-root{width:100%;max-width:920px;min-height:200px;margin:0 auto;color:#254b35}
 .acc-head{margin:2px 0 22px}
-.acc-eyebrow{font-size:10px;letter-spacing:1px;display:flex;gap:8px;color:#3c9966;align-items:center;font-weight:700}
+.acc-eyebrow{font-size:11.5px;letter-spacing:1px;display:flex;gap:8px;color:#3c9966;align-items:center;font-weight:700}
 .acc-head h2{font-size:23px;letter-spacing:-.45px;margin:12px 0 5px;color:#244b34}
 .acc-head p{font-size:11px;color:#80988a;margin:0}
 .acc-card{background:#fff;border:1px solid #e0eee5;border-radius:15px;padding:22px;margin-bottom:16px}
 .acc-card h3{font-size:14px;color:#2f6041;margin:0 0 9px}
 .acc-section-title{display:flex;align-items:center;gap:10px;color:#3a8e5b;margin-bottom:18px}
 .acc-section-title h3{margin:0;flex:1}
-.acc-section-title .acc-secondary{font-size:10px;padding:8px 10px}
+.acc-section-title .acc-secondary{font-size:11.5px;padding:8px 10px}
 .acc-card input:not([type="checkbox"]),.acc-card select,.acc-card textarea{
   box-sizing:border-box;background:#fff;border:1px solid #dce9df;border-radius:10px;
   padding:11px 12px;color:#2e5040;font:12px/1.6 inherit;outline:none;min-width:0;width:100%}
@@ -40,7 +40,7 @@
 .acc-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:35px 15px;gap:10px;color:#9aae9e;font-size:11px}
 .acc-empty svg{color:#76b891}
 .acc-unavailable,.acc-login{max-width:510px;margin:18px auto;display:flex;align-items:flex-start;flex-direction:column;gap:10px}
-.acc-unavailable>svg,.acc-login>svg{color:#559d6d}
+.acc-unavailable>svg,.acc-login>svg{color:var(--cx-accent,#946d2b)}
 .acc-unavailable p,.acc-login p{color:#83978a;font-size:11px;line-height:1.6;margin:0}
 .acc-login form{width:100%;display:flex;flex-direction:column;gap:12px;margin-top:10px}
 .acc-login form label+label{margin:0}
@@ -49,7 +49,7 @@
 .acc-state{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:23px;background:#f4faf5;border:1px solid #e5f1e7;border-radius:12px}
 .acc-state>span{font-size:11px;color:#779884}
 .acc-state>strong{font-size:18px;color:#327c4d}
-.acc-state>small{font-size:10px;color:#9dac9c}
+.acc-state>small{font-size:11.5px;color:#9dac9c}
 .acc-label{max-width:470px}
 .acc-label-title{font-size:11px;color:#577960}
 .acc-checkbox{display:flex;align-items:center;gap:9px;font-size:11px;color:#658473;padding:8px 0}
@@ -64,25 +64,35 @@
 .acc-list-line:last-child,.acc-notification:last-child{border-bottom:0}
 .acc-list-line>div,.acc-notification>div{min-width:0;flex:1}
 .acc-list-line strong,.acc-notification strong{font-size:12px;color:#3f654b;overflow-wrap:anywhere}
-.acc-list-line small,.acc-notification small{display:block;color:#9bac9e;font-size:10px;margin-top:6px}
-.acc-list-line .acc-secondary,.acc-notification .acc-secondary{font-size:10px;flex:none}
+.acc-list-line small,.acc-notification small{display:block;color:#9bac9e;font-size:11.5px;margin-top:6px}
+.acc-list-line .acc-secondary,.acc-notification .acc-secondary{font-size:11.5px;flex:none}
 .acc-notification p{font-size:11px;color:#779182;margin:8px 0;overflow-wrap:anywhere}
 .acc-notification--unread{background:#f6fbf7;margin:0 -12px;padding:14px 12px;border-radius:9px}
 .acc-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;
   color:#4d765a;font-size:12px;border-bottom:1px solid #e7ede7;margin-bottom:17px}
 .acc-spend-cards,.acc-sync-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:23px}
 .acc-spend-cards>div,.acc-sync-grid>div{display:flex;flex-direction:column;gap:9px;padding:13px;background:#f4f9f5;border:1px solid #e4f0e7;border-radius:10px}
-.acc-spend-cards span,.acc-sync-grid small{font-size:10px;color:#799883}
+.acc-spend-cards span,.acc-sync-grid small{font-size:11.5px;color:#799883}
 .acc-spend-cards strong,.acc-sync-grid strong{font-size:17px;color:#397e53}
 :root[data-theme="dark"] .acc-root,:root[data-theme="dark"] .acc-head h2,
-:root[data-theme="dark"] .acc-card h3,:root[data-theme="dark"] .acc-list-line strong{color:#d2ebda}
-:root[data-theme="dark"] .acc-card{background:#10261c;border-color:#2c4e3b}
+:root[data-theme="dark"] .acc-card h3,:root[data-theme="dark"] .acc-list-line strong{color:#d8e5dc}
+:root[data-theme="dark"] .acc-card{background:#1d1d1b;border-color:#43413d}
 :root[data-theme="dark"] .acc-card input:not([type="checkbox"]),:root[data-theme="dark"] .acc-card select,
-:root[data-theme="dark"] .acc-card textarea{background:#081e15;border-color:#315440;color:#e1eee3}
+:root[data-theme="dark"] .acc-card textarea{background:#151413;border-color:#494743;color:#e4ebe5}
 :root[data-theme="dark"] .acc-state,:root[data-theme="dark"] .acc-spend-cards>div,
-:root[data-theme="dark"] .acc-sync-grid>div{background:#173625;border-color:#355341}
-:root[data-theme="dark"] .acc-state>strong{color:#b2e4c2}
+:root[data-theme="dark"] .acc-sync-grid>div{background:#2a2927;border-color:#4a4945}
+:root[data-theme="dark"] .acc-state>strong{color:#bdd9c6}
 @media(max-width:690px){.acc-card{padding:17px 15px}.acc-head h2{font-size:20px}
  .acc-spend-cards,.acc-sync-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .acc-list-line,.acc-notification{align-items:flex-start;flex-wrap:wrap}
  .acc-list-line .acc-secondary,.acc-notification .acc-secondary{margin-left:auto}}
+.acc-link{border:0;background:none;color:var(--cx-accent,#946d2b);font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
+.acc-login .acc-muted{margin-top:-6px}
+/* Sign in with email (default) or phone + SMS code */
+.acc-way{display:inline-flex;gap:4px;padding:3px;margin:4px 0 2px;border-radius:999px;background:color-mix(in srgb,var(--accent,#946d2b) 10%,transparent)}
+.acc-way button{border:0;background:none;padding:6px 16px;border-radius:999px;font:inherit;font-size:13px;color:inherit;cursor:pointer}
+.acc-way .acc-way--on{background:var(--surface,#fff);color:var(--accent,#946d2b);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.acc-code-row{display:flex;gap:8px}
+.acc-code-row input{flex:1;min-width:0;letter-spacing:.2em}
+.acc-code-btn{flex:none;white-space:nowrap;border:1px solid var(--accent,#946d2b);background:none;color:var(--accent,#946d2b);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;cursor:pointer}
+.acc-code-btn:disabled{opacity:.45;cursor:not-allowed}

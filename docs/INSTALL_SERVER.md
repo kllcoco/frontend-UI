@@ -1,0 +1,314 @@
+# 服务器部署教程（ciro-client）
+
+`ciro-client` 是 Ciro 的网页版 + 后端服务（模型代理、账户、分享、语音/图片接口）。部署到服务器后，用浏览器、Android 客户端或 iPhone“添加到主屏幕”访问。
+## 一键安装（推荐，Linux 服务器）
+
+```bash
+curl -fsSL https://github.com/kllcoco/frontend-UI/releases/latest/download/Server-install.sh -o install.sh
+sudo bash install.sh
+```
+
+脚本会自动安装 Docker，询问模型地址、模型名、密钥和域名（可留空），然后在 `/opt/ciro` 生成配置并启动：
+
+- **填了域名**：自动开启账户、生成全部密钥，并用 Caddy 自动申请 HTTPS 证书。域名需先解析到这台服务器，且 80 和 443 端口要放行。脚本最后会打印用于创建管理员的初始化口令。
+- **不填域名**：在 `http://服务器IP:8787` 提供服务，不需要登录，只适合内网使用。
+
+升级与卸载：
+
+```bash
+sudo bash install.sh upgrade     # 拉取最新版本并重启，设置与数据保留
+sudo bash install.sh uninstall   # 停止服务（数据卷与 /opt/ciro/.env 保留）
+```
+
+配置在 `/opt/ciro/.env`，修改后执行 `cd /opt/ciro && sudo docker compose up -d` 生效。如果拉取镜像提示无权限，先按下文“方式一”第 2 步登录 ghcr.io。
+
+---
+
+想手动安装时，有两种方式，**任选其一**：
+
+| | Docker 镜像 | npm 包 |
+| --- | --- | --- |
+| 名称 | `ghcr.io/kllcoco/ciro-client` | `@kllcoco/ciro-client` |
+| 适合 | Linux 服务器、NAS（推荐） | 已装 Node.js 的电脑/服务器，不想用 Docker |
+| 数据位置 | Docker 卷 `ciro-data` | 运行目录下的 `.ciro-runtime/` |
+| 升级 | 拉新镜像、重建容器 | `npm i -g` 覆盖安装 |
+
+> 只想自己在电脑上用？直接下载上方的桌面客户端即可，它已内置同一套服务，无需本教程。
+
+---
+
+## 准备：模型配置
+
+两种方式都使用同一份配置文件 `.env`，最少填三项：
+
+```ini
+# OpenAI 兼容接口地址（到 /v1 为止）
+CIRO_API_BASE_URL=https://api.example.com/v1
+# 默认模型
+CIRO_MODEL=gpt-4o
+# 模型服务的密钥（只保存在服务器，不会发给浏览器）
+CIRO_API_KEY=sk-...
+```
+
+常用可选项：
+
+```ini
+# 模型下拉列表
+CIRO_MODELS=gpt-4o,gpt-4o-mini
+# 联网搜索开关（模型服务需支持）
+CIRO_WEB_SEARCH=on
+# 语音对话（语音识别 + 朗读）
+CIRO_VOICE=on
+# 图片生成（模型服务需支持 /images/generations）
+CIRO_IMAGES=on
+# 团队服务地址（有团队后端时再填）
+CIRO_TEAM_URL=
+```
+
+完整说明见安装包内的 `.env.example`。
+
+> ⚠️ **安全提醒**：未开启账户时，任何能访问这个网址的人都能用你的模型密钥。公网部署请务必按下文“开启账户 + HTTPS”操作；只在家里/公司内网使用可以不开。
+
+---
+
+## 方式一：Docker（推荐）
+
+### 1. 安装 Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+### 2. 登录 GitHub 镜像仓库（仅当拉取提示 `denied` / `unauthorized` 时需要）
+
+到 GitHub → Settings → Developer settings → Personal access tokens (classic) 新建令牌，只勾选 `read:packages`，然后：
+
+```bash
+echo 你的令牌 | docker login ghcr.io -u 你的GitHub用户名 --password-stdin
+```
+
+### 3. 写配置
+
+```bash
+mkdir -p ~/ciro && cd ~/ciro
+nano .env        # 填入上面“准备”中的内容，保存（注释请单独占一行，不要写在值后面）
+```
+
+### 4. 启动
+
+**内网 / 自己使用（不开账户）：**
+
+```bash
+docker run -d --name ciro --restart unless-stopped \
+  -p 8787:8787 --env-file ~/ciro/.env \
+  -v ciro-data:/data \
+  ghcr.io/kllcoco/ciro-client:latest
+```
+
+浏览器打开 `http://服务器IP:8787`。
+
+**公网（开启账户 + HTTPS）：** 账户模式要求服务只监听本机，由反向代理提供 HTTPS。在 `.env` 追加：
+
+```ini
+CIRO_ACCOUNTS_ENABLED=true
+CIRO_PUBLIC_ORIGIN=https://ciro.你的域名.com
+# 填 openssl rand -base64 32 的结果（首次创建管理员用）
+CIRO_BOOTSTRAP_TOKEN=
+# 填 openssl rand -base64 32 的结果
+CIRO_API_KEY_PEPPER=
+# 填 openssl rand -base64 32 的结果；之后永远不要改，否则已加密数据无法读取
+CIRO_ACCOUNT_DATA_KEY=
+```
+
+```bash
+docker run -d --name ciro --restart unless-stopped \
+  --network host -e HOST=127.0.0.1 --env-file ~/ciro/.env \
+  -v ciro-data:/data \
+  ghcr.io/kllcoco/ciro-client:latest
+```
+
+再装 Caddy 自动申请 HTTPS 证书（域名需先解析到服务器）：
+
+```bash
+sudo apt install -y caddy
+echo 'ciro.你的域名.com {
+  reverse_proxy 127.0.0.1:8787
+}' | sudo tee /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+打开 `https://ciro.你的域名.com`，用 `CIRO_BOOTSTRAP_TOKEN` 创建管理员账户。
+
+### 5. 常用命令
+
+```bash
+docker logs -f ciro        # 查看日志
+docker restart ciro        # 改了 .env 之后重启生效
+docker stop ciro           # 停止
+```
+
+### 6. 升级（覆盖旧版，数据保留）
+
+```bash
+docker pull ghcr.io/kllcoco/ciro-client:latest
+docker rm -f ciro
+# 再执行一次第 4 步中你用过的 docker run 命令
+docker image prune -f      # 可选：清理旧镜像
+```
+
+数据都在 `ciro-data` 卷里，删除容器不会丢失。想固定某个版本，把 `latest` 换成版本号，例如 `ghcr.io/kllcoco/ciro-client:0.9.2`。
+
+---
+
+## 方式二：npm 包
+
+### 1. 安装 Node.js 22.5 或更高版本
+
+```bash
+# Linux / macOS（使用 nvm）
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc && nvm install 22
+node -v     # 确认 ≥ v22.5
+```
+
+Windows 到 https://nodejs.org 下载 22 LTS 安装包。
+
+### 2. 配置 GitHub Packages（只需一次）
+
+GitHub Packages 安装任何包都需要令牌：GitHub → Settings → Developer settings → Personal access tokens (classic)，只勾选 `read:packages`，然后：
+
+```bash
+npm config set @kllcoco:registry https://npm.pkg.github.com
+npm config set //npm.pkg.github.com/:_authToken 你的令牌
+```
+
+### 3. 安装
+
+```bash
+npm install -g @kllcoco/ciro-client
+ciro-client --version
+```
+
+### 4. 初始化并启动
+
+```bash
+mkdir -p ~/ciro && cd ~/ciro
+ciro-client init      # 生成 .env 模板（已存在则不会覆盖）
+nano .env             # 填入“准备”中的内容
+ciro-client           # 启动，默认 http://127.0.0.1:8787
+```
+
+常用参数：
+
+```bash
+ciro-client --host 0.0.0.0 --port 8787   # 允许局域网访问（未开账户时请勿暴露到公网）
+ciro-client --env /path/to/.env          # 指定配置文件
+ciro-client --data /path/to/data         # 指定数据目录（默认 ./.ciro-runtime）
+```
+
+公网部署：按方式一第 4 步在 `.env` 中开启账户，保持默认 `127.0.0.1` 监听，并用同样的 Caddy 配置提供 HTTPS。
+
+### 5. 开机自启（Linux，可选）
+
+```bash
+sudo tee /etc/systemd/system/ciro.service >/dev/null <<EOF
+[Unit]
+Description=Ciro
+After=network.target
+[Service]
+WorkingDirectory=$HOME/ciro
+ExecStart=$(which node) $(npm root -g)/@kllcoco/ciro-client/bin/ciro-client.mjs
+Restart=always
+User=$USER
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable --now ciro
+journalctl -u ciro -f      # 查看日志
+```
+
+### 6. 升级（覆盖旧版，数据保留）
+
+```bash
+npm install -g @kllcoco/ciro-client@latest
+sudo systemctl restart ciro      # 用了开机自启时；否则重新运行 ciro-client
+```
+
+`.env` 和 `.ciro-runtime/` 都在你自己的 `~/ciro` 目录里，覆盖安装不会影响它们。
+
+---
+
+## 连接客户端
+
+- **浏览器**：直接打开部署地址。
+- **Android**：安装 `Android-Ciro-*.apk` → 设置 → 模型设置 → 连接 Ciro 服务器，填 `https://ciro.你的域名.com`。
+- **iPhone / iPad**：用 Safari 打开部署地址 → 分享 → 添加到主屏幕。
+
+## 工作模式：用手机远程控制家里的电脑
+
+1. 服务器按上文开启账户（一键安装时填写域名即可）。
+2. **把电脑加入账号**（二选一）：
+   - 在家里电脑的 Ciro 桌面版打开 协作空间 → 工作模式，选“账号登录”，填写服务器网址、邮箱和密码；
+   - 或在手机上打开 工作模式 → **添加电脑**，得到 8 位配对码，再在电脑上选“配对码”填写。
+3. 在电脑上添加允许远程使用的项目文件夹。
+4. **让手机连接这台电脑**（二选一）：电脑的工作模式页面会显示二维码和 8 位配对码。手机点“扫码连接”扫码（或用手机相机直接扫），或者点“输入配对码”。连接之前，手机只能看到这台电脑，不能下指令。
+5. 选择文件夹，运行命令或交给 Ciro 完成 AI 任务。
+
+电脑需要保持开机、Ciro 在运行（关闭窗口后会留在系统托盘）。电脑会主动连接服务器，不需要在家里路由器上开放端口。
+
+## 对外提供 API
+
+开启账户后，服务器自带与 OpenAI 兼容的接口，可以直接卖 API：
+
+1. 登录网页版 → 设置 → API 控制台，创建密钥（只显示一次）。
+2. 客户把 Base URL 设为 `https://你的域名/v1`，用这个密钥调用：
+
+```bash
+curl https://ciro.你的域名.com/v1/chat/completions \
+  -H "Authorization: Bearer ciro_sk_..." -H "Content-Type: application/json" \
+  -d '{"model": "ciro", "messages": [{"role": "user", "content": "你好"}]}'
+```
+
+- 支持 `stream: true`；OpenAI 官方 SDK（Python / Node）改 `base_url` 即可使用。
+- 每个密钥的 CWU 用量和调用记录在 API 控制台查看；只记录元数据，不保存请求和回答内容。
+- 撤销密钥后立即失效。
+
+## 多用户：一台服务器给所有人用
+
+适合以公司身份运营一台官方服务器，所有用户都注册、登录到这台服务器。
+
+```bash
+CIRO_ACCOUNTS_ENABLED=true
+CIRO_DEPLOYMENT_MODE=multi-user
+CIRO_PUBLIC_ORIGIN=https://你的域名          # 必须是 https，由反向代理终止 TLS
+CIRO_REGISTRATION=invite                    # closed / invite / open
+CIRO_BOOTSTRAP_TOKEN=至少24位随机字符串
+CIRO_API_KEY_PEPPER=至少24位随机字符串
+CIRO_ACCOUNT_DATA_KEY=$(openssl rand -base64 32)
+```
+
+- 第一个账户（用初始化口令创建）是**服务器所有者**：只有所有者能发布公告、管理用户、使用工作台 / 融合工作台 / 插件 / 账单。
+- 其他人在 设置 → 账户与安全 里注册。每个人的对话同步、API 密钥与用量、记忆、通知、工作模式电脑互相隔离。
+- `invite` 模式下，所有者在 设置 → 用户管理 生成邀请码（7 天有效，只能用一次）；也可以停用或删除用户（删除会清掉他的同步数据、密钥和记忆）。
+- 已有的单人服务器升级后数据自动迁移，原账户成为所有者，登录状态不变。
+- 应用默认服务器：发布时设置仓库变量 `CIRO_OFFICIAL_SERVER=https://你的域名`，Android 版首次打开会出现“连接官方服务器”按钮。
+
+## 公告推送（不发版也能推送）
+
+- 服务器所有者登录后，在 设置 → 账户 → 公告推送 发布公告，已安装的网页版、桌面版、Android 版首页会显示（最长 30 分钟内，或下次打开时）。
+- 中心公告源：所有安装（包括只连本机的桌面版）还会读取 `CIRO_ANNOUNCEMENTS_URL`（默认本项目 main 分支的 `announcements.json`），格式为 JSON 数组：
+
+```json
+[{ "id": "pro-2026-10", "title": "专业版限时 8 折", "body": "本周内订阅立减 20%", "level": "promo",
+   "link": { "label": "立即查看", "url": "https://你的域名/pro" }, "platforms": ["android", "desktop", "web"],
+   "minVersion": "0.9.8", "end": "2026-10-20T00:00:00Z" }]
+```
+
+  `level` 可选 info / promo / warning；`platforms`、`minVersion`、`maxVersion`、`start`、`end` 都可省略。设为 `CIRO_ANNOUNCEMENTS_URL=off` 可关闭中心公告源。只显示纯文本和 https 链接。
+
+## 常见问题
+
+- **页面提示“尚未连接真实 CIRO 推理服务”**：`.env` 中 `CIRO_API_BASE_URL` 为空或没有生效。Docker 需要 `docker restart ciro`，npm 需要在 `.env` 所在目录运行，或使用 `--env` 指定。
+- **启动报 “Authenticated Ciro must bind to loopback”**：开启账户后必须监听 `127.0.0.1`。Docker 请使用 `--network host -e HOST=127.0.0.1`。
+- **端口被占用**：Docker 改成 `-p 9000:8787`，npm 用 `--port 9000`。
+- **检查服务是否正常**：`curl http://127.0.0.1:8787/api/status`
