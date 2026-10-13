@@ -270,14 +270,3 @@ jobs:
           name: Ciro ${{ env.RELEASE_TAG }}
           body_path: release-body.md
           files: out/*
-      - name: Remove releases older than v0.9.8 (v0.9.8 and later are kept for rollback; tags are kept)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName' \
-            | while read -r tag; do
-                v="${tag#v}"
-                if [ "$tag" != "$RELEASE_TAG" ] && [ "$v" != "0.9.8" ] && [ "$(printf '%s\n%s\n' "$v" "0.9.8" | sort -V | head -n1)" = "$v" ]; then
-                  echo "Deleting release $tag"; gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes
-                fi
-              done
