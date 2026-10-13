@@ -1,4 +1,4 @@
 {
-  "source": "Ciro chibi (full body) from the character art, background removed, otherwise unmodified",
-  "states": { "idle": "idle.webp" }
+  "source": "Ciro chibi from the character art, upscaled (Real-ESRGAN anime, 8K master) and split into layers with AI (SAM segmentation, LaMa inpainting under the arms): base, armL, armR, eyelids",
+  "states": { "idle": "base.webp" }
 }

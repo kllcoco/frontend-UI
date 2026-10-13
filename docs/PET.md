@@ -29,18 +29,16 @@
 
 `mood` 可选 idle、happy、love、shy、angry、sad、think、work、sleep、wave、eat；文字最多 20 字。应用会把标签从显示的回复里去掉，交给桌宠执行。
 
-## 立绘（Q 版图片）
+## 立绘与图层
 
-已内置：`public/pet/idle.webp` 是 Ciro 的 Q 版全身立绘（高清原图去背景，未做任何修改），由 `src/pet/LivePet.tsx` 用 WebGL 网格变形做成类 Live2D 的动态：呼吸、头部摆动与歪头、头发随发梢摆动、视线跟随鼠标、自动眨眼（压缩眼部网格），心情改变动作参数（睡觉低头闭眼、思考歪头看上方、害羞低头看旁边等），再配合头边的小标记。
+`public/pet/` 里的素材全部来自 Ciro 的 Q 版全身立绘：
 
-### 替换或增加表情
+- 先用 Real-ESRGAN（动漫模型）放大出 8K 母版（5760×7680），再在高分辨率下处理。
+- 用 AI 分层：SAM 分割出左右手臂（含袖子、手和法阵），LaMa 补全手臂下面的身体和头发，得到 `base.webp`、`armL.webp`、`armR.webp`（1200×1600，显示尺寸的 2 倍）。
+- `eyes-closed.webp`：取自同一角色的闭眼立绘，只把闭眼部分移植到原图眼睛的位置（颜色匹配、羽化），alpha 标出眼睛区域。
 
-把透明背景的 PNG（建议 512×640，人物底部贴边、居中）放进 `public/pet/`，再新建 `public/pet/pet.json`：
+`src/pet/LivePet.tsx` 用 WebGL 逐层绘制：底层做呼吸、头部摆动与歪头、发梢摆动、裙摆与耳坠摆动、视线跟随（整张脸平移，不拉伸眼睛）；手臂层以肩膀为轴整体转动，法阵单独旋转发光；眨眼 / 睡觉是与闭眼图层的交叉淡化，眼睛从不被拉伸。
 
-```json
-{ "states": { "idle": "idle.png", "happy": "happy.png", "love": "love.png", "shy": "shy.png", "angry": "angry.png",
-  "sad": "sad.png", "think": "think.png", "work": "work.png", "sleep": "sleep.png", "wave": "wave.png", "drag": "drag.png" } }
-```
+动作：挥手、点头、摇头、鞠躬、跳跃（下蹲—腾空—落地）、伸懒腰、施法（法阵转动发光）、转圈；由点击、问候、回答完成、空闲时随机触发，模型也可以用 `<pet action="wave">` 触发。调试：`/?pet=1&mood=sleep`、`/?pet=1&action=wave`、`/?pet=1&blink=1`。
 
-只有 `idle` 是必需的，缺少的表情会用 `idle`。有图片时自动替换内置的矢量小人，呼吸、跳跃、晃动等动作照常生效。
-预览某个表情：打开 `/?pet=1&mood=shy`。
+旧的单图方式（`pet.json` 里列出各状态的图片）仍然支持。

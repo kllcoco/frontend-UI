@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import type { Mood } from "./Chibi";
 
-/* Live2D-style motion for one flat illustration: the picture is drawn on a fine WebGL mesh whose vertices are
-   moved every frame (breathing, head sway and tilt, hair swaying more towards the ends, eyes following the
-   cursor, blinking by squashing the eye region). The artwork itself is never edited. Coordinates below are in
-   the sprite's own pixels (600×800, public/pet/idle.webp). Falls back to a plain <img> without WebGL. */
+/* Live2D-style motion for the layered artwork in public/pet/ (split with AI from the original picture):
+   base.webp (everything but the arms, with what was under them filled in), armL.webp, armR.webp (with the magic
+   circle) and eyelids.png (blink frames). Each layer is drawn on a fine WebGL mesh moved every frame: breathing,
+   head sway and tilt, hair swaying more towards the ends, eyes following the cursor, arms turning at the
+   shoulders as separate pieces. Coordinates are logical sprite pixels (600×800; the images are 2× that).
+   Falls back to a plain <img> without WebGL. */
 const W = 600, H = 800;
 const PAD_X = 36, PAD_TOP = 80;   // must match .pet-live in pet.css (6% each side, 10% on top)
 const RIG = {
@@ -15,8 +17,8 @@ const RIG = {
 const VERT = `
 attribute vec2 a;            // vertex position in sprite pixels
 uniform float t, breath, head, nodY, sway, lookX, lookY;
-uniform float armR, armL, orbSpin, skirt, ear, lift, squash;
-varying vec2 uv; varying vec2 pos;
+uniform float armR, armL, orbSpin, skirt, ear, lift, squash, layer;   // layer: 0 base, 1 left arm, 2 right arm
+varying vec2 uv; varying vec2 pos; varying float vLayer;
 const vec2 NECK = vec2(${RIG.neck[0]}.0, ${RIG.neck[1]}.0);
 const vec2 FACE = vec2(${RIG.face[0]}.0, ${RIG.face[1]}.0);
 const vec2 E1 = vec2(${RIG.eyes[0][0]}.0, ${RIG.eyes[0][1]}.0);
@@ -29,13 +31,16 @@ float region(vec2 p, vec2 c, vec2 r) { return 1.0 - smoothstep(0.65, 1.05, lengt
 vec2 turn(vec2 p, vec2 pivot, float ang, float w) { return mix(p, pivot + rot(p - pivot, ang), w); }
 void main() {
   uv = a / vec2(${W}.0, ${H}.0);
-  pos = a;
+  pos = a; vLayer = layer;
   vec2 p = a;
-  // the magic circle in her hand turns slowly (it moves with the arm below)
-  p = turn(p, vec2(450.0, 335.0), orbSpin, region(a, vec2(450.0, 335.0), vec2(40.0, 40.0)));
-  // arms: right (with the circle) and left, each rotating at the shoulder, the big sleeves following
-  p = turn(p, vec2(382.0, 352.0), armR, region(a, vec2(432.0, 382.0), vec2(82.0, 78.0)));
-  p = turn(p, vec2(288.0, 352.0), armL, region(a, vec2(228.0, 448.0), vec2(76.0, 92.0)));
+  // arm layers turn as whole pieces at the shoulder (the base underneath has the body / hair filled in);
+  // the magic circle in the right hand also spins on its own
+  if (layer > 1.5) {
+    p = turn(p, vec2(450.0, 335.0), orbSpin, region(a, vec2(450.0, 335.0), vec2(40.0, 40.0)));
+    p = vec2(382.0, 352.0) + rot(p - vec2(382.0, 352.0), armR);
+  } else if (layer > 0.5) {
+    p = vec2(288.0, 352.0) + rot(p - vec2(288.0, 352.0), armL);
+  }
   // earrings swing from where they hang
   p = turn(p, vec2(237.0, 297.0), ear, region(a, vec2(237.0, 328.0), vec2(16.0, 36.0)));
   p = turn(p, vec2(405.0, 255.0), ear * 0.8, region(a, vec2(405.0, 287.0), vec2(16.0, 38.0)));
@@ -44,9 +49,8 @@ void main() {
   p.x += sin(t * 1.7 + a.x * 0.011) * skirt * smoothstep(470.0, 700.0, a.y) * (1.0 - feet);
   // eyes follow the cursor; the face shifts a little less (a hint of turning the head). Blinking is drawn
   // in the fragment shader as an eyelid layer, so the eye itself is never stretched.
-  float eyesW = exp(-dot((p - E1) / vec2(46.0, 38.0), (p - E1) / vec2(46.0, 38.0))) + exp(-dot((p - E2) / vec2(46.0, 38.0), (p - E2) / vec2(46.0, 38.0)));
   float faceW = exp(-dot((p - FACE) / vec2(120.0, 95.0), (p - FACE) / vec2(120.0, 95.0)));
-  p += vec2(lookX, lookY) * (min(eyesW, 1.0) * 3.0 + faceW * 2.5);
+  p += vec2(lookX, lookY) * faceW * 2.5;
   // head (and the hair around it) rotates around the neck
   float headW = 1.0 - smoothstep(NECK.y - 40.0, NECK.y + 30.0, a.y);
   p = mix(p, NECK + rot(p - NECK, head), headW) + vec2(0.0, nodY * headW);
@@ -66,28 +70,23 @@ void main() {
   vec2 q = vec2((p.x + ${PAD_X}.0) / ${W + 2 * PAD_X}.0, (p.y + ${PAD_TOP}.0) / ${H + PAD_TOP}.0);
   gl_Position = vec4(q.x * 2.0 - 1.0, 1.0 - q.y * 2.0, 0.0, 1.0);
 }`;
-// Eyelid layer (public/pet/eyelids.png): for each eye, 8 pre-rendered lid frames from open to shut, made from
-// her own painted skin above the eye stretched down over it with the real lash line at its edge. The shader
-// overlays the frame for the current blink amount (blending between neighbours), in the picture's own coordinates.
-const LIDS = { L: { x: 229, y: 214, w: 57, h: 51, row: 0 }, R: { x: 335, y: 181, w: 62, h: 52, row: 52 }, frames: 8, size: [496, 104] };
-const lidGl = (e: typeof LIDS.L) => `vec4(${e.x}.0, ${e.y}.0, ${e.w}.0, ${e.h}.0), ${e.row}.0`;
-const FRAG = `precision mediump float; uniform sampler2D img, lids; uniform float glow, blink; varying vec2 uv; varying vec2 pos;
+// Blinking never stretches the eyes: public/pet/eyes-closed.webp is the base picture with her closed eyes (taken
+// from the closed-eye artwork) painted in, and its alpha marks the eye areas; the shader cross-fades to it.
+const FRAG = `precision mediump float; uniform sampler2D img, closed; uniform float glow, blink, hasClosed; varying vec2 uv; varying vec2 pos; varying float vLayer;
 const vec2 SIZE = vec2(${W}.0, ${H}.0);
-const vec2 ATLAS = vec2(${LIDS.size[0]}.0, ${LIDS.size[1]}.0);
-const float FRAMES = ${LIDS.frames}.0;
-vec4 lid(vec4 box, float row, float b) {
-  vec2 l = pos - box.xy;
-  if (b < 0.02 || l.x < 0.0 || l.y < 0.0 || l.x > box.z || l.y > box.w) return vec4(0.0);
-  l = clamp(l, vec2(0.6), box.zw - 0.6);           // never bleed into the neighbouring frame
-  float f = b * (FRAMES - 1.0), f0 = floor(f), f1 = min(f0 + 1.0, FRAMES - 1.0);
-  vec4 a = texture2D(lids, (vec2(f0 * box.z, row) + l) / ATLAS);
-  vec4 c = texture2D(lids, (vec2(f1 * box.z, row) + l) / ATLAS);
-  return mix(a, c, f - f0);
-}
 void main() {
   vec4 c = texture2D(img, pos / SIZE); if (c.a < 0.004) discard;
-  vec4 e = lid(${lidGl(LIDS.L)}, blink); c.rgb = mix(c.rgb, e.rgb, e.a);
-  e = lid(${lidGl(LIDS.R)}, blink); c.rgb = mix(c.rgb, e.rgb, e.a);
+  // (the layer number comes through a varying: a uniform shared by both shaders would need equal precision)
+  if (vLayer > 0.5) {   // arm layers: only the circle's glow
+    float gg = vLayer > 1.5 ? glow * exp(-dot((pos - vec2(450.0, 335.0)) / 42.0, (pos - vec2(450.0, 335.0)) / 42.0)) : 0.0;
+    float ll = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    gl_FragColor = vec4((c.rgb + vec3(1.0, 0.82, 0.48) * gg * 0.32 * smoothstep(0.45, 0.85, ll)) * c.a, c.a);
+    return;
+  }
+  if (hasClosed > 0.5 && blink > 0.01) {
+    vec4 e = texture2D(closed, pos / SIZE);
+    c.rgb = mix(c.rgb, e.rgb, blink * e.a);
+  }
   // the magic circle glows (warm gold) when she uses it
   float g = glow * exp(-dot((pos - vec2(450.0, 335.0)) / 42.0, (pos - vec2(450.0, 335.0)) / 42.0));
   float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
@@ -131,7 +130,7 @@ const MOTION: Record<string, Motion> = {
   think: { breath: .9, breathSpeed: 1.6, head: .08, headSpeed: 0, nodY: 0, sway: 4, look: [-.7, -.9] },
   work: { breath: .9, breathSpeed: 1.7, head: .03, headSpeed: .4, nodY: 3, sway: 4, look: [.3, .9] },
   eat: { breath: 1, breathSpeed: 2.4, head: .04, headSpeed: 1.6, nodY: 0, sway: 6 },
-  sleep: { breath: 1.5, breathSpeed: .9, head: .12, headSpeed: 0, nodY: 7, sway: 2, blink: 1 },
+  sleep: { breath: 1.5, breathSpeed: .9, head: .12, headSpeed: 0, nodY: 8, sway: 2, blink: 1, look: [.1, 1] },
   drag: { breath: 1, breathSpeed: 3, head: .08, headSpeed: 3.2, nodY: 0, sway: 16 }
 };
 
@@ -153,7 +152,8 @@ export default function LivePet({ src, mood, look, action }: {
     const prog = gl.createProgram()!;
     gl.attachShader(prog, shader(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FRAG));
     gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { cv.style.display = "none"; if (fallback.current) fallback.current.style.display = "block"; return; }
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.warn("pet: WebGL program failed, showing the still picture", gl.getProgramInfoLog(prog)); cv.style.display = "none"; if (fallback.current) fallback.current.style.display = "block"; return; }
     gl.useProgram(prog);
     // A fine grid (denser than the eyes need) so every bend stays smooth.
     const NX = 72, NY = 96, verts: number[] = [], idx: number[] = [];
@@ -166,11 +166,13 @@ export default function LivePet({ src, mood, look, action }: {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
     const u = (n: string) => gl.getUniformLocation(prog, n);
     const U = { t: u("t"), breath: u("breath"), head: u("head"), nodY: u("nodY"), sway: u("sway"), blink: u("blink"), lookX: u("lookX"), lookY: u("lookY"),
-      armR: u("armR"), armL: u("armL"), orbSpin: u("orbSpin"), skirt: u("skirt"), ear: u("ear"), lift: u("lift"), squash: u("squash"), glow: u("glow") };
+      armR: u("armR"), armL: u("armL"), orbSpin: u("orbSpin"), skirt: u("skirt"), ear: u("ear"), lift: u("lift"), squash: u("squash"), glow: u("glow"),
+      layer: u("layer"), img: u("img"), hasClosed: u("hasClosed") };
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    let ready = false, raf = 0, alive = true, loaded = 0;
-    const texture = (unit: number, url: string, name: string) => {
+    let ready = false, raf = 0, alive = true, hasClosed = false;
+    const layers: (WebGLTexture | null)[] = [null, null, null];   // base, armL, armR
+    const texture = (unit: number, url: string, done: (tex: WebGLTexture) => void) => {
       const im = new Image();
       im.onload = () => {
         gl.activeTexture(gl.TEXTURE0 + unit);
@@ -179,19 +181,21 @@ export default function LivePet({ src, mood, look, action }: {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.uniform1i(gl.getUniformLocation(prog, name), unit);
-        if (++loaded === 2) ready = true;
+        done(tex!);
       };
       im.src = url;
     };
-    texture(0, src, "img");
-    texture(1, src.replace(/[^/]+$/, "eyelids.png"), "lids");
+    const dir = src.replace(/[^/]+$/, "");
+    texture(0, src, (tex) => { layers[0] = tex; ready = true; });
+    texture(2, dir + "armL.webp", (tex) => { layers[1] = tex; });
+    texture(3, dir + "armR.webp", (tex) => { layers[2] = tex; });
+    texture(1, dir + "eyes-closed.webp", () => { hasClosed = true; gl.uniform1i(gl.getUniformLocation(prog, "closed"), 1); });
 
     // Smoothly eased parameters so changing mood or looking around never jumps.
     const cur = { breath: 1, head: 0, nodY: 0, sway: 6, blink: 0, lx: 0, ly: 0 };
     let nextBlink = performance.now() + 2500, blinkStart = -1;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // ?pet=1&blink=0.5 holds the eyelids at a fixed position (for checking the artwork rig)
+    // ?pet=1&blink=0.5 holds the closed-eye cross-fade at a fixed amount (only with eyes-closed.webp)
     const q = new URLSearchParams(window.location.search);
     const forced = { blink: q.has("blink") ? Math.min(1, Math.max(0, Number(q.get("blink")) || 0)) : undefined };
     const frame = (now: number) => {
@@ -211,8 +215,9 @@ export default function LivePet({ src, mood, look, action }: {
       if (M.blink === undefined) {
         if (blinkStart < 0 && now > nextBlink) blinkStart = now;
         if (blinkStart >= 0) {
-          const k = (now - blinkStart) / 150;
-          blinkTarget = k < 1 ? Math.sin(k * Math.PI) : 0;
+          // ~140 ms, shut for most of it: a cross-fade blink must not linger half-way (that would look doubled)
+          const k = (now - blinkStart) / 140;
+          blinkTarget = k < 1 ? Math.min(1, Math.sin(k * Math.PI) * 2.2) : 0;
           if (k >= 1) { blinkStart = -1; nextBlink = now + (Math.random() < .2 ? 180 : 2200 + Math.random() * 4200); }
         }
       }
@@ -243,9 +248,16 @@ export default function LivePet({ src, mood, look, action }: {
       gl.uniform1f(U.skirt, reduce ? 0 : 2.2 * cur.sway / 6 + (pose.skirt || 0));
       gl.uniform1f(U.ear, (pose.ear || 0) + (reduce ? 0 : Math.sin(t * 1.9) * 0.06));
       gl.uniform1f(U.lift, pose.lift || 0); gl.uniform1f(U.squash, pose.squash || 0);
-      gl.uniform1f(U.blink, forced.blink ?? cur.blink); gl.uniform1f(U.lookX, cur.lx); gl.uniform1f(U.lookY, cur.ly);
+      gl.uniform1f(U.blink, hasClosed ? forced.blink ?? cur.blink : 0); gl.uniform1f(U.hasClosed, hasClosed ? 1 : 0);
+      gl.uniform1f(U.lookX, cur.lx); gl.uniform1f(U.lookY, cur.ly);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+      // base first, then the arms on top, each with its own texture
+      layers.forEach((tex, i) => {
+        if (!tex) return;
+        gl.activeTexture(gl.TEXTURE0 + [0, 2, 3][i]); gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.uniform1i(U.img, [0, 2, 3][i]); gl.uniform1f(U.layer, i);
+        gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+      });
     };
     raf = requestAnimationFrame(frame);
     // Pause when hidden (minimised window, background tab).
