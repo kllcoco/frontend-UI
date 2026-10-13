@@ -1,4 +1,6 @@
 name: Release desktop apps and packages
+# One-time release branch: checks out a frozen, already validated main commit; no permanent change to main workflow.
+# For this one branch only, publish v0.10.3 after the exact same verify and platform build gates.
 on:
   push:
     tags: ["v*"]
@@ -20,8 +22,8 @@ concurrency:
 env:
   # Official hosted server offered as the default in the apps; set the repository variable once the domain exists.
   VITE_CIRO_OFFICIAL_SERVER: ${{ vars.CIRO_OFFICIAL_SERVER }}
-  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
-  CHECKOUT_REF: ${{ github.sha }}
+  RELEASE_TAG: ${{ github.ref == 'refs/heads/claude/v0.10.3-release' && 'v0.10.3' || github.event.inputs.tag || github.ref_name }}
+  CHECKOUT_REF: ${{ github.ref == 'refs/heads/claude/v0.10.3-release' && '36598bf930e656693b4d1978a5b6b5b08771bcc6' || github.sha }}
 
 jobs:
   verify:
@@ -183,7 +185,7 @@ jobs:
 
   container:
     needs: verify
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/claude/v0.10.3-release'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -206,7 +208,7 @@ jobs:
 
   npm-package:
     needs: verify
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/claude/v0.10.3-release'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -252,7 +254,7 @@ jobs:
 
   publish:
     needs: [desktop, android, container, npm-package]
-    if: always() && needs.desktop.result == 'success' && needs.android.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    if: always() && needs.desktop.result == 'success' && needs.android.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/claude/v0.10.3-release')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -291,7 +293,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ env.CHECKOUT_REF }}
           name: Ciro ${{ env.RELEASE_TAG }}
           body_path: release-body.md
           files: out/*
