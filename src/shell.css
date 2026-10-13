@@ -1146,3 +1146,25 @@ pre.rw-ev{font:inherit;background:none;border:0;padding:0}
 .qr-hint{position:absolute;left:24px;right:24px;bottom:calc(64px + var(--sa-bottom));margin:0;text-align:center;color:#fff;font-size:15px;line-height:1.6;text-shadow:0 1px 8px rgba(0,0,0,.6)}
 .qr-close{position:absolute;top:calc(16px + var(--sa-top));right:16px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff}
 @media (prefers-reduced-motion:reduce){.qr-frame span{animation:none;top:50%}}
+/* Plan & monthly CWU allowance */
+.us-plan{display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid var(--cx-line);border-radius:16px;background:var(--cx-surface)}
+.us-plan-head{display:flex;align-items:center;gap:10px;color:var(--cx-accent)}
+.us-plan-head div{display:flex;flex-direction:column;gap:2px;color:var(--cx-text);min-width:0}
+.us-plan-head strong{font:600 16px "DM Sans",sans-serif}
+.us-plan-head small{font-size:12px;color:var(--cx-muted)}
+.us-meter{height:8px;border-radius:99px;background:var(--cx-line);overflow:hidden}
+.us-meter span{display:block;height:100%;border-radius:inherit;background:var(--cx-accent);transition:width .4s cubic-bezier(.2,.7,.2,1)}
+.us-meter--low span{background:#d9962b}.us-meter--out span{background:var(--cx-danger,#c0392b)}
+.us-plan-line{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0;font-size:12.5px;color:var(--cx-muted)}
+.us-plan-line b{color:var(--cx-text);font-weight:600}
+.us-plan-warn{margin:0;font-size:12.5px;color:var(--cx-danger,#c0392b)}
+.us-plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px}
+.us-plan-card{display:flex;flex-direction:column;gap:4px;padding:12px;border:1px solid var(--cx-line);border-radius:12px;min-width:0}
+.us-plan-card--current{border-color:var(--cx-accent);box-shadow:0 0 0 1px var(--cx-accent) inset}
+.us-plan-card-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.us-plan-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--cx-accent)}
+.us-plan-card strong{font:600 18px "DM Sans",sans-serif}
+.us-plan-card strong small,.us-plan-card>small{font-size:11.5px;color:var(--cx-muted);font-weight:500}
+.us-plan-card ul{margin:4px 0 0;padding-left:16px;font-size:12px;color:var(--cx-muted)}
+@media (max-width:760px){.us-plans{grid-template-columns:1fr}}
+.us-plan-warn--low{color:#b7791f}
