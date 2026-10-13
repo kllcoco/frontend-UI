@@ -51,6 +51,11 @@ public class MainActivity extends BridgeActivity {
     // Content shared from another app ("Share → Ciro"), held until the web app takes it.
     private volatile String pendingShare = null;
 
+    // The pet floating over other apps while Ciro is in the background.
+    private PetOverlay petOverlay;
+    // Set by the floating pet (same process only, never from an intent): script to run once the app is in front.
+    static volatile String pendingPetJs = null;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,7 +65,9 @@ public class MainActivity extends BridgeActivity {
             view.addJavascriptInterface(new NotifyBridge(), "CiroNotify");
             view.addJavascriptInterface(new FilesBridge(), "CiroFiles");
             view.addJavascriptInterface(new UpdateBridge(), "CiroUpdate");
+            view.addJavascriptInterface(new PetBridge(), "CiroPet");
         }
+        petOverlay = new PetOverlay(this);
         captureShare(getIntent());
         captureChat(getIntent());
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -78,10 +85,31 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+        if (petOverlay != null) petOverlay.hide(); // in the app she lives inside the page again
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        if (petOverlay != null && petOverlay.enabled && !isChangingConfigurations()) petOverlay.show();
+    }
+
+    @Override
+    public void onDestroy() {
+        if (petOverlay != null) petOverlay.hide();
+        super.onDestroy();
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         inBackground = false;
         openPendingChat();
+        String petJs = pendingPetJs;
+        pendingPetJs = null;
+        if (petJs != null) evaluate(petJs);
     }
 
     @Override
@@ -362,6 +390,25 @@ public class MainActivity extends BridgeActivity {
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             runOnUiThread(() -> startActivity(intent));
             return "started";
+        }
+    }
+
+    /** window.CiroPet in the app: whether she is on, and what she should show while floating over other apps. */
+    private class PetBridge {
+        @JavascriptInterface public void setEnabled(boolean on) { petOverlay.setEnabled(on); }
+        @JavascriptInterface public boolean overlayAllowed() { return petOverlay.allowed(); }
+        @JavascriptInterface public void requestOverlay() { runOnUiThread(petOverlay::requestPermission); }
+        @JavascriptInterface public void command(String json) { forward("command", json); }
+        @JavascriptInterface public void progress(String json) { forward("progress", json); }
+        @JavascriptInterface public void stream(String json) { forward("stream", json); }
+        @JavascriptInterface public void signal(String name) {
+            if (name == null || !name.matches("[a-z]{2,12}")) return;
+            forward("signal", "{\"signal\":" + JSONObject.quote(name) + ",\"focused\":false}");
+        }
+        private void forward(String kind, String json) {
+            if (json == null || json.length() > 20000 || !petOverlay.showing()) return;
+            try { new JSONObject(json); } catch (Exception e) { return; } // only well-formed objects reach the page
+            petOverlay.send(kind, json);
         }
     }
 

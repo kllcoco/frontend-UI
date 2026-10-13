@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import Chibi from "./Chibi";
 import LivePet from "./LivePet";
+import { IDLE_ACTIONS } from "./LivePet";
 import type { PetAction } from "./LivePet";
 import type { Mood } from "./Chibi";
 import { desktop } from "../lib/desktop";
+import { androidPetBridge } from "./android-bridge";
 import { loadLanguage, translate } from "../lib/i18n";
-import { PET_MOODS, setPetEnabled } from "../lib/pet";
-import type { PetCommand } from "../lib/pet";
+import { bubbleText, PET_MOODS, setPetEnabled } from "../lib/pet";
+import type { PetCommand, PetEdge, PetProgress, PetStream } from "../lib/pet";
 
 /* Ciro pet. Desktop app: its own transparent always-on-top window (?pet=1). Web / Android: `inline`,
    a small draggable Ciro floating over the app.
@@ -28,6 +30,12 @@ function greeting(t: (s: string) => string): string {
 }
 
 const INLINE_POS = "ciro.pet-pos.v1";
+const INLINE_SCALE = "ciro.pet-scale.v1";
+const INLINE_EDGE = "ciro.pet-edge.v1";
+export const MIN_SCALE = .5, MAX_SCALE = 1.6;
+const clampScale = (v: number) => Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, v)) * 100) / 100;
+function stored(key: string): string { try { return localStorage.getItem(key) || ""; } catch { return ""; } }
+function store(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* storage off */ } }
 function savedPos(): { x: number; y: number } | null {
   try { const p = JSON.parse(localStorage.getItem(INLINE_POS) || "null"); return Number.isFinite(p?.x) && Number.isFinite(p?.y) ? p : null; } catch { return null; }
 }
@@ -35,18 +43,44 @@ function savedPos(): { x: number; y: number } | null {
 export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean; onAsk?: () => void }) {
   const language = loadLanguage();
   const t = (s: string) => translate(language, s);
-  const bridge = inline ? undefined : desktop()?.pet;
+  const bridge = inline ? undefined : desktop()?.pet ?? androidPetBridge();
   // Inline: where the pet sits inside the app (right / bottom offsets in px), dragged with the finger or mouse.
   const [pos, setPos] = useState<{ x: number; y: number }>(() => savedPos() || { x: 12, y: 150 });
   const posRef = useRef(pos);
   posRef.current = pos;
+  const query = new URLSearchParams(window.location.search);
+  // Size (pinch with two fingers, Ctrl / trackpad pinch or the wheel over her) and the screen edge she hides behind.
+  const [scale, setScale] = useState(() => clampScale(Number(inline ? stored(INLINE_SCALE) : query.get("scale")) || (inline ? .85 : .8)));
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const [edge, setEdge] = useState<PetEdge>(() => {
+    const e = inline ? stored(INLINE_EDGE) : query.get("edge") || "";
+    return e === "left" || e === "right" || e === "bottom" || e === "top" ? e : null;
+  });
+  const edgeRef = useRef(edge);
+  edgeRef.current = edge;
+  const [peeking, setPeeking] = useState(false);
+  // Strolling along the bottom of the screen (or the app) now and then; she faces where she is going.
+  const [walking, setWalking] = useState(false);
+  const [facing, setFacing] = useState<1 | -1>(1);
+  const walkTimer = useRef(0);
+  const walkingRef = useRef(false);
+  // The reply Ciro is writing, mirrored in a larger bubble above her.
+  const [reply, setReply] = useState<PetStream | null>(null);
+  const replyRef = useRef<PetStream | null>(null);
+  replyRef.current = reply;
+  const replyBox = useRef<HTMLDivElement>(null);
+  const replyHover = useRef(false);
+  const replyTimer = useRef(0);
+  const closeReply = () => { window.clearTimeout(replyTimer.current); setReply(null); if (!inline) bridge?.expand?.(false); };
+  const pinch = useRef<{ pointers: Map<number, { x: number; y: number }>; start: number; from: number } | null>(null);
   const [mood, setMood] = useState<Mood>("wave");
   const [say, setSay] = useState<string>(() => greeting(t));
   const [blink, setBlink] = useState(false);
   const [look, setLook] = useState({ x: 0, y: 0 });
   const [menu, setMenu] = useState(false);
   const [art, setArt] = useState<Art | null>(null);
-  const moodTimer = useRef(0), sayTimer = useRef(0);
+  const moodTimer = useRef(0), sayTimer = useRef(0), progressTimer = useRef(0);
   const lastActive = useRef(Date.now());
   const busy = useRef(false);
   // Body gestures (wave, nod, jump…) played by the live artwork on top of the mood.
@@ -56,8 +90,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const commanded = useRef(0);
   const pokes = useRef<number[]>([]);
   const stroke = useRef({ dist: 0, at: 0 });
-  const drag = useRef<{ x: number; y: number; moving: boolean; ox: number; oy: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; cx: number; cy: number; moving: boolean; ox: number; oy: number } | null>(null);
   const sprite = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const moodRef = useRef(mood);
   moodRef.current = mood;
 
@@ -72,11 +107,47 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     setSay(text);
     if (ms > 0) sayTimer.current = window.setTimeout(() => setSay(""), ms);
   };
+  /** Work / background progress: she shows it in her bubble (and peeks out from the edge to tell you). */
+  function progressed(p: PetProgress) {
+    stopWalk();
+    lastActive.current = Date.now();
+    if (!p || !p.text) return;
+    if (replyRef.current && !replyRef.current.done && p.source === "chat") return;
+    // Work mode on the computer: she comes out from the edge and works along.
+    if (p.source === "work" && !p.done && edgeRef.current) { setEdge(null); if (inline) store(INLINE_EDGE, ""); else bridge?.unedge?.(); }
+    if (edgeRef.current) { setPeeking(true); window.setTimeout(() => setPeeking(false), p.done ? 5200 : 3600); }
+    const text = p.text + (typeof p.percent === "number" ? " " + Math.round(p.percent) + "%" : "");
+    if (p.done) { busy.current = false; act(p.ok === false ? "sad" : "happy", 3600); play(p.ok === false ? "shake" : pick<PetAction>(["nod", "jump", "sparkle"])); speak(text, 6500); return; }
+    if (p.attention) { act("wave", 4000); play("wave"); speak(text, 0); return; }
+    if (moodRef.current !== "work" && moodRef.current !== "think") act("work", 0);
+    speak(text, 0);
+    window.clearTimeout(progressTimer.current);
+    // No news for a while: stop showing the last step.
+    progressTimer.current = window.setTimeout(() => { setSay(""); if (!busy.current) act("idle", 0); }, 45_000);
+  }
+  function streamed(r: PetStream) {
+    stopWalk();
+    if (!r || typeof r.text !== "string") return;
+    lastActive.current = Date.now();
+    if (!replyRef.current && !inline) bridge?.expand?.(true);
+    window.clearTimeout(replyTimer.current);
+    r = { ...r, text: bubbleText(r.text).slice(-4000) };
+    setReply(r);
+    setSay("");
+    if (edgeRef.current) setPeeking(true);
+    if (r.done) {
+      if (edgeRef.current) window.setTimeout(() => setPeeking(false), 6000);
+      // Stays a while (longer for long answers), and as long as the pointer is on it.
+      const keep = Math.min(40_000, 9000 + r.text.length * 40);
+      const later = () => { replyTimer.current = window.setTimeout(() => { if (replyHover.current) later(); else closeReply(); }, keep); };
+      later();
+    }
+  }
   function signalled({ signal, focused }: { signal: string; focused: boolean }) {
     lastActive.current = Date.now();
-    if (signal === "thinking") { busy.current = true; act("think", 0); speak("…", 0); play("magic"); }
+    if (signal === "thinking") { busy.current = true; act("think", 0); if (!replyRef.current) speak("…", 0); play("magic"); }
     // The model's own reaction (its <pet> tag) wins over the generic "done" one.
-    else if (signal === "done" && Date.now() - commanded.current < 3000) busy.current = false;
+    else if (signal === "done" && (Date.now() - commanded.current < 3000 || replyRef.current)) { busy.current = false; if (replyRef.current && Date.now() - commanded.current >= 3000) { act("happy", 2600); play(pick<PetAction>(["nod", "sparkle"])); } }
     else if (signal === "done") { busy.current = false; act("happy", 3200); play(pick<PetAction>(["nod", "jump", "wave"])); speak(focused ? t("好啦～") : t("回答好了，去看看吧。"), focused ? 2000 : 6000); }
     else if (signal === "error") { busy.current = false; act("sad", 3200); speak(t("出错了……再试一次吧。"), 4200); }
   }
@@ -90,6 +161,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (preview && PET_MOODS.includes(preview)) { act(preview, 0); setSay(""); }
     else { act("wave", 3200); speak(greeting(t), 5200); window.setTimeout(() => play("wave"), 400); }
     if (previewAction) window.setTimeout(() => play(previewAction), 300);
+    // ?pet=1&demo=reply shows the reply bubble, &demo=progress a work step (previews and screenshots)
+    const demo = new URLSearchParams(window.location.search).get("demo");
+    if (demo === "reply") window.setTimeout(() => streamed({ id: "demo", text: t("好的！这是一个示例回答：桌宠会在气泡里同步显示 Ciro 正在写的内容，写完后停留一会儿，你也可以滚动查看全文。"), done: false }), 200);
+    if (demo === "progress") window.setTimeout(() => progressed({ text: t("正在运行 npm test"), source: "work" }), 200);
     // Optional artwork images replace the drawing.
     fetch("/pet/pet.json", { cache: "no-store" }).then(async (r) => {
       if (!r.ok || !(r.headers.get("content-type") || "").includes("json")) return;
@@ -103,17 +178,24 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     const scheduleBlink = () => { blinkTimer = window.setTimeout(() => { setBlink(true); window.setTimeout(() => setBlink(false), 140); scheduleBlink(); }, 2600 + Math.random() * 3800); };
     scheduleBlink();
     // Falls asleep when left alone; now and then says something or works on her laptop.
-    const life = window.setInterval(() => {
-      if (busy.current || drag.current || moodRef.current === "sleep") return;
+    // Idle life every 12–24 s: a small gesture, now and then a line, a snack at meal times, a nap when left alone.
+    let lifeTimer = 0;
+    const live = () => {
+      lifeTimer = window.setTimeout(live, 12_000 + Math.random() * 12_000);
+      if (busy.current || drag.current || pinch.current || walkingRef.current || moodRef.current === "sleep" || moodRef.current === "work") return;
       if (Date.now() - lastActive.current > SLEEP_AFTER) { act("sleep", 0); speak("Zzz…", 0); return; }
       const roll = Math.random();
       const hour = new Date().getHours() + new Date().getMinutes() / 60;
       const meal = (hour >= 11.5 && hour < 13) || (hour >= 17.5 && hour < 19);
-      if (meal && roll < .12) { act("eat", 15_000); speak(t("我先吃点东西～你也记得吃饭。"), 4200); }
-      else if (roll < .05) { act("work", 20_000); speak(t("我也来认真工作一会儿。"), 3600); }
-      else if (roll < .16) play(pick<PetAction>(["stretch", "magic", "spin", "nod"]));
-      else if (roll < .2) speak([t("我一直在这里。"), t("要一起工作吗？"), greeting(t), t("有什么想问的，双击我就好。")][Math.floor(Math.random() * 4)], 4200);
-    }, 30_000);
+      // Hidden at the edge: she only peeks out and looks around.
+      if (edgeRef.current) { if (roll < .4) { setPeeking(true); play(pick<PetAction>(["lookaround", "peek", "giggle"])); window.setTimeout(() => setPeeking(false), 2600); } return; }
+      if (meal && roll < .08) { act("eat", 15_000); speak(t("我先吃点东西～你也记得吃饭。"), 4200); }
+      else if (roll < .04) { act("work", 20_000); speak(t("我也来认真工作一会儿。"), 3600); }
+      else if (roll < .3 && !replyRef.current) stroll();
+      else if (roll < .66) play(pick<PetAction>(IDLE_ACTIONS));
+      else if (roll < .7) speak([t("我一直在这里。"), t("要一起工作吗？"), greeting(t), t("有什么想问的，双击我就好。"), t("把我拖到屏幕边上，我就躲起来。")][Math.floor(Math.random() * 5)], 4200);
+    };
+    lifeTimer = window.setTimeout(live, 8000);
     // The model's <pet> tag: a mood and a line.
     const command = (cmd: PetCommand) => {
       lastActive.current = Date.now();
@@ -125,6 +207,19 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     };
     const onWindowCommand = (e: Event) => { if (inline) command((e as CustomEvent<PetCommand>).detail || {}); };
     const onWindowSignal = (e: Event) => { if (inline) signalled((e as CustomEvent<{ signal: string; focused: boolean }>).detail); };
+    const onWindowProgress = (e: Event) => { if (inline) progressed((e as CustomEvent<PetProgress>).detail); };
+    // In the app the reply is already on screen when its chat is open; she only mirrors it when you are elsewhere.
+    const onWindowStream = (e: Event) => {
+      const r = (e as CustomEvent<PetStream>).detail;
+      if (!inline || !r) return;
+      if (r.onScreen && !replyRef.current) return;
+      streamed(r);
+    };
+    window.addEventListener("ciro-pet-stream", onWindowStream);
+    const offStream = bridge?.onStream?.(streamed);
+    window.addEventListener("ciro-pet-progress", onWindowProgress);
+    const offProgress = bridge?.onProgress?.(progressed);
+    const offEdge = bridge?.onEdge?.((e) => { setEdge(e); if (e) { act("shy", 2200); speak(t("我躲在这里哦。"), 2400); } });
     window.addEventListener("ciro-pet", onWindowCommand);
     window.addEventListener("ciro-pet-signal", onWindowSignal);
     const offCommand = bridge?.onCommand?.((cmd) => command(cmd as PetCommand));
@@ -143,29 +238,115 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     });
     const offSignal = bridge?.onSignal(signalled);
     return () => {
-      window.clearTimeout(blinkTimer); window.clearInterval(life); offCursor?.(); offSignal?.(); offCommand?.();
-      window.removeEventListener("ciro-pet", onWindowCommand); window.removeEventListener("ciro-pet-signal", onWindowSignal);
+      window.clearTimeout(blinkTimer); window.clearTimeout(lifeTimer); window.clearTimeout(walkTimer.current); walkingRef.current = false; window.clearTimeout(progressTimer.current); offCursor?.(); offSignal?.(); offCommand?.();
+      window.removeEventListener("ciro-pet", onWindowCommand); window.removeEventListener("ciro-pet-progress", onWindowProgress); offProgress?.(); offEdge?.();
+      window.removeEventListener("ciro-pet-stream", onWindowStream); offStream?.(); window.clearTimeout(replyTimer.current); window.removeEventListener("ciro-pet-signal", onWindowSignal);
       window.removeEventListener("mousemove", onMove);
     };
   }, []);
+
+  // Follow the text as it is written, unless you scrolled up to read.
+  useEffect(() => {
+    const el = replyBox.current;
+    if (el && !replyHover.current) el.scrollTop = el.scrollHeight;
+  }, [reply?.text]);
 
   // Click-through everywhere except on her (and the menu / bubble while shown).
   const hover = (over: boolean) => { if (!drag.current) bridge?.setIgnore(!over && !menu); };
   useEffect(() => { if (menu) bridge?.setIgnore(false); }, [menu]);
 
+  /** A short walk left or right (60–220 px), staying on the screen / inside the app. */
+  function stroll() {
+    if (walkingRef.current || edgeRef.current) return;
+    const box = rootRef.current?.getBoundingClientRect();
+    const w = box?.width || 160;
+    let dir: 1 | -1 = Math.random() < .5 ? -1 : 1;
+    let room: number;
+    if (inline) room = dir > 0 ? posRef.current.x : window.innerWidth - w - posRef.current.x; // pos.x is the distance from the right
+    else {
+      const sx = window.screenX - ((window.screen as unknown as { availLeft?: number }).availLeft || 0);
+      room = dir > 0 ? window.screen.availWidth - sx - w : sx;
+      if (!Number.isFinite(room) || (sx === 0 && !window.screenX)) room = 160; // Android overlay: native keeps her on screen
+    }
+    if (room < 60) { dir = dir > 0 ? -1 : 1; room = 200; }
+    const dist = Math.min(room, 60 + Math.random() * 160);
+    walkingRef.current = true;
+    setWalking(true); setFacing(dir);
+    let done = 0;
+    const speed = 1.6; // px per 30 ms ≈ 53 px/s
+    const tick = () => {
+      if (!walkingRef.current) return;
+      const stepPx = Math.min(speed, dist - done);
+      done += stepPx;
+      const last = done >= dist - .01;
+      if (inline) setPos((p) => ({ x: Math.max(0, Math.min(window.innerWidth - w, p.x - dir * stepPx)), y: p.y }));
+      else bridge?.move?.(dir * stepPx, last);
+      if (last) { stopWalk(); if (inline) store(INLINE_POS, JSON.stringify(posRef.current)); return; }
+      walkTimer.current = window.setTimeout(tick, 30);
+    };
+    walkTimer.current = window.setTimeout(tick, 250);
+  }
+  function stopWalk() {
+    window.clearTimeout(walkTimer.current);
+    if (!walkingRef.current) return;
+    walkingRef.current = false;
+    setWalking(false);
+    window.setTimeout(() => setFacing(1), 900);
+  }
+
+  /** New size: the window (desktop) or the floating box (in the app) follows. */
+  const resize = (next: number) => {
+    const v = clampScale(next);
+    if (v === scaleRef.current) return;
+    scaleRef.current = v;
+    setScale(v);
+    if (inline) store(INLINE_SCALE, String(v)); else bridge?.resize?.(v);
+  };
+  const leaveEdge = () => {
+    if (!edgeRef.current) return;
+    setEdge(null);
+    if (inline) store(INLINE_EDGE, ""); else bridge?.unedge?.();
+    act("happy", 2000); play("jump"); speak(t("被你发现了～"), 2400);
+  };
+
   function onPointerDown(e: React.PointerEvent) {
+    stopWalk();
+    const pts = pinch.current?.pointers || new Map<number, { x: number; y: number }>();
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // A second finger: pinch to resize instead of dragging.
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      pinch.current = { pointers: pts, start: Math.hypot(a.x - b.x, a.y - b.y) || 1, from: scaleRef.current };
+      if (drag.current?.moving) { if (!inline) bridge?.drag("end"); }
+      drag.current = null;
+      return;
+    }
+    pinch.current = { pointers: pts, start: 0, from: scaleRef.current };
     if (e.button !== 0) return;
     wake();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { x: e.screenX, y: e.screenY, moving: false, ox: posRef.current.x, oy: posRef.current.y };
+    drag.current = { x: e.screenX, y: e.screenY, cx: e.clientX, cy: e.clientY, moving: false, ox: posRef.current.x, oy: posRef.current.y };
   }
   function onPointerMove(e: React.PointerEvent) {
+    const pc = pinch.current;
+    if (pc?.pointers.has(e.pointerId)) pc.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pc && pc.start && pc.pointers.size === 2) {
+      const [a, b] = [...pc.pointers.values()];
+      resize(pc.from * Math.hypot(a.x - b.x, a.y - b.y) / pc.start);
+      return;
+    }
     const d = drag.current;
     if (d) {
-      if (!d.moving && Math.hypot(e.screenX - d.x, e.screenY - d.y) > 4) { d.moving = true; bridge?.drag("start"); act("drag", 0); speak(t("哇，要带我去哪里？"), 0); }
+      if (!d.moving && Math.hypot(e.screenX - d.x, e.screenY - d.y) > 4) {
+        d.moving = true; bridge?.drag("start"); act("drag", 0); speak(t("哇，要带我去哪里？"), 0);
+        if (edgeRef.current) { setEdge(null); if (inline) store(INLINE_EDGE, ""); }
+      }
       if (d.moving) {
-        if (inline) setPos({ x: Math.max(0, Math.min(window.innerWidth - 90, d.ox - (e.screenX - d.x))), y: Math.max(0, Math.min(window.innerHeight - 120, d.oy - (e.screenY - d.y))) });
-        else bridge?.drag("move");
+        // In the app she may be pulled partly past an edge; letting go there hides her behind it.
+        const box = rootRef.current?.getBoundingClientRect();
+        const w = box?.width || 150, h = box?.height || 200;
+        if (inline) setPos({ x: Math.max(-w * .6, Math.min(window.innerWidth - w * .4, d.ox - (e.screenX - d.x))), y: Math.max(-h * .5, Math.min(window.innerHeight - h * .7, d.oy - (e.screenY - d.y))) });
+        else bridge?.drag("move", e.clientX - d.cx, e.clientY - d.cy);
       }
       return;
     }
@@ -179,21 +360,50 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (s.dist > 420 && moodRef.current !== "shy") { s.dist = 0; wake(); act("shy", 3000); speak(t("唔……别、别一直摸啦。"), 3000); }
   }
   function onPointerUp(e: React.PointerEvent) {
+    const pc = pinch.current;
+    pc?.pointers.delete(e.pointerId);
+    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    if (pc?.start) { if (pc.pointers.size === 0) { pinch.current = null; speak(t("这个大小刚刚好。"), 1800); } drag.current = null; return; }
+    if (pc && pc.pointers.size === 0) pinch.current = null;
     const d = drag.current;
     drag.current = null;
-    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     if (d?.moving) {
-      if (inline) { try { localStorage.setItem(INLINE_POS, JSON.stringify(posRef.current)); } catch { /* storage off */ } }
+      if (inline) {
+        const box = rootRef.current?.getBoundingClientRect();
+        const w = box?.width || 150, h = box?.height || 200;
+        const p = posRef.current;
+        const hide: PetEdge = p.x < -w * .3 ? "right" : p.x > window.innerWidth - w * .7 ? "left" : p.y < -h * .25 ? "bottom"
+          : p.y > window.innerHeight - h * 1.02 ? "top" : null;
+        const inX = Math.max(0, Math.min(window.innerWidth - w, p.x));
+        const next = hide === "right" ? { x: 0, y: Math.max(0, p.y) } : hide === "left" ? { x: window.innerWidth - w, y: Math.max(0, p.y) }
+          : hide === "bottom" ? { x: inX, y: 0 } : hide === "top" ? { x: inX, y: window.innerHeight - h } : { x: Math.max(0, p.x), y: Math.max(0, p.y) };
+        setPos(next);
+        store(INLINE_POS, JSON.stringify(next));
+        if (hide) { setEdge(hide); store(INLINE_EDGE, hide); act("shy", 2200); speak(t("我躲在这里哦。"), 2400); return; }
+      }
       else bridge?.drag("end");
       act("happy", 1600); speak(t("这里不错。"), 2200); play("bow"); return; }
     if (!d) return;
+    if (edgeRef.current) { leaveEdge(); return; }
     const now = Date.now();
     pokes.current = [...pokes.current.filter((x) => now - x < 1600), now];
     if (pokes.current.length >= 5) { pokes.current = []; act("angry", 2800); speak(t("别戳啦！"), 2600); play("shake"); return; }
     act(Math.random() < .3 ? "love" : "happy", 2200);
-    play(pick<PetAction>(["wave", "nod", "jump", "spin", "magic"]));
+    play(pick<PetAction>(["wave", "nod", "jump", "spin", "magic", "giggle", "sparkle"]));
     speak([t("嗯？"), t("我在哦。"), t("找我有事吗？"), t("嘿嘿。")][Math.floor(Math.random() * 4)], 2400);
   }
+  // Mouse wheel / trackpad pinch (Ctrl+wheel) over her changes her size.
+  useEffect(() => {
+    const el = sprite.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && inline) return; // in the app the plain wheel keeps scrolling the chat
+      e.preventDefault();
+      resize(scaleRef.current * Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .0015)));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
   const shown: Mood = mood;
   const image = art ? (art[shown] || art.idle) : null;
   const run = (action: "open" | "quick" | "hide") => {
@@ -203,13 +413,26 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     else onAsk?.();
   };
 
-  return <div className={inline ? "pet-root pet-root--inline" : "pet-root"} onMouseLeave={() => hover(false)}
-    style={inline ? { right: pos.x, bottom: pos.y } : undefined}>
-    {say && <div className={"pet-say" + (say === "…" ? " pet-say--dots" : "")} role="status" onMouseEnter={() => hover(true)}>{say}</div>}
+  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "")}
+    onMouseLeave={() => hover(false)}
+    style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale }}>
+    {reply && <div className={"pet-reply" + (reply.error ? " pet-reply--error" : "")} role="log" aria-live="polite" aria-label={t("Ciro 的回答")}
+      onMouseEnter={() => { replyHover.current = true; hover(true); }} onMouseLeave={() => { replyHover.current = false; hover(false); }}>
+      <div ref={replyBox} className="pet-reply-text">{reply.text || "…"}{!reply.done && <i className="pet-caret"/>}</div>
+      <div className="pet-reply-bar">
+        {reply.done ? <span>{t(reply.error ? "出错了" : "回答完成")}</span> : <span className="pet-reply-live">{t("正在回答…")}</span>}
+        <button type="button" onClick={() => { closeReply(); if (inline) onAsk?.(); else bridge?.action("open"); }}>{t(inline ? "去看看" : "打开")}</button>
+        <button type="button" aria-label={t("关闭")} onClick={closeReply}>×</button>
+      </div>
+    </div>}
+    {!reply && say && <div className={"pet-say" + (say === "…" ? " pet-say--dots" : "")} role="status" onMouseEnter={() => hover(true)}>{say}</div>}
     {menu && <div className="pet-menu" role="menu" onMouseEnter={() => hover(true)}>
       <button type="button" role="menuitem" onClick={() => run("quick")}>{t("快速提问")}</button>
       {!inline && <button type="button" role="menuitem" onClick={() => run("open")}>{t("打开 Ciro")}</button>}
       <button type="button" role="menuitem" onClick={() => { setMenu(false); act("sleep", 0); speak("Zzz…", 0); }}>{t("让她睡一会儿")}</button>
+      {edge ? <button type="button" role="menuitem" onClick={() => { setMenu(false); leaveEdge(); }}>{t("出来吧")}</button>
+        : !inline && <button type="button" role="menuitem" onClick={() => { setMenu(false); bridge?.toEdge?.(); }}>{t("躲到屏幕边上")}</button>}
+      <button type="button" role="menuitem" onClick={() => { setMenu(false); resize(scaleRef.current > .75 ? .65 : 1); }}>{t(scale > .75 ? "缩小一点" : "放大一点")}</button>
       <button type="button" role="menuitem" onClick={() => run("hide")}>{t("隐藏桌宠")}</button>
     </div>}
     <div ref={sprite} className={"pet-sprite pet-sprite--" + shown + (image ? " pet-sprite--art" : "")} aria-label="Ciro" role="img"
@@ -217,14 +440,13 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
       onDoubleClick={() => { act("happy", 1600); speak(t("想问什么？"), 2000); play("magic"); if (inline) onAsk?.(); else bridge?.action("quick"); }}
       onContextMenu={(e) => { e.preventDefault(); wake(); setMenu((v) => !v); }}>
-      {image ? <LivePet src={image} mood={shown} look={look} action={gesture}/> : <Chibi mood={shown} blink={blink} look={look}/>}
+      {image ? <LivePet src={image} mood={shown} look={look} action={gesture} walking={walking}/> : <Chibi mood={shown} blink={blink} look={look}/>}
       {(shown === "happy" || shown === "love") && <span className="pet-fx pet-heart">♥</span>}
       {shown === "sleep" && <span className="pet-fx pet-zzz">z<i>z</i><b>z</b></span>}
       {/* With artwork the face is never repainted: moods show as motion plus a small sign by her head. */}
       {image && shown === "angry" && <svg className="pet-fx pet-sign pet-anger" viewBox="0 0 24 24"><path d="M9 3v5H4M15 3v5h5M9 21v-5H4M15 21v-5h5" stroke="#e0505a" strokeWidth="2.6" fill="none" strokeLinecap="round"/></svg>}
       {image && shown === "sad" && <svg className="pet-fx pet-sign pet-drop" viewBox="0 0 24 24"><path d="M12 3c3 5 6 8.5 6 12a6 6 0 0 1-12 0c0-3.5 3-7 6-12z" fill="#8fc3ec" stroke="#5d9ccc" strokeWidth="1.2"/></svg>}
       {image && shown === "shy" && <span className="pet-fx pet-sign pet-shy">♡</span>}
-      {image && shown === "work" && <svg className="pet-fx pet-sign pet-work" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="10" rx="1.5" fill="#e6e8ec" stroke="#9aa6b8"/><path d="M2 18h20l-1.5 2h-17z" fill="#c9ccd2"/></svg>}
       {image && shown === "eat" && <svg className="pet-fx pet-sign pet-eat" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#e2a85b" stroke="#a8722c"/><circle cx="9" cy="10" r="1.2" fill="#6b3f17"/><circle cx="14" cy="9" r="1.1" fill="#6b3f17"/><circle cx="13" cy="14.5" r="1.2" fill="#6b3f17"/></svg>}
       {image && shown === "think" && <span className="pet-fx pet-sign pet-think">?</span>}
     </div>

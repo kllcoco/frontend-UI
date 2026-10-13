@@ -2,6 +2,7 @@
 // the user's Ciro account. It long-polls for commands, runs them only inside folders allowed on THIS computer,
 // asks the phone for approval before an AI task writes files or runs commands (unless auto-approve is on),
 // and streams output back. Local control endpoints accept requests from this machine only.
+import { reportWork } from "./activity.mjs";
 import express from "express";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, rmSync } from "node:fs";
@@ -72,7 +73,7 @@ export function createRemoteAgent({ dir, version = "", fetchFn = fetch, localAll
   };
 
   /* ── event outbox per session (batched, ordered) ── */
-  function emitter(sessionId) {
+  function emitter(sessionId, info = {}) {
     let buffer = [], timer = null, chain = Promise.resolve(), sent = 0;
     const flush = () => {
       timer = null;
@@ -83,6 +84,7 @@ export function createRemoteAgent({ dir, version = "", fetchFn = fetch, localAll
       return chain;
     };
     const emit = (type, data) => {
+      reportWork(info, type, data);
       if (type === "stdout" || type === "stderr") {
         if (sent > MAX_OUTPUT) return;
         sent += data.text.length;
@@ -200,7 +202,8 @@ export function createRemoteAgent({ dir, version = "", fetchFn = fetch, localAll
     let session = sessions.get(item.sessionId);
     if (item.type === "start") {
       const { kind, folder, text, autoApprove } = item.payload;
-      const out = emitter(item.sessionId);
+      const info = { kind, title: String(text || "").split("\n")[0].slice(0, 80) };
+      const out = emitter(item.sessionId, info);
       if (!config.folders.includes(folder) || !existsSync(folder)) { out.emit("stderr", { text: "这个文件夹不在本机允许的列表中。\n" }); out.emit("status", { status: "failed" }); void out.flush(); return; }
       session = { id: item.sessionId, kind, folder, autoApprove, out, approvals: new Map(), child: null, stopped: false, busy: false, startedAt: Date.now(), title: text.split("\n")[0].slice(0, 80),
         messages: [{ role: "system", content: AGENT_PROMPT(folder, process.platform) }, { role: "user", content: text }] };

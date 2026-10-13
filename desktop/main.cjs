@@ -67,6 +67,11 @@ async function startServer() {
   process.env.HOST = "127.0.0.1";
   process.env.CIRO_WORKSPACE_DATA_DIR = process.env.CIRO_WORKSPACE_DATA_DIR || path.join(dir, ".ciro-runtime");
   await import(pathToFileURL(path.join(__dirname, "..", "server", "index.mjs")).href);
+  // Work mode steps on this computer → the desktop pet tells you how it is going.
+  try {
+    const { activity } = await import(pathToFileURL(path.join(__dirname, "..", "server", "activity.mjs")).href);
+    activity.on("progress", (p) => petProgress(p));
+  } catch { /* older server bundle */ }
   const origin = "http://127.0.0.1:" + port;
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
@@ -108,8 +113,18 @@ function setupUpdater() {
     if (manualUpdateCheck) toRenderer("ciro:update", { state: "latest", version: app.getVersion() });
     manualUpdateCheck = "";
   });
-  updater.on("download-progress", (p) => { downloading = true; toRenderer("ciro:update", { state: "downloading", percent: Math.round(p.percent || 0) }); });
-  updater.on("update-downloaded", (info) => { downloading = false; downloadedVersion = info.version; toRenderer("ciro:update", { state: "ready", version: info.version }); });
+  let lastPetPercent = -10;
+  updater.on("download-progress", (p) => {
+    downloading = true;
+    const percent = Math.round(p.percent || 0);
+    toRenderer("ciro:update", { state: "downloading", percent });
+    if (percent - lastPetPercent >= 10) { lastPetPercent = percent; petProgress({ text: "正在下载新版本", percent, source: "update" }); }
+  });
+  updater.on("update-downloaded", (info) => {
+    downloading = false; downloadedVersion = info.version; lastPetPercent = -10;
+    toRenderer("ciro:update", { state: "ready", version: info.version });
+    petProgress({ text: "新版本 " + info.version + " 下载好了，重启就能用", done: true, ok: true, source: "update" });
+  });
   updater.on("error", (error) => {
     downloading = false;
     toRenderer("ciro:update", { state: "error", manual: Boolean(manualUpdateCheck), message: String(error && error.message || error).slice(0, 200) });
@@ -182,7 +197,10 @@ ipcMain.on("ciro:quick-continue", (_event, chatId) => {
 /* ── Desktop pet: chibi Ciro on the desktop (transparent, always on top, click-through outside her) ── */
 let petWindow = null;
 let petTimer = null;
-const PET_SIZE = { width: 240, height: 340 };
+// Window size follows her size (pinch / wheel); room above her for the speech bubble.
+const petSize = (scale) => ({ width: Math.max(180, Math.round(186 * scale + 54)), height: Math.round(248 * scale + 96) });
+const petScale = () => { const v = Number(petPrefs().scale); return Number.isFinite(v) ? Math.min(1.6, Math.max(0.5, v)) : 0.8; };
+const displayAt = (b) => screen.getDisplayMatching(b).workArea;
 const petFile = () => path.join(app.getPath("userData"), "pet.json");
 // Off until the user turns it on (tray menu or Settings).
 function petPrefs() {
@@ -196,15 +214,16 @@ function showPet() {
   if (!serverOrigin) return;
   if (!petWindow || petWindow.isDestroyed()) {
     const saved = petPrefs();
+    const size = petSize(petScale());
     const area = screen.getPrimaryDisplay().workArea;
     // Keep a saved spot only if it is still on some screen.
     const onScreen = Number.isFinite(saved.x) && Number.isFinite(saved.y) && screen.getAllDisplays().some((d) => {
-      const a = d.workArea; return saved.x > a.x - 150 && saved.x < a.x + a.width - 80 && saved.y > a.y - 100 && saved.y < a.y + a.height - 120;
+      const a = d.workArea; return saved.x > a.x - size.width && saved.x < a.x + a.width && saved.y > a.y - 100 && saved.y < a.y + a.height;
     });
     petWindow = new BrowserWindow({
-      ...PET_SIZE, x: onScreen ? saved.x : area.x + area.width - PET_SIZE.width - 24, y: onScreen ? saved.y : area.y + area.height - PET_SIZE.height,
+      ...size, x: onScreen ? saved.x : area.x + area.width - size.width - 24, y: onScreen ? saved.y : area.y + area.height - size.height,
       show: false, frame: false, transparent: true, resizable: false, maximizable: false, minimizable: false, fullscreenable: false,
-      skipTaskbar: true, hasShadow: false, alwaysOnTop: true, title: "Ciro", backgroundColor: "#00000000",
+      skipTaskbar: true, hasShadow: false, alwaysOnTop: true, title: "Ciro", backgroundColor: "#00000000", enableLargerThanScreen: true,
       webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false }
     });
     petWindow.setAlwaysOnTop(true, "floating");
@@ -213,8 +232,10 @@ function showPet() {
     petWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     petWindow.webContents.on("will-navigate", (event) => event.preventDefault());
     petWindow.once("ready-to-show", () => petWindow.showInactive());
+    petExpanded = false;
     petWindow.on("closed", () => { petWindow = null; if (petTimer) { clearInterval(petTimer); petTimer = null; } });
-    void petWindow.loadURL(serverOrigin + "/?pet=1");
+    const edge = ["left", "right", "bottom", "top"].includes(saved.edge) && onScreen ? saved.edge : "";
+    void petWindow.loadURL(serverOrigin + "/?pet=1&scale=" + petScale() + (edge ? "&edge=" + edge : ""));
     // Her eyes follow the mouse anywhere on screen (only sent when it moves).
     let last = "";
     petTimer = setInterval(() => {
@@ -243,7 +264,61 @@ ipcMain.on("ciro:pet-drag", (_event, phase) => {
   if (phase === "start") { const b = petWindow.getBounds(); petDrag = { dx: c.x - b.x, dy: c.y - b.y }; return; }
   if (!petDrag) return;
   petWindow.setPosition(Math.round(c.x - petDrag.dx), Math.round(c.y - petDrag.dy));
-  if (phase === "end") { petDrag = null; const b = petWindow.getBounds(); savePet({ x: b.x, y: b.y }); }
+  if (phase === "end") {
+    petDrag = null;
+    // Pulled partly past a screen edge: she hides behind it, only her head peeking out.
+    const b = petWindow.getBounds(), a = displayAt(b);
+    const edge = b.x < a.x - b.width * 0.25 ? "left" : b.x + b.width > a.x + a.width + b.width * 0.25 ? "right"
+      : b.y + b.height > a.y + a.height + b.height * 0.2 ? "bottom" : (isMac ? b.y <= a.y + 2 : b.y < a.y - b.height * 0.3) ? "top" : ""; // macOS keeps windows below the menu bar
+    if (edge) snapPet(edge);
+    else {
+      const x = Math.min(Math.max(b.x, a.x - b.width / 2), a.x + a.width - b.width / 2), y = Math.min(Math.max(b.y, a.y), a.y + a.height - b.height);
+      petWindow.setPosition(Math.round(x), Math.round(y));
+      savePet({ x: Math.round(x), y: Math.round(y) + (petExpanded ? REPLY_ROOM.extra : 0), edge: "" });
+      petWindow.webContents.send("ciro:pet-edge", null);
+    }
+  }
+});
+/** Puts the window flush against a screen edge; the page then shows only her head. */
+function snapPet(edge) {
+  const b = petWindow.getBounds(), a = displayAt(b);
+  const x = edge === "left" ? a.x : edge === "right" ? a.x + a.width - b.width : Math.min(Math.max(b.x, a.x), a.x + a.width - b.width);
+  const y = edge === "bottom" ? a.y + a.height - b.height : edge === "top" ? a.y : Math.min(Math.max(b.y, a.y), a.y + a.height - b.height);
+  petWindow.setPosition(Math.round(x), Math.round(y));
+  savePet({ x: Math.round(x), y: Math.round(y) + (petExpanded ? REPLY_ROOM.extra : 0), edge });
+  petWindow.webContents.send("ciro:pet-edge", edge);
+}
+ipcMain.on("ciro:pet-edge", (_event, what) => {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const b = petWindow.getBounds(), a = displayAt(b);
+  if (what === "auto") { snapPet(b.x + b.width / 2 < a.x + a.width / 2 ? "left" : "right"); return; }
+  // Coming out: step a little away from the side edge.
+  const prev = petPrefs().edge;
+  const x = prev === "left" ? a.x + 12 : prev === "right" ? a.x + a.width - b.width - 12 : b.x;
+  // from the top she drops down onto her feet
+  const y = prev === "top" ? a.y + Math.round(b.height * 0.25) : b.y;
+  petWindow.setPosition(Math.round(x), y);
+  savePet({ x: Math.round(x), y: y + (petExpanded ? REPLY_ROOM.extra : 0), edge: "" });
+});
+// Walking along the screen on her own: small horizontal steps, kept on the screen.
+ipcMain.on("ciro:pet-move", (_event, m) => {
+  if (!petWindow || petWindow.isDestroyed() || petDrag || !m) return;
+  const b = petWindow.getBounds(), a = displayAt(b);
+  const x = Math.min(Math.max(b.x + Math.round(Number(m.dx) || 0), a.x), a.x + a.width - b.width);
+  petWindow.setPosition(x, b.y);
+  if (m.done) savePet({ x, y: b.y + (petExpanded ? REPLY_ROOM.extra : 0) });
+});
+ipcMain.on("ciro:pet-resize", (_event, value) => {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const scale = Math.min(1.6, Math.max(0.5, Number(value) || 0.8));
+  const b = petWindow.getBounds(), edge = petPrefs().edge;
+  const base = petSize(scale), size = petExpanded ? { width: Math.max(base.width, REPLY_ROOM.width), height: base.height + REPLY_ROOM.extra } : base;
+  // Grow from her feet (bottom centre); against a side edge, stay flush with it.
+  let x = Math.round(b.x + b.width / 2 - size.width / 2);
+  if (edge === "left") x = b.x; else if (edge === "right") x = b.x + b.width - size.width;
+  const y = b.y + b.height - size.height;
+  petWindow.setBounds({ x, y, ...size });
+  savePet({ scale, x, y: petExpanded ? y + REPLY_ROOM.extra : y });
 });
 ipcMain.on("ciro:pet-action", (_event, action) => {
   if (action === "open") showWindow();
@@ -258,8 +333,31 @@ ipcMain.on("ciro:pet-signal", (_event, signal) => {
 ipcMain.on("ciro:pet-command", (_event, cmd) => {
   const mood = typeof cmd?.mood === "string" && /^[a-z]{2,8}$/.test(cmd.mood) ? cmd.mood : undefined;
   const say = typeof cmd?.say === "string" ? cmd.say.slice(0, 40) : undefined;
-  const action = typeof cmd?.action === "string" && /^[a-z]{2,8}$/.test(cmd.action) ? cmd.action : undefined;
+  const action = typeof cmd?.action === "string" && /^[a-z]{2,12}$/.test(cmd.action) ? cmd.action : undefined;
   if (mood || say || action) toPet("ciro:pet-command", { mood, say, action });
+});
+// Progress of work in progress (work mode on this computer, a reply written while the window is hidden, schedules…).
+function petProgress(p) {
+  if (!p || typeof p.text !== "string" || !p.text) return;
+  toPet("ciro:pet-progress", { text: p.text.slice(0, 60), percent: Number.isFinite(p.percent) ? p.percent : undefined,
+    done: Boolean(p.done), ok: p.ok !== false, attention: Boolean(p.attention), source: String(p.source || "") });
+}
+ipcMain.on("ciro:pet-progress", (_event, p) => petProgress(p));
+// The reply being written, mirrored in her bubble.
+ipcMain.on("ciro:pet-stream", (_event, s) => { if (s && typeof s.text === "string") toPet("ciro:pet-stream", s); });
+// Room above her for the reply bubble: the window grows upwards (and a little wider) while it is shown.
+const REPLY_ROOM = { width: 300, extra: 170 };
+let petExpanded = false;
+ipcMain.on("ciro:pet-expand", (_event, on) => {
+  if (!petWindow || petWindow.isDestroyed() || Boolean(on) === petExpanded) return;
+  petExpanded = Boolean(on);
+  const b = petWindow.getBounds(), base = petSize(petScale()), edge = petPrefs().edge;
+  const size = petExpanded ? { width: Math.max(base.width, REPLY_ROOM.width), height: base.height + REPLY_ROOM.extra } : base;
+  let x = Math.round(b.x + b.width / 2 - size.width / 2);
+  if (edge === "left") x = b.x; else if (edge === "right") x = b.x + b.width - size.width;
+  const a = displayAt(b);
+  x = Math.min(Math.max(x, a.x - size.width / 2), a.x + a.width - size.width / 2);
+  petWindow.setBounds({ x: Math.round(x), y: b.y + b.height - size.height, ...size });
 });
 ipcMain.on("ciro:pet-state", (event) => { event.returnValue = petVisible(); });
 ipcMain.on("ciro:pet-toggle", (_event, on) => { if (on) showPet(); else hidePet(); });

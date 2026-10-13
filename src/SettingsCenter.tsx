@@ -22,7 +22,7 @@ import UsagePanel from "./components/UsagePanel";
 import ApiConsole from "./components/ApiConsole";
 import AnnouncementEditor from "./components/AnnouncementEditor";
 import UserAdmin from "./components/UserAdmin";
-import { petEnabled, setPetEnabled } from "./lib/pet";
+import { nativePet, petEnabled, petMirror, setPetEnabled, setPetMirror } from "./lib/pet";
 import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
 import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
@@ -131,6 +131,14 @@ export default function SettingsCenter({
   const [query, setQuery] = useState("");
   const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
   const [petShown, setPetShown] = useState(petEnabled);
+  const [mirrorOn, setMirrorOn] = useState(petMirror);
+  // Android: "display over other apps" permission (checked again when you come back from the system settings).
+  const [overlayOk, setOverlayOk] = useState(() => { try { return Boolean(nativePet()?.overlayAllowed?.()); } catch { return false; } });
+  useEffect(() => {
+    const check = () => { try { setOverlayOk(Boolean(nativePet()?.overlayAllowed?.())); } catch { /* not Android */ } };
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
+  }, []);
   const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
   useEffect(() => {
     const on = (e: Event) => setUpdateResult((e as CustomEvent<UpdateResult>).detail);
@@ -245,6 +253,14 @@ export default function SettingsCenter({
           {section === "pet" && <>
             <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。")}>
               <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
+              {nativePet()?.overlayAllowed && <SettingRow title={t("在手机桌面上显示")} description={t("Ciro 切到后台时，她浮在其他应用上面，继续告诉你回答和工作进度。需要允许“显示在其他应用上层”。")}>
+                {overlayOk ? <span className="sc-static-value">{t("已允许")}</span>
+                  : <button type="button" className="sc-action-secondary" onClick={() => { nativePet()?.requestOverlay?.(); }}>{t("去允许")}</button>}</SettingRow>}
+              <SettingRow title={t("同步显示回答")} description={t("Ciro 回答时，回答内容会在她的气泡里同步出现；工作模式、后台回答、定时任务和更新下载的进度也由她告诉你。")}>
+                <Toggle checked={mirrorOn} title={t("同步显示回答")} onChange={(v) => { setPetMirror(v); setMirrorOn(v); }}/></SettingRow>
+              <SettingRow title={t("怎么和她相处")} description={t(window.ciroDesktop?.pet
+                ? "拖到屏幕边缘松手，她会躲进去只露出头，点她就出来；双指捏合、触控板缩放或在她身上滚动滚轮可以调整大小；关掉主窗口后她仍然留在桌面上。"
+                : "拖到屏幕边缘松手，她会躲进去只露出头，点她就出来；双指捏合可以调整大小。Android 应用切到后台后，她会浮在手机桌面上（需要允许“显示在其他应用上层”）。")}><span/></SettingRow>
             </SettingBlock>
           </>}
           {section === "appearance" && <>

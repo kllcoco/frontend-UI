@@ -43,6 +43,31 @@ contextBridge.exposeInMainWorld("ciroDesktop", {
     signal: (signal) => { if (["thinking", "done", "error"].includes(signal)) ipcRenderer.send("ciro:pet-signal", signal); },
     visible: () => ipcRenderer.sendSync("ciro:pet-state"),
     toggle: (on) => ipcRenderer.send("ciro:pet-toggle", Boolean(on)),
+    resize: (scale) => { const v = Number(scale); if (Number.isFinite(v)) ipcRenderer.send("ciro:pet-resize", v); },
+    move: (dx, done) => { const v = Number(dx); if (Number.isFinite(v)) ipcRenderer.send("ciro:pet-move", { dx: Math.max(-40, Math.min(40, v)), done: Boolean(done) }); },
+    expand: (on) => ipcRenderer.send("ciro:pet-expand", Boolean(on)),
+    stream: (s) => ipcRenderer.send("ciro:pet-stream", { id: String(s?.id || "").slice(0, 80), text: String(s?.text || "").slice(-4000),
+      done: Boolean(s?.done), error: Boolean(s?.error), title: String(s?.title || "").slice(0, 80) }),
+    onStream: (handler) => {
+      const listener = (_event, s) => handler(s);
+      ipcRenderer.on("ciro:pet-stream", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-stream", listener);
+    },
+    toEdge: () => ipcRenderer.send("ciro:pet-edge", "auto"),
+    unedge: () => ipcRenderer.send("ciro:pet-edge", "none"),
+    onEdge: (handler) => {
+      const listener = (_event, edge) => handler(edge || null);
+      ipcRenderer.on("ciro:pet-edge", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-edge", listener);
+    },
+    progress: (p) => ipcRenderer.send("ciro:pet-progress", {
+      text: String(p?.text || "").slice(0, 60), percent: Number.isFinite(p?.percent) ? Number(p.percent) : undefined,
+      done: Boolean(p?.done), ok: p?.ok === false ? false : true, attention: Boolean(p?.attention), source: String(p?.source || "").slice(0, 20) }),
+    onProgress: (handler) => {
+      const listener = (_event, p) => handler(p);
+      ipcRenderer.on("ciro:pet-progress", listener);
+      return () => ipcRenderer.removeListener("ciro:pet-progress", listener);
+    },
     command: (cmd) => ipcRenderer.send("ciro:pet-command", { mood: String(cmd?.mood || ""), say: String(cmd?.say || "").slice(0, 40), action: String(cmd?.action || "") }),
     onCommand: (handler) => {
       const listener = (_event, p) => handler({ mood: typeof p?.mood === "string" ? p.mood : undefined, say: typeof p?.say === "string" ? p.say : undefined,

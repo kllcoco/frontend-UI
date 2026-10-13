@@ -100,8 +100,13 @@ void main() {
 }`;
 
 /** One-off gestures, each a function of progress p (0→1) returning extra pose values. */
-export type PetAction = "wave" | "nod" | "shake" | "bow" | "jump" | "stretch" | "magic" | "spin";
-type Pose = Partial<{ armR: number; armL: number; head: number; nodY: number; lift: number; squash: number; orb: number; glow: number; ear: number; skirt: number }>;
+export type PetAction = "wave" | "nod" | "shake" | "bow" | "jump" | "stretch" | "magic" | "spin"
+  | "lookaround" | "yawn" | "hum" | "doze" | "tidy" | "giggle" | "sparkle" | "peek";
+/** Gestures she plays on her own while idle (the model can use them too). */
+export const IDLE_ACTIONS: PetAction[] = ["lookaround", "yawn", "hum", "doze", "tidy", "giggle", "sparkle", "peek", "stretch", "nod", "magic", "spin"];
+type Pose = Partial<{ armR: number; armL: number; head: number; nodY: number; lift: number; squash: number; orb: number; glow: number; ear: number; skirt: number;
+  lookX: number; lookY: number; blink: number; smile: number }>;
+const ramp = (p: number, a: number, b: number) => Math.min(1, Math.max(0, (p - a) / (b - a)));
 const env = (p: number) => Math.sin(Math.PI * Math.min(1, Math.max(0, p))) ** .6;
 const ACTIONS: Record<PetAction, { ms: number; pose: (p: number) => Pose }> = {
   // raise the right hand (with the circle) and wave it
@@ -120,7 +125,30 @@ const ACTIONS: Record<PetAction, { ms: number; pose: (p: number) => Pose }> = {
   // show the magic circle: lift it, spin it, glow
   magic: { ms: 2200, pose: (p) => ({ armR: -0.2 * env(p), orb: p * Math.PI * 2.2, glow: 0.8 * env(p), head: 0.06 * env(p) }) },
   // a little twirl: skirt and hair fly out, one hop
-  spin: { ms: 1300, pose: (p) => ({ skirt: 18 * env(p), lift: 10 * Math.sin(p * Math.PI), head: 0.05 * Math.sin(p * Math.PI * 2), ear: 0.5 * Math.sin(p * 12) * env(p) }) }
+  spin: { ms: 1300, pose: (p) => ({ skirt: 18 * env(p), lift: 10 * Math.sin(p * Math.PI), head: 0.05 * Math.sin(p * Math.PI * 2), ear: 0.5 * Math.sin(p * 12) * env(p) }) },
+  // look to one side, then the other, the head turning a little with the eyes
+  lookaround: { ms: 3200, pose: (p) => {
+    const x = p < .45 ? -Math.sin(ramp(p, 0, .45) * Math.PI / 2) : p < .55 ? -1 + 2 * ramp(p, .45, .55) : Math.cos(ramp(p, .55, 1) * Math.PI / 2);
+    return { lookX: x * env(p), lookY: -0.15 * env(p), head: 0.045 * x * env(p) };
+  } },
+  // arms up, eyes shut, head back a little, then a small shake-off
+  yawn: { ms: 2600, pose: (p) => ({ armR: -0.26 * env(ramp(p, 0, .8)), armL: 0.28 * env(ramp(p, 0, .8)), blink: env(ramp(p, .1, .75)), head: -0.05 * env(ramp(p, .1, .75)),
+    nodY: -4 * env(ramp(p, .1, .75)), squash: -0.02 * env(ramp(p, 0, .8)), ear: 0.3 * Math.sin(p * 30) * env(ramp(p, .8, 1)) }) },
+  // swaying to a tune with a smile
+  hum: { ms: 3600, pose: (p) => ({ head: 0.06 * Math.sin(p * Math.PI * 4) * env(p), smile: env(p), skirt: 5 * Math.sin(p * Math.PI * 4) * env(p), ear: 0.35 * Math.sin(p * Math.PI * 4 + .5) * env(p), lookY: -0.3 * env(p) }) },
+  // nodding off: eyes close, the head sinks, then she jerks awake
+  doze: { ms: 3400, pose: (p) => {
+    const sink = p < .8 ? Math.sin(ramp(p, 0, .8) * Math.PI / 2) : 1 - ramp(p, .8, .86);
+    return { blink: Math.min(1, sink * 1.3), nodY: 9 * sink, head: 0.07 * sink, lift: p > .8 && p < .9 ? 6 * Math.sin(ramp(p, .8, .9) * Math.PI) : 0 };
+  } },
+  // tucks her hair: left hand up to the head, head tilts into it
+  tidy: { ms: 2200, pose: (p) => ({ armL: 0.3 * env(p), head: -0.06 * env(p), lookX: -0.4 * env(p), ear: 0.25 * Math.sin(p * 14) * env(p) }) },
+  // giggles: small bounces, eyes closed in a smile
+  giggle: { ms: 1500, pose: (p) => ({ lift: 4 * Math.abs(Math.sin(p * Math.PI * 5)) * env(p), squash: 0.015 * Math.sin(p * Math.PI * 10) * env(p), blink: env(p), smile: env(p), head: 0.03 * Math.sin(p * Math.PI * 5) }) },
+  // a quick flick of the circle: sparkle and a smile
+  sparkle: { ms: 1400, pose: (p) => ({ armR: -0.14 * env(p), orb: p * Math.PI * 3, glow: 1.1 * env(ramp(p, .2, 1)), smile: env(p) }) },
+  // leans in and looks straight at you
+  peek: { ms: 2400, pose: (p) => ({ head: 0.1 * env(p), nodY: 3 * env(p), lookX: 0, lookY: 0.1 * env(p), ear: 0.2 * Math.sin(p * 10) * env(p) }) }
 };
 
 type Motion = { breath: number; breathSpeed: number; head: number; headSpeed: number; nodY: number; sway: number; blink?: number; look?: [number, number] };
@@ -139,13 +167,17 @@ const MOTION: Record<string, Motion> = {
   drag: { breath: 1, breathSpeed: 3, head: .08, headSpeed: 3.2, nodY: 0, sway: 16 }
 };
 
-export default function LivePet({ src, mood, look, action }: {
-  src: string; mood: Mood; look: { x: number; y: number }; action?: { name: PetAction; id: number } | null;
+export default function LivePet({ src, mood, look, action, walking = false }: {
+  src: string; mood: Mood; look: { x: number; y: number }; action?: { name: PetAction; id: number } | null; walking?: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const fallback = useRef<HTMLImageElement>(null);
-  const state = useRef({ mood, look });
-  state.current = { mood, look };
+  const state = useRef({ mood, look, walking, lookAt: 0 });
+  const lastLook = useRef(look);
+  // remember when the pointer last moved her eyes; without it she looks around on her own
+  const lookAt = lastLook.current.x !== look.x || lastLook.current.y !== look.y ? performance.now() : state.current.lookAt;
+  lastLook.current = look;
+  state.current = { mood, look, walking, lookAt };
   const playing = useRef<{ name: PetAction; start: number } | null>(null);
   useEffect(() => { if (action && ACTIONS[action.name]) playing.current = { name: action.name, start: performance.now() }; }, [action?.id]);
 
@@ -198,7 +230,12 @@ export default function LivePet({ src, mood, look, action }: {
     texture(4, dir + "smile.webp", () => { hasSmile = true; gl.uniform1i(gl.getUniformLocation(prog, "smile"), 4); });
 
     // Smoothly eased parameters so changing mood or looking around never jumps.
-    const cur = { breath: 1, head: 0, nodY: 0, sway: 6, blink: 0, lx: 0, ly: 0, smile: 0, joy: 0 };
+    const cur = { breath: 1, head: 0, nodY: 0, sway: 6, blink: 0, lx: 0, ly: 0, smile: 0, joy: 0, walk: 0 };
+    // Free movement: every few seconds new small targets for each layer (arms, head, gaze, weight), eased slowly,
+    // so she never holds one pose — shifts her weight, lets an arm drift, glances around, tilts her head.
+    const drift = { armL: 0, armR: 0, head: 0, nod: 0, lx: 0, ly: 0 };
+    const goal = { armL: 0, armR: 0, head: 0, nod: 0, lx: 0, ly: 0 };
+    let nextDrift = 0, nextGlance = 0;
     let nextBlink = performance.now() + 2500, blinkStart = -1;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // ?pet=1&blink=0.5 holds the closed-eye cross-fade at a fixed amount (only with eyes-closed.webp)
@@ -214,9 +251,29 @@ export default function LivePet({ src, mood, look, action }: {
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
       gl.viewport(0, 0, w, h);
       const t = reduce ? 0 : now / 1000;
-      const { mood: m, look: l } = state.current;
+      const { mood: m, look: l, walking: walkingNow, lookAt } = state.current;
+      const calm = m === "sleep" || m === "drag";
+      if (now > nextDrift) {
+        nextDrift = now + 1800 + Math.random() * 3200;
+        const r = (a: number) => (Math.random() * 2 - 1) * a;
+        const lively = m === "happy" || m === "love" || m === "wave" ? 1.6 : m === "work" || m === "think" ? .6 : 1;
+        goal.armL = calm ? 0 : r(.07 * lively) + (Math.random() < .18 ? .12 : 0);
+        goal.armR = calm ? 0 : r(.07 * lively) - (Math.random() < .18 ? .12 : 0);
+        goal.head = calm ? 0 : r(.045 * lively);
+        goal.nod = calm ? 0 : r(2.2);
+      }
+      if (now > nextGlance) {
+        nextGlance = now + 900 + Math.random() * 2600;
+        // quick glance somewhere, often back to you
+        const back = Math.random() < .4;
+        goal.lx = back ? 0 : (Math.random() * 2 - 1) * .9; goal.ly = back ? 0 : (Math.random() * 2 - 1) * .5;
+      }
+      const dk = .025;
+      for (const k of ["armL", "armR", "head", "nod"] as const) drift[k] += (goal[k] - drift[k]) * dk;
+      drift.lx += (goal.lx - drift.lx) * .14; drift.ly += (goal.ly - drift.ly) * .14; // eyes move fast, like real glances
       const M = MOTION[m] || MOTION.idle;
       const ease = (a: number, b: number, k = .08) => a + (b - a) * k;
+      cur.walk = ease(cur.walk, walkingNow ? 1 : 0, .1);
       // automatic blinking (sometimes twice), unless the mood keeps her eyes shut
       let blinkTarget = M.blink ?? 0;
       if (M.blink === undefined) {
@@ -228,19 +285,6 @@ export default function LivePet({ src, mood, look, action }: {
           if (k >= 1) { blinkStart = -1; nextBlink = now + (Math.random() < .2 ? 180 : 2200 + Math.random() * 4200); }
         }
       }
-      const smiley = m === "happy" || m === "love" || m === "wave" || m === "eat";
-      cur.smile = ease(cur.smile, forced.smile ?? (smiley ? 1 : 0), .1);
-      // happy / love: a closed-eye smile (eyes shut softly, then open again while still smiling)
-      cur.joy = ease(cur.joy, m === "happy" || m === "love" ? 1 : 0, .12);
-      cur.blink = M.blink !== undefined ? ease(cur.blink, blinkTarget, .06) : Math.max(blinkTarget, cur.joy > .05 ? Math.min(1, cur.joy * 1.1) : 0);
-      cur.breath = ease(cur.breath, M.breath); cur.nodY = ease(cur.nodY, M.nodY, .05); cur.sway = ease(cur.sway, M.sway, .05);
-      const headTarget = M.headSpeed ? M.head * Math.sin(t * M.headSpeed) : M.head;
-      cur.head = ease(cur.head, headTarget + (M.look ? 0 : l.x * .03), .06);
-      const [tx, ty] = M.look || [l.x, l.y];
-      cur.lx = ease(cur.lx, tx, .12); cur.ly = ease(cur.ly, ty, .12);
-      gl.uniform1f(U.t, t);
-      gl.uniform1f(U.breath, cur.breath * (Math.sin(t * M.breathSpeed) * .5 + .5));
-      gl.uniform1f(U.sway, reduce ? 0 : cur.sway);
       // gesture on top of the mood's motion
       let pose: Pose = {};
       const act = playing.current;
@@ -248,18 +292,40 @@ export default function LivePet({ src, mood, look, action }: {
         const p = (now - act.start) / ACTIONS[act.name].ms;
         if (p >= 1) playing.current = null; else pose = ACTIONS[act.name].pose(p);
       }
+      const smiley = m === "happy" || m === "love" || m === "wave" || m === "eat";
+      cur.smile = ease(cur.smile, forced.smile ?? Math.max(smiley ? 1 : 0, pose.smile || 0), .1);
+      // happy / love: a closed-eye smile (eyes shut softly, then open again while still smiling)
+      cur.joy = ease(cur.joy, m === "happy" || m === "love" ? 1 : 0, .12);
+      cur.blink = M.blink !== undefined ? ease(cur.blink, blinkTarget, .06) : Math.max(blinkTarget, cur.joy > .05 ? Math.min(1, cur.joy * 1.1) : 0);
+      cur.breath = ease(cur.breath, M.breath); cur.nodY = ease(cur.nodY, M.nodY, .05); cur.sway = ease(cur.sway, M.sway, .05);
+      const headTarget = M.headSpeed ? M.head * Math.sin(t * M.headSpeed) : M.head;
+      cur.head = ease(cur.head, headTarget + (M.look ? 0 : l.x * .03), .06);
+      const pointerRecent = now - lookAt < 4000;
+      const [tx, ty] = pose.lookX !== undefined || pose.lookY !== undefined ? [pose.lookX ?? 0, pose.lookY ?? 0] : M.look || (pointerRecent ? [l.x, l.y] : [drift.lx, drift.ly]);
+      cur.lx = ease(cur.lx, tx, .12); cur.ly = ease(cur.ly, ty, .12);
+      gl.uniform1f(U.t, t);
+      gl.uniform1f(U.breath, cur.breath * (Math.sin(t * M.breathSpeed) * .5 + .5));
+      gl.uniform1f(U.sway, reduce ? 0 : cur.sway);
+
       // ongoing touches per mood: the circle turns slowly while she thinks or works, the skirt always moves a little
       const baseOrb = m === "think" || m === "work" ? t * 0.6 : t * 0.12;
       const baseGlow = m === "think" || m === "work" ? 0.35 + 0.2 * Math.sin(t * 2.2) : 0.1 + 0.07 * Math.sin(t * 1.3);
-      gl.uniform1f(U.head, cur.head + (pose.head || 0)); gl.uniform1f(U.nodY, cur.nodY + (pose.nodY || 0));
-      gl.uniform1f(U.armR, (pose.armR || 0) + Math.sin(t * M.breathSpeed) * 0.012 * cur.breath);
-      gl.uniform1f(U.armL, (pose.armL || 0) - Math.sin(t * M.breathSpeed + .6) * 0.012 * cur.breath);
+      // walking: arms swing in turn, a small bob each step, head nods along
+      const stepPhase = t * 7.5, wk = cur.walk;
+      const walkArm = Math.sin(stepPhase) * .11 * wk, walkBob = Math.abs(Math.sin(stepPhase)) * 4 * wk;
+      // typing at the desk while working
+      const typing = m === "work" ? Math.sin(t * 13) * .018 + Math.sin(t * 7.3) * .012 : 0;
+      const free = act ? .35 : 1; // gestures take over, the drift fades back a little
+      gl.uniform1f(U.head, cur.head + (pose.head || 0) + drift.head * free + Math.sin(stepPhase * 2) * .012 * wk);
+      gl.uniform1f(U.nodY, cur.nodY + (pose.nodY || 0) + drift.nod * free);
+      gl.uniform1f(U.armR, (pose.armR || 0) + drift.armR * free + walkArm + typing + Math.sin(t * M.breathSpeed) * 0.012 * cur.breath);
+      gl.uniform1f(U.armL, (pose.armL || 0) + drift.armL * free + walkArm - typing - Math.sin(t * M.breathSpeed + .6) * 0.012 * cur.breath);
       gl.uniform1f(U.orbSpin, reduce ? 0 : baseOrb + (pose.orb || 0));
       gl.uniform1f(U.glow, baseGlow + (pose.glow || 0));
-      gl.uniform1f(U.skirt, reduce ? 0 : 2.2 * cur.sway / 6 + (pose.skirt || 0));
+      gl.uniform1f(U.skirt, reduce ? 0 : 2.2 * cur.sway / 6 + (pose.skirt || 0) + Math.sin(stepPhase) * 6 * wk);
       gl.uniform1f(U.ear, (pose.ear || 0) + (reduce ? 0 : Math.sin(t * 1.9) * 0.06));
-      gl.uniform1f(U.lift, pose.lift || 0); gl.uniform1f(U.squash, pose.squash || 0);
-      gl.uniform1f(U.blink, hasClosed ? forced.blink ?? cur.blink : 0); gl.uniform1f(U.hasClosed, hasClosed ? 1 : 0);
+      gl.uniform1f(U.lift, (pose.lift || 0) + walkBob); gl.uniform1f(U.squash, pose.squash || 0);
+      gl.uniform1f(U.blink, hasClosed ? forced.blink ?? Math.max(cur.blink, pose.blink || 0) : 0); gl.uniform1f(U.hasClosed, hasClosed ? 1 : 0);
       gl.uniform1f(U.smiling, hasSmile ? cur.smile : 0); gl.uniform1f(U.hasSmile, hasSmile ? 1 : 0);
       gl.uniform1f(U.lookX, cur.lx); gl.uniform1f(U.lookY, cur.ly);
       gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);

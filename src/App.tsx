@@ -30,7 +30,7 @@ import type { SavedPrompt } from "./lib/prompts";
 import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
 import RemoteWork from "./components/RemoteWork";
 import DesktopPet from "./pet/DesktopPet";
-import { commandPet, petCommand, petEnabled, setPetEnabled, stripPetTags } from "./lib/pet";
+import { commandPet, nativePet, petCommand, petEnabled, petMirror, petProgress, petStream, setPetEnabled, stripPetTags } from "./lib/pet";
 import type { AccountTab, SessionSnapshot } from "./lib/account-api";
 import { workbenchApi } from "./lib/workbench-api";
 import type { AgentMode, WorkbenchTab } from "./lib/workbench-api";
@@ -382,6 +382,8 @@ export default function App() {
   const petOnRef = useRef(petOn);
   petOnRef.current = petOn;
   useEffect(() => {
+    // The Android app shows her over other apps while Ciro is in the background: tell it whether she is on.
+    try { nativePet()?.setEnabled?.(petEnabled()); } catch { /* not the Android app */ }
     const onToggle = (e: Event) => setPetOn(Boolean((e as CustomEvent<boolean>).detail));
     window.addEventListener("ciro-pet-toggle", onToggle);
     return () => window.removeEventListener("ciro-pet-toggle", onToggle);
@@ -391,6 +393,7 @@ export default function App() {
     petBusy.current = busy;
     const signal = busy ? "thinking" : "done";
     desktop()?.pet?.signal(signal);
+    try { nativePet()?.signal?.(signal); } catch { /* not the Android app */ }
     window.dispatchEvent(new CustomEvent("ciro-pet-signal", { detail: { signal, focused: !document.hidden } }));
   }, [busy]);
   useEffect(() => {
@@ -516,6 +519,10 @@ export default function App() {
   }, [language]);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
+  const studioOpenRef = useRef(studioOpen);
+  studioOpenRef.current = studioOpen;
+  const settingsOpenRef = useRef(false);
+  settingsOpenRef.current = Boolean(settingsSection);
   useEffect(() => desktop()?.onCommand(runCommand), [runCommand]);
   // Android back button / browser-style "go back": close the top-most layer first.
   // Alt+↑/↓: previous / next conversation in sidebar order.
@@ -602,6 +609,7 @@ export default function App() {
         if (!seen) { seen = data.now; try { localStorage.setItem(KEY, seen); } catch { /* ignore */ } return; }
         const fresh = [...data.events].reverse();
         for (const e of fresh) {
+          if (petOnRef.current) petProgress({ text: t("定时任务：") + e.title, done: true, ok: !/失败|出错|error|fail/i.test(e.title), source: "schedule" });
           if (preferencesRef.current.notifySchedules && notifyGranted() && appInBackground())
             showNotify(e.title, e.body || t("打开协作空间查看详情"), "schedule-" + e.id, () => openStudioRef.current("schedules"));
           else if (!document.hidden) notify(e.title);
@@ -733,6 +741,19 @@ export default function App() {
     if (useWeb) patchMessage(conversationId, assistantId, { webSearch: true });
     const started = Date.now();
     let thoughtDone = false;
+    // While Ciro is in the background the pet tells you how the reply is going (steps, length, done).
+    let lastStep = "", lastStepAt = 0;
+    // The reply itself also streams into her bubble (Settings → 桌宠 → 同步显示回答).
+    const mirror = petOnRef.current && petMirror();
+    // Whether this chat is on screen right now (then the in-app pet leaves the reply to the chat itself).
+    const onScreen = () => activeIdRef.current === conversationId && !studioOpenRef.current && !settingsOpenRef.current && document.visibilityState === "visible";
+    const step = (text: string, force = false) => {
+      if (!petOnRef.current || !appInBackground()) return;
+      const now = Date.now();
+      if (!force && (text === lastStep || now - lastStepAt < 3500)) return;
+      lastStep = text; lastStepAt = now;
+      petProgress({ text, source: "chat" });
+    };
     try {
       await streamChat({
         model,
@@ -754,16 +775,19 @@ export default function App() {
           !conversationsRef.current.find((c) => c.id === conversationId)?.temporary ? localMemoriesForChat() : undefined,
         onTool: (index, name, argsDelta) => {
           const entry = tools[index] ?? (tools[index] = { name: "", args: "" });
-          if (name) entry.name = name;
+          if (name) { entry.name = name; step(/search/i.test(name) ? t("正在搜索网页…") : t("正在使用工具：") + name, true); }
           entry.args += argsDelta;
           patchMessage(conversationId, assistantId, { tools: tools.filter(Boolean).map((x) => ({ ...x })) });
         },
         onReasoning: (text) => {
           thought += text;
           patchMessage(conversationId, assistantId, { reasoning: thought });
+          step(t("正在思考…"));
         },
         onDelta: (text) => {
           answer += text;
+          if (mirror) petStream({ id: assistantId, text: stripPetTags(answer), onScreen: onScreen() });
+          else step(t("正在写回答") + "（" + stripPetTags(answer).length + " " + t("字") + "）");
           const patch: Partial<ChatMessage> = { content: stripPetTags(answer) };
           if (thought && !thoughtDone) { thoughtDone = true; patch.thinkingMs = Date.now() - started; }
           patchMessage(conversationId, assistantId, patch);
@@ -784,6 +808,8 @@ export default function App() {
         const question = [...history].reverse().find((m) => m.role === "user")?.content || "";
         void suggestFollowUps(conversationId, assistantId, question, answer);
       }
+      if (mirror) petStream({ id: assistantId, text: answer, done: true, onScreen: onScreen() });
+      if (petOnRef.current && appInBackground() && !petCmd && !mirror) petProgress({ text: t("回答好了，回来看看吧"), done: true, ok: true, source: "chat" });
       if (preferencesRef.current.notifyOnComplete && appInBackground() && notifyGranted()) {
         const title = conversationsRef.current.find((c) => c.id === conversationId)?.title || "Ciro";
         showNotify(t("Ciro 已回答") + " · " + title, answer.replace(/[#*`>|_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 140), conversationId, () => setActiveId(conversationId));
@@ -791,11 +817,13 @@ export default function App() {
     } catch (error) {
       if (controller.signal.aborted) {
         if (!answer) patchMessage(conversationId, assistantId, { content: t("生成已停止。") });
+        if (mirror) petStream({ id: assistantId, text: stripPetTags(answer) || t("生成已停止。"), done: true });
       } else {
         const message = error instanceof Error ? error.message : t("未知错误");
         patchMessage(conversationId, assistantId, {
           content: (answer ? answer + "\n\n---\n\n" : "") + "⚠️ " + t("生成中断：") + message });
         notify("请求失败，请检查 CIRO 后端");
+        if (mirror) petStream({ id: assistantId, text: (answer ? stripPetTags(answer) + "\n\n" : "") + t("生成中断：") + message, done: true, error: true });
       }
     } finally {
       if (thought && !thoughtDone) patchMessage(conversationId, assistantId, { thinkingMs: Date.now() - started });

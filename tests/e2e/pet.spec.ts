@@ -34,3 +34,43 @@ test("pet: off by default, turned on in settings, reacts, and follows the model'
   await page.getByRole("menuitem", { name: "隐藏桌宠" }).click();
   await expect(page.locator(".pet-root--inline")).toHaveCount(0);
 });
+
+test("pet: mirrors replies and progress, hides behind an edge, resizes and works along with work mode", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.evaluate(() => localStorage.setItem("ciro.pet.v1", "on"));
+  await page.reload();
+  const pet = page.locator(".pet-root--inline");
+  await expect(pet).toBeVisible();
+  // A reply written while its chat is not on screen streams into her bubble.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-stream", { detail: { id: "r1", text: "第一段**回答**", onScreen: false } })));
+  await expect(pet.locator(".pet-reply")).toContainText("第一段回答");
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-stream", { detail: { id: "r1", text: "第一段回答，写完了。", done: true, onScreen: false } })));
+  await expect(pet.locator(".pet-reply")).toContainText("回答完成");
+  await pet.getByRole("button", { name: "关闭" }).click();
+  await expect(pet.locator(".pet-reply")).toHaveCount(0);
+  // Work mode progress: she works along and tells the step.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-progress", { detail: { text: "正在运行 npm test", source: "work" } })));
+  await expect(pet.locator(".pet-sprite--work")).toBeVisible();
+  await expect(pet.locator(".pet-say")).toContainText("正在运行 npm test");
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-progress", { detail: { text: "完成：测试通过", done: true, source: "work" } })));
+  await expect(pet.locator(".pet-say")).toContainText("完成：测试通过");
+  await expect(pet.locator(".pet-sprite--work")).toHaveCount(0, { timeout: 8000 });
+  // Ctrl + wheel (trackpad pinch) makes her bigger.
+  const before = (await pet.locator(".pet-sprite").boundingBox())!.width;
+  await pet.locator(".pet-sprite").hover();
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -120);
+  await page.keyboard.up("Control");
+  await expect.poll(async () => (await pet.locator(".pet-sprite").boundingBox())!.width).toBeGreaterThan(before + 5);
+  // Dragged past the right edge she hides there with only her head out; a tap brings her back.
+  const box = (await pet.locator(".pet-sprite").boundingBox())!;
+  const vw = page.viewportSize()!.width;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(vw - 10, box.y + box.height / 2, { steps: 12 });
+  await page.mouse.move(vw + 120, box.y + box.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(pet).toHaveClass(/pet-root--edge-right/);
+  await pet.locator(".pet-sprite").click({ force: true });
+  await expect(pet).not.toHaveClass(/pet-root--edge/);
+});

@@ -27,7 +27,8 @@ type DesktopBridge = {
 export type PetSignal = "thinking" | "done" | "error";
 export type PetBridge = {
   setIgnore: (ignore: boolean) => void;
-  drag: (phase: "start" | "move" | "end") => void;
+  /** dx / dy: pointer movement since the drag started, in CSS px (used by the Android overlay; the desktop polls the cursor). */
+  drag: (phase: "start" | "move" | "end", dx?: number, dy?: number) => void;
   action: (action: "open" | "quick" | "hide") => void;
   signal: (signal: PetSignal) => void;
   visible: () => boolean;
@@ -36,6 +37,17 @@ export type PetBridge = {
   onCommand?: (handler: (cmd: { mood?: string; say?: string; action?: string }) => void) => () => void;
   onCursor: (handler: (p: { x: number; y: number }) => void) => () => void;
   onSignal: (handler: (p: { signal: string; focused: boolean }) => void) => () => void;
+  resize?: (scale: number) => void;
+  expand?: (on: boolean) => void;
+  /** Walk sideways by dx px (kept on screen); done: last step, remember the place. */
+  move?: (dx: number, done?: boolean) => void;
+  stream?: (s: { id: string; text: string; done?: boolean; error?: boolean; title?: string }) => void;
+  onStream?: (handler: (s: { id: string; text: string; done?: boolean; error?: boolean; title?: string }) => void) => () => void;
+  toEdge?: () => void;
+  unedge?: () => void;
+  onEdge?: (handler: (edge: "left" | "right" | "bottom" | "top" | null) => void) => () => void;
+  progress?: (p: { text: string; percent?: number; done?: boolean; ok?: boolean; attention?: boolean; source?: string }) => void;
+  onProgress?: (handler: (p: { text: string; percent?: number; done?: boolean; ok?: boolean; attention?: boolean; source?: string }) => void) => () => void;
 };
 
 declare global {

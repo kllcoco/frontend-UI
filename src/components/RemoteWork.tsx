@@ -3,6 +3,21 @@ import type { FormEvent } from "react";
 import { ArrowLeft, Bot, Check, CircleStop, FolderOpen, FolderPlus, KeyRound, Laptop, Link2, LoaderCircle, MonitorSmartphone, Plus, QrCode, RefreshCcw, ScanLine, Send, Smartphone, Terminal, Trash2, Unlink, X } from "lucide-react";
 import { accountFetch, readApiJson } from "../lib/account-api";
 import QrScanner from "./QrScanner";
+import { petEnabled, petProgress } from "../lib/pet";
+import type { PetProgress } from "../lib/pet";
+
+const shortText = (v: unknown, n: number) => { const x = String(v ?? "").replace(/\s+/g, " ").trim(); return x.length > n ? x.slice(0, n - 1) + "…" : x; };
+const fileName = (v: unknown) => String(v ?? "").split(/[\\/]/).filter(Boolean).pop() || ".";
+/** A work-mode event worth telling through the pet (same wording as on the computer). */
+function workStep(t: (s: string) => string, e: RemoteEvent, title: string): PetProgress | null {
+  const d = e.data || {};
+  if (e.type === "tool") return { text: (d.action === "run" ? t("电脑正在运行 ") + shortText(d.command, 22) : d.action === "write" ? t("电脑正在写 ") + shortText(fileName(d.path), 22) : t("电脑正在看 ") + shortText(fileName(d.path), 22)), source: "work" };
+  if (e.type === "approval_request") return { text: t("电脑那边需要你批准一下"), attention: true, source: "work" };
+  if (e.type === "agent" && d.final) return { text: t("完成：") + shortText(d.text, 28), done: true, ok: true, source: "work" };
+  if (e.type === "status" && d.status === "running") return { text: t("开始工作：") + shortText(title, 20), source: "work" };
+  if (e.type === "status" && (d.status === "failed" || d.status === "stopped")) return { text: d.status === "failed" ? t("任务出错了") : t("任务已停止"), done: true, ok: false, source: "work" };
+  return null;
+}
 
 type Device = { id: string; name: string; platform: string; online: boolean; connected: boolean; lastSeen: number; folders: string[]; version: string };
 type Session = { id: string; deviceId: string; kind: "shell" | "agent"; folder: string; title: string; status: string; autoApprove: boolean; updatedAt: number; lastSeq: number };
@@ -318,14 +333,23 @@ function SessionView({ t, sessionId, initial, onBack }: { t: (s: string) => stri
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useEffect(() => {
-    let stopped = false, after = 0;
+    let stopped = false, after = 0, announced = false;
     void (async () => {
       while (!stopped) {
         try {
           const res = await cloud<{ session: Session; events: RemoteEvent[] }>("/sessions/" + sessionId + "/events?after=" + after + "&wait=1");
           if (stopped) break;
           setSession(res.session);
-          if (res.events.length) { after = res.events[res.events.length - 1].seq; setEvents((old) => [...old, ...res.events]); }
+          if (res.events.length) {
+            // New steps (not the history loaded on opening) → the pet tells you, also while the app is in the background.
+            if (after > 0 && petEnabled()) for (const e of res.events) {
+              if (e.type === "status" && e.data?.status === "running" && announced) continue;
+              if (e.type === "status" && e.data?.status === "running") announced = true;
+              if (e.type === "status" && ["idle", "failed", "stopped"].includes(String(e.data?.status))) announced = false;
+              const p = workStep(t, e, res.session?.title || ""); if (p) petProgress(p);
+            }
+            after = res.events[res.events.length - 1].seq; setEvents((old) => [...old, ...res.events]);
+          }
         } catch (e) { setError(e instanceof Error ? e.message : String(e)); await new Promise((r) => setTimeout(r, 3000)); }
       }
     })();

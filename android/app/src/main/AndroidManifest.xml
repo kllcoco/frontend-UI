@@ -60,5 +60,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- "Notify when a reply finishes" -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Ciro pet floating over other apps while Ciro is in the background (only when the user turns it on). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
