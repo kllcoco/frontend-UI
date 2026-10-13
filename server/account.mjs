@@ -63,7 +63,7 @@ function parseCookies(req){
 }
 function publicOwner(owner){
   return owner?{id:owner.id,email:owner.email||"",phone:maskPhone(owner.phone||""),displayName:owner.displayName,role:owner.role==="owner"?"owner":"user",
-    createdAt:owner.createdAt,memoryEnabled:owner.memoryEnabled===true}:null;
+    createdAt:owner.createdAt,memoryEnabled:owner.memoryEnabled===true,hasPassword:owner.noPassword!==true}:null;
 }
 /** Who may create an account: "closed" (only the owner, via bootstrap), "invite" (with a code) or "open". */
 export function registrationMode(env){
@@ -313,7 +313,9 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const displayName=body?.displayName?validateName(body.displayName):"Ciro 用户 "+phone.slice(-4);
     const salt=randomBytes(16).toString("base64");
     const pw=typeof body?.password==="string"&&body.password?validatePassword(body.password):randomBytes(24).toString("base64");
+    // Signed up with only a code: no password they know yet (they can set one with an SMS code, see /password).
     return {id:randomUUID(),email:"",phone,displayName,role:"user",passwordHash:await passwordHash(pw,salt),salt,
+      ...(typeof body?.password==="string"&&body.password?{}:{noPassword:true}),
       memoryEnabled:false,createdAt:new Date().toISOString(),disabledAt:null};
   }
   async function newUser(body,role){
@@ -365,9 +367,10 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     if(registration==="invite"&&!invite)throw bad("Invalid or used invite code",403);
     const phone=req.body?.phone!==undefined?normalizePhone(req.body.phone):"";
     if(req.body?.phone!==undefined&&!phone)throw bad("请输入正确的手机号",400);
+    // Checked before the code is used up, so a refused sign-up does not burn it.
+    if(store.get().users.length>=Number(env.CIRO_MAX_USERS||100000))throw bad("This server is not accepting new accounts",403);
     if(phone&&!sms.check(phone,"register",req.body?.smsCode))throw bad("验证码不正确或已过期",401);
     const user=phone?await phoneUser(phone,req.body):await newUser(req.body,"user");
-    if(store.get().users.length>=Number(env.CIRO_MAX_USERS||100000))throw bad("This server is not accepting new accounts",403);
     store.change("account.registered",s=>{
       if(user.email&&s.users.some(x=>x.email===user.email))throw bad("This email is already registered",409);
       if(user.phone&&s.users.some(x=>x.phone===user.phone))throw bad("这个手机号已经注册，请直接登录",409);
@@ -418,15 +421,23 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     res.json({user:publicOwner(u)});
   }));
   router.post("/password",protectedSession(async(req,res,p,u)=>{
-    const old=validatePassword(req.body?.currentPassword),next=validatePassword(req.body?.newPassword);
-    if(!(await passwordMatches(old,u)))throw bad("Current password incorrect",403);
+    const next=validatePassword(req.body?.newPassword);
+    // Accounts with a phone may confirm with an SMS code instead (the only way for those that never had a password).
+    if(req.body?.smsCode!==undefined){
+      if(!u.phone||!sms.check(u.phone,"password",req.body.smsCode))throw bad("验证码不正确或已过期",401);
+    } else if(!(await passwordMatches(validatePassword(req.body?.currentPassword),u)))throw bad("Current password incorrect",403);
     const salt=randomBytes(16).toString("base64"),newHash=await passwordHash(next,salt);
     store.change("account.password.changed",s=>{
-      u.salt=salt;u.passwordHash=newHash;
+      u.salt=salt;u.passwordHash=newHash;delete u.noPassword;
       s.sessions=s.sessions.filter(x=>x.userId!==u.id||x.id===p.sessionId);
       s.apiKeys.forEach(x=>{if(x.userId===u.id&&!x.revokedAt)x.revokedAt=new Date().toISOString();});
     });
     res.json({ok:true,otherSessionsRevoked:true,apiKeysRevoked:true});
+  }));
+  router.post("/password/sms",protectedSession(async(_req,res,_p,u)=>{
+    if(!sms.enabled()||!u.phone)throw bad("Phone verification is not available",503);
+    await sms.send(u.phone,"password");
+    res.json({sent:true});
   }));
   router.post("/sessions/revoke",protectedSession((req,res,p,u)=>{
     if(req.body?.allOthers!==true)throw bad("Confirm allOthers=true");
@@ -646,7 +657,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const amount=Number(req.body?.cwu);
     if(!Number.isFinite(amount)||amount===0||Math.abs(amount)>1e9)throw bad("Invalid CWU amount",400);
     if(!store.user(req.params.id))throw bad("No such user",404);
-    if(amount>0)cwu.credit(req.params.id,amount,"grant");else cwu.charge(req.params.id,-amount);
+    if(amount>0)cwu.credit(req.params.id,amount,"grant");else cwu.charge(req.params.id,-amount,undefined,"adjust");
     res.json({balance:cwu.balance(req.params.id)});
   }));
   // Stripe subscription: the server owner's own plan for this deployment.

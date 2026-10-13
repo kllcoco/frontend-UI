@@ -7,7 +7,8 @@ type Pack = { id: string; cwu: number; label: string; price: string };
 type Entry = { at: string; delta: number; reason: string; balance: number };
 type CwuState = { enabled: boolean; balance: number; ledger: Entry[]; packs: Pack[]; buy: boolean };
 
-const REASONS: Record<string, string> = { chat: "对话消耗", purchase: "充值", signup: "注册赠送", grant: "赠送" };
+const REASONS: Record<string, string> = { chat: "对话消耗", api: "API 调用", image: "图片生成", speech: "语音朗读", transcribe: "语音识别",
+  purchase: "充值", signup: "注册赠送", grant: "赠送", adjust: "调整" };
 
 /** Settings → CWU 额度: the account's balance (the same on every device, wherever it was bought), packs to buy and
  *  recent changes. Purchases open the payment page; the balance updates once the payment is confirmed. */

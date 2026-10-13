@@ -71,6 +71,13 @@ export default function AccountCenter({language,section}:Props){
     catch(e){setError(t(e instanceof Error&&/[\u4e00-\u9fff]/.test(e.message)?e.message:"验证码发送失败，请稍后再试"));}
   }
   const [oldPassword,setOldPassword]=useState(""),[newPassword,setNewPassword]=useState("");
+  // Accounts with a phone may confirm a new password with an SMS code (phone-only ones have no password to type).
+  const [pwBySms,setPwBySms]=useState(false),[pwCode,setPwCode]=useState("");
+  async function sendPasswordCode(){
+    setError("");
+    try{await accountApi("/password/sms","POST",{});setSmsWait(60);setNotice(t("验证码已发送"));}
+    catch(e){setError(t(e instanceof Error&&/[\u4e00-\u9fff]/.test(e.message)?e.message:"验证码发送失败，请稍后再试"));}
+  }
   const [keyName,setKeyName]=useState(""),[keyDays,setKeyDays]=useState("90"),
     [keyScopes,setKeyScopes]=useState<string[]>(["chat:invoke"]),[newSecret,setNewSecret]=useState("");
   const [memoryText,setMemoryText]=useState(""),[memoryCategory,setMemoryCategory]=useState("general");
@@ -149,8 +156,9 @@ export default function AccountCenter({language,section}:Props){
   }
   async function updatePassword(e:FormEvent<HTMLFormElement>){
     e.preventDefault();await action(async()=>{
-      await accountApi("/password","POST",{currentPassword:oldPassword,newPassword});
-      setOldPassword("");setNewPassword("");
+      const viaSms=pwBySms||profile?.user.hasPassword===false;
+      await accountApi("/password","POST",viaSms?{smsCode:pwCode,newPassword}:{currentPassword:oldPassword,newPassword});
+      setOldPassword("");setNewPassword("");setPwCode("");setPwBySms(false);
     });
   }
   async function addApiKey(e:FormEvent<HTMLFormElement>){
@@ -210,18 +218,24 @@ export default function AccountCenter({language,section}:Props){
     </div>}
     {!loading&&auth&&section==="account"&&<>
       <section className="acc-card"><div className="acc-section-title"><UserCircle size={19}/><h3>{t("账户与安全")}</h3></div>
-        <p className="acc-metadata">{t("邮箱")}: {profile?.user.email}</p>
+        {profile?.user.email?<p className="acc-metadata">{t("邮箱")}: {profile.user.email}</p>:null}
+        {profile?.user.phone?<p className="acc-metadata">{t("手机号")}: {profile.user.phone}</p>:null}
         <label className="acc-label">{t("显示名称")}<input value={displayName} maxLength={80} onChange={e=>setDisplayName(e.target.value)}/></label>
         <div className="acc-actions"><button className="acc-primary" onClick={()=>void action(()=>accountApi("/profile","POST",{displayName}))} disabled={busy}>{t("更新资料")}</button>
           <button className="acc-secondary" onClick={()=>void action(async()=>{
             await accountApi("/logout","POST",{});invalidateAccountSession();window.location.reload();
           })}><LogOut size={15}/>{t("安全退出")}</button></div>
       </section>
-      <section className="acc-card"><div className="acc-section-title"><LockKeyhole size={19}/><h3>{t("更改密码")}</h3></div>
+      <section className="acc-card"><div className="acc-section-title"><LockKeyhole size={19}/><h3>{t(profile?.user.hasPassword===false?"设置密码":"更改密码")}</h3></div>
         <form onSubmit={e=>void updatePassword(e)} className="acc-fields">
-          <label>{t("当前密码")}<input type="password" minLength={12} required autoComplete="current-password" value={oldPassword} onChange={e=>setOldPassword(e.target.value)}/></label>
+          {pwBySms||profile?.user.hasPassword===false
+            ?<label>{t("短信验证码")}<span className="acc-code-row"><input required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="\d{6}" value={pwCode} onChange={e=>setPwCode(e.target.value.replace(/\D/g,""))}/>
+              <button type="button" className="acc-code-btn" disabled={smsWait>0} onClick={()=>void sendPasswordCode()}>{smsWait>0?smsWait+"s":t("获取验证码")}</button></span></label>
+            :<label>{t("当前密码")}<input type="password" minLength={12} required autoComplete="current-password" value={oldPassword} onChange={e=>setOldPassword(e.target.value)}/></label>}
+          {profile?.user.phone&&profile.user.hasPassword!==false&&<button type="button" className="acc-link" onClick={()=>setPwBySms(v=>!v)}>{t(pwBySms?"用当前密码验证":"忘记密码？用短信验证码")}</button>}
           <label>{t("新密码")}<input type="password" minLength={12} required autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label>
-          <button className="acc-primary" disabled={busy}>{t("修改密码")}</button></form>
+          <button className="acc-primary" disabled={busy}>{t(profile?.user.hasPassword===false?"设置密码":"修改密码")}</button></form>
+        {profile?.user.hasPassword===false&&<p className="acc-muted">{t("你是用手机验证码注册的，还没有密码；用短信验证码就能设置一个。")}</p>}
         <p className="acc-muted">{t("密码修改会注销其他设备，并撤销所有 API 密钥。")}</p>
       </section>
       <section className="acc-card"><div className="acc-section-title"><Fingerprint size={19}/><h3>{t("当前设备会话")}</h3></div>

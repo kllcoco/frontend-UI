@@ -109,7 +109,7 @@ app.get("/api/status", (_req, res) => {
   });
 });
 
-app.use("/api", createMediaRouter({ apiBase, apiKey }));
+app.use("/api", createMediaRouter({ apiBase, apiKey, cwu: accounts.cwu }));
 
 // One-shot (non-streaming) completion for work-mode agents running on paired computers.
 async function completeChat(messages) {

@@ -5,9 +5,18 @@
 //
 //   CIRO_CWU_BILLING=on
 //   CIRO_CWU_SIGNUP_BONUS=20000                       CWU given to each new account (optional)
+//   CIRO_CWU_PRICE_IMAGE=50 / CIRO_CWU_PRICE_SPEECH=5 (per 1000 characters) / CIRO_CWU_PRICE_TRANSCRIBE=5
+//                                                   CWU for media calls, whose models report no CWU (defaults shown)
 //   CIRO_CWU_PACKS=[{"id":"s","cwu":100000,"label":"10 万 CWU","price":"¥30","stripePrice":"price_…"}]
 
 const LEDGER_KEEP = 300;
+
+/** Flat CWU prices for media calls (images, speech, transcription). */
+export function cwuPrice(env, kind) {
+  const def = { image: 50, speech: 5, transcribe: 5 }[kind] ?? 0;
+  const v = Number(env["CIRO_CWU_PRICE_" + kind.toUpperCase()]);
+  return Number.isFinite(v) && v >= 0 ? v : def;
+}
 
 export function cwuEnabled(env) { return /^(1|on|true|yes)$/i.test(String(env.CIRO_CWU_BILLING || "")); }
 
@@ -50,7 +59,7 @@ export function createCwuLedger(store, env) {
     /** Chats need a positive balance (a reply may end slightly below zero; the next one is refused). */
     canSpend: (userId) => !cwuEnabled(env) || userId === "local" || balanceOf(userId) > 0,
     credit: (userId, amount, reason, ref) => amount > 0 && apply(userId, amount, reason, ref),
-    charge: (userId, amount, ref) => cwuEnabled(env) && userId !== "local" && amount > 0 && apply(userId, -amount, "chat", ref),
+    charge: (userId, amount, ref, reason = "chat") => cwuEnabled(env) && userId !== "local" && amount > 0 && apply(userId, -amount, reason, ref),
     /** A purchase made elsewhere (e.g. the website) arrives with the account email only. */
     userByEmail: (email) => (typeof email === "string" && email.trim() ? state().users.find((x) => typeof x.email === "string" && x.email && x.email.toLowerCase() === email.trim().toLowerCase()) : null) || null
   };

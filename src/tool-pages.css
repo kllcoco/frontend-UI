@@ -1,0 +1,281 @@
+/* Tool pages (Studio, Collaboration space, Plugins, Apps, Skills, Billing) and the search palette.
+   Loaded after shell.css. Wide screens: a grouped vertical tool rail beside a readable content column.
+   Phones (≤760px): a compact tile grid / module chooser above the content — never a long horizontal strip. */
+
+/* ── Workbench frame + rail ─────────────────────────── */
+:root[data-theme] .wb-root{--wb-ink:var(--cx-text);--wb-muted:var(--cx-muted);--wb-line:var(--cx-line);--wb-card:var(--cx-surface);
+  --wb-soft:var(--cx-side);--wb-accent:var(--cx-accent);--wb-bg:var(--cx-bg);background:var(--cx-bg);color:var(--cx-text)}
+:root[data-theme] .wb-header{border-bottom:1px solid var(--cx-line);padding:18px 28px 16px}
+:root[data-theme] .wb-header h1{color:var(--cx-text);font-size:20px;letter-spacing:-.3px}
+:root[data-theme] .wb-header p{color:var(--cx-muted)}
+:root[data-theme] .wb-refresh{background:transparent;color:var(--cx-text-2);border:1px solid var(--cx-line-strong);font-size:12.5px;padding:7px 12px}
+:root[data-theme] .wb-refresh:hover{background:var(--cx-side-hover)}
+.wb-frame{flex:1;min-height:0;display:grid;grid-template-columns:216px minmax(0,1fr)}
+.wb-frame--embedded{display:block}
+:root[data-theme] .wb-nav{display:flex;flex-direction:column;gap:18px;padding:16px 10px 24px;margin:0;width:auto;max-width:none;
+  overflow-y:auto;overflow-x:hidden;border-bottom:0;border-right:1px solid var(--cx-line);background:var(--cx-bg);scrollbar-width:thin}
+.wb-nav-group{display:flex;flex-direction:column;gap:2px}
+.wb-nav-label{font-size:11.5px;font-weight:600;letter-spacing:.3px;color:var(--cx-faint);padding:0 10px 6px}
+:root[data-theme] .wb-nav-item{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:9px;
+  background:transparent;color:var(--cx-text-2);font-size:13.5px;text-align:left;white-space:nowrap;position:relative}
+:root[data-theme] .wb-nav-item span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+:root[data-theme] .wb-nav-item svg{flex:none;color:var(--cx-muted)}
+:root[data-theme] .wb-nav-item:hover{background:var(--cx-side-hover);color:var(--cx-text)}
+:root[data-theme] .wb-nav-item--active,:root[data-theme] .wb-nav-item--active:hover{background:var(--cx-accent-soft)!important;color:var(--cx-text)!important;
+  font-weight:600;border-color:transparent!important}
+:root[data-theme] .wb-nav-item--active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--cx-accent)}
+:root[data-theme] .wb-nav-item--active svg{color:var(--cx-accent)}
+.wb-nav-item:focus-visible{outline:2px solid var(--cx-accent);outline-offset:-2px}
+:root[data-theme] .wb-root:not(.wb-root--embedded) .wb-body{padding:26px 32px 56px;scrollbar-color:var(--cx-line-strong) transparent}
+:root[data-theme] .wb-root:not(.wb-root--embedded) .wb-body>*{max-width:920px;margin-left:auto;margin-right:auto}
+
+/* Gold harmonization of the legacy emerald workbench surfaces. */
+:root[data-theme] .wb-hero{background:var(--cx-surface);border-color:var(--cx-line);box-shadow:var(--cx-shadow-sm)}
+:root[data-theme] .wb-hero-top{color:var(--cx-accent)}
+:root[data-theme] .wb-hero-top h2,:root[data-theme] .wb-block-title h2,:root[data-theme] .wb-card h3,:root[data-theme] .wb-mode strong,
+:root[data-theme] .wb-phase strong,:root[data-theme] .wb-goal-info>strong,:root[data-theme] .wb-schedule strong{color:var(--cx-text)}
+:root[data-theme] .wb-hero-top p,:root[data-theme] .wb-block-title p,:root[data-theme] .wb-form-bottom p,:root[data-theme] .wb-muted,
+:root[data-theme] .wb-mode small,:root[data-theme] .wb-phase small,:root[data-theme] .wb-goal-info p,:root[data-theme] .wb-goal-info small{color:var(--cx-muted)}
+:root[data-theme] .wb-label{color:var(--cx-text-2);font-size:12.5px}
+:root[data-theme] .wb-label input,:root[data-theme] .wb-label textarea,:root[data-theme] .wb-label select,
+:root[data-theme] .wb-field-row input,:root[data-theme] .wb-editor textarea{background:var(--cx-bg);color:var(--cx-text);border-color:var(--cx-line-strong);font-size:13.5px}
+:root[data-theme] .wb-label input:focus,:root[data-theme] .wb-label textarea:focus,:root[data-theme] .wb-label select:focus,
+:root[data-theme] .wb-field-row input:focus,:root[data-theme] .wb-editor textarea:focus{border-color:var(--cx-accent);box-shadow:0 0 0 3px var(--cx-accent-soft)}
+:root[data-theme] .wb-primary{background:var(--cx-text);border-color:var(--cx-text);color:var(--cx-bg);font-size:12.5px}
+:root[data-theme] .wb-primary:hover:not(:disabled){background:var(--cx-text-2)}
+:root[data-theme] .wb-secondary{background:transparent;color:var(--cx-text-2);border-color:var(--cx-line-strong);font-size:12.5px}
+:root[data-theme] .wb-secondary:hover:not(:disabled){background:var(--cx-side-hover)}
+:root[data-theme] .wb-switcher{background:var(--cx-side);border-color:var(--cx-line)}
+:root[data-theme] .wb-switcher button{color:var(--cx-muted);font-size:12.5px}
+:root[data-theme] .wb-switcher .wb-selected{background:var(--cx-surface);color:var(--cx-text);box-shadow:var(--cx-shadow-sm)}
+:root[data-theme] .wb-phase,:root[data-theme] .wb-card,:root[data-theme] .wb-goal-card,:root[data-theme] .wb-mode,
+:root[data-theme] .wb-schedule,:root[data-theme] .wb-plugin{background:var(--cx-surface);border-color:var(--cx-line)}
+:root[data-theme] .wb-phase-icon,:root[data-theme] .wb-goal-mark,:root[data-theme] .wb-plugin-icon,:root[data-theme] .wb-task-line>span{
+  background:var(--cx-accent-soft);border-color:transparent;color:var(--cx-accent)}
+:root[data-theme] .wb-phase-next{color:var(--cx-faint)}
+:root[data-theme] .wb-mode{color:var(--cx-accent)}
+:root[data-theme] .wb-mode:hover{background:var(--cx-side)}
+:root[data-theme] .wb-mode--selected{background:var(--cx-accent-soft);border-color:var(--cx-accent);box-shadow:none}
+:root[data-theme] .wb-mode-check{color:var(--cx-accent)}
+:root[data-theme] .wb-block-title>span{background:var(--cx-side);color:var(--cx-text-2)}
+:root[data-theme] .wb-block-title>svg,:root[data-theme] .wb-footnote svg,:root[data-theme] .wb-empty>svg{color:var(--cx-accent)}
+:root[data-theme] .wb-footnote{background:var(--cx-side);border-color:var(--cx-line);color:var(--cx-muted);font-size:12.5px}
+:root[data-theme] .wb-empty{background:transparent;border-color:var(--cx-line-strong);color:var(--cx-muted);font-size:12.5px}
+:root[data-theme] .wb-empty strong{color:var(--cx-text)}
+:root[data-theme] .wb-health{background:var(--cx-accent-soft);border-color:transparent;color:var(--cx-accent-strong);font-size:12px}
+:root[data-theme] .wb-scope,:root[data-theme] .wb-health--ready{font-size:12px;background:var(--cx-side);border-color:var(--cx-line);color:var(--cx-text-2)}
+:root[data-theme] .wb-tags>button{background:var(--cx-side);border-color:var(--cx-line);color:var(--cx-text-2)}
+:root[data-theme] .wb-verified{color:var(--cx-accent)}
+:root[data-theme] .wb-approvals{border-top-color:var(--cx-line)}
+:root[data-theme] .wb-risk input,:root[data-theme] .wb-toggle input{accent-color:var(--cx-accent)}
+:root[data-theme] .wb-toggle{color:var(--cx-text-2);border-bottom-color:var(--cx-line)}
+:root[data-theme] .wb-mode-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+:root[data-theme] .wb-pipeline{grid-template-columns:repeat(auto-fit,minmax(118px,1fr))}
+/* Plugins: the store's own "installed" column sits on top so the page doesn't show two side rails. */
+.wb-body .ciro-market-layout{grid-template-columns:1fr;min-height:0}
+.wb-body .ciro-market-installed{border-right:0;border-bottom:1px solid var(--line);padding:16px 18px}
+.wb-body .ciro-market-installed h3{margin:0 0 8px}
+.wb-body .ciro-market-hint{margin:8px 0 0}
+.wb-body .ciro-market-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.wb-body .ciro-market-tile.active{box-shadow:0 0 0 1px var(--accent)}
+
+/* Commercial pages (apps / skills / billing): responsive card grids instead of fixed column counts. */
+:root[data-theme] .com-app-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+:root[data-theme] .com-metric-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+:root[data-theme] .com-invoice-layout{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+
+/* ── Studio frame + rail ───────────────────────────── */
+.stu-frame{display:grid;grid-template-columns:216px minmax(0,1fr);min-height:100%}
+.stu-rail{position:sticky;top:0;align-self:start;height:100vh;height:100dvh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
+  padding:18px 10px 24px;border-right:1px solid var(--cx-line);background:var(--cx-bg);scrollbar-width:thin}
+.stu-rail-label{font-size:11.5px;font-weight:600;letter-spacing:.3px;color:var(--cx-faint);padding:0 10px 6px}
+.stu-rail-item{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:9px;background:transparent;
+  color:var(--cx-text-2);font-size:13.5px;text-align:left;white-space:nowrap;position:relative}
+.stu-rail-item span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.stu-rail-item svg{flex:none;color:var(--cx-muted)}
+.stu-rail-item:hover{background:var(--cx-side-hover);color:var(--cx-text)}
+.stu-rail-item--active,.stu-rail-item--active:hover{background:var(--cx-accent-soft);color:var(--cx-text);font-weight:600}
+.stu-rail-item--active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--cx-accent)}
+.stu-rail-item--active svg{color:var(--cx-accent)}
+.stu-rail-item:focus-visible{outline:2px solid var(--cx-accent);outline-offset:-2px}
+.stu-rail-item:first-of-type{margin-bottom:8px}
+:root[data-theme] .stu-root{max-width:984px;padding:26px 32px 64px;color:var(--cx-text)}
+.stu-header-actions{display:flex;align-items:center;gap:8px;flex:none}
+.stu-switch{display:none}
+:root[data-theme] .stu-workspace{background:var(--cx-bg)}
+:root[data-theme] .stu-header h1{color:var(--cx-text);font-size:22px}
+:root[data-theme] .stu-header p,:root[data-theme] .stu-section-head>span{color:var(--cx-muted)}
+:root[data-theme] .stu-eyebrow,:root[data-theme] .stu-hero-tag,:root[data-theme] .stu-section-head svg,:root[data-theme] .stu-card h3 svg{color:var(--cx-accent)}
+:root[data-theme] .stu-section-head h3,:root[data-theme] .stu-card h3{color:var(--cx-text)}
+:root[data-theme] .stu-hero{background:radial-gradient(circle at 88% 45%,var(--cx-accent-soft) 0,var(--cx-surface) 55%);border-color:var(--cx-line);min-height:0;padding:28px 32px}
+:root[data-theme] .stu-hero h2{color:var(--cx-text)}
+:root[data-theme] .stu-hero p{color:var(--cx-muted)}
+:root[data-theme] .stu-hero-orbit{width:132px;height:132px;color:var(--cx-accent);border-color:var(--cx-line-strong);background:var(--cx-surface);
+  box-shadow:0 0 0 11px var(--cx-accent-soft)}
+:root[data-theme] .stu-primary{background:var(--cx-text);border-color:var(--cx-text);color:var(--cx-bg);font-size:12.5px}
+:root[data-theme] .stu-primary:hover{background:var(--cx-text-2);color:var(--cx-bg)}
+:root[data-theme] .stu-light-button,:root[data-theme] .stu-hero-secondary{background:transparent;color:var(--cx-text-2);border-color:var(--cx-line-strong);font-size:12.5px}
+:root[data-theme] .stu-light-button:hover,:root[data-theme] .stu-hero-secondary:hover{background:var(--cx-side-hover)}
+:root[data-theme] .stu-link{color:var(--cx-accent);font-size:12.5px}
+:root[data-theme] .stu-module-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+:root[data-theme] .stu-feature-grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+:root[data-theme] .stu-metric-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+:root[data-theme] .stu-module{background:var(--cx-surface);border-color:var(--cx-line);box-shadow:none;min-height:150px}
+:root[data-theme] .stu-module:hover{border-color:var(--cx-line-strong);box-shadow:var(--cx-shadow-sm)}
+:root[data-theme] .stu-module--accent{background:var(--cx-accent-soft);border-color:var(--cx-line-strong)}
+:root[data-theme] .stu-module strong{color:var(--cx-text)}
+:root[data-theme] .stu-module p{color:var(--cx-muted)}
+:root[data-theme] .stu-module-icon{background:var(--cx-accent-soft);color:var(--cx-accent)}
+:root[data-theme] .stu-module-arrow{color:var(--cx-faint)}
+:root[data-theme] .stu-card{background:var(--cx-surface);border-color:var(--cx-line)}
+
+/* Mid widths: a slimmer rail. */
+@media (max-width:1180px) and (min-width:761px){
+  .wb-frame,.stu-frame{grid-template-columns:184px minmax(0,1fr)}
+  :root[data-theme] .wb-root:not(.wb-root--embedded) .wb-body{padding:22px 22px 48px}
+  :root[data-theme] .stu-root{padding:22px 22px 56px}
+}
+
+/* Phones: tool tiles in a 3-column grid that scroll away with the page; Studio uses a module chooser. */
+@media (max-width:760px){
+  :root[data-theme] .wb-root:not(.wb-root--embedded){overflow-y:auto;height:100%}
+  .wb-frame{display:block}
+  :root[data-theme] .wb-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:12px 12px 14px;
+    border-right:0;border-bottom:1px solid var(--cx-line);overflow:visible}
+  .wb-nav-group{display:contents}
+  .wb-nav-label{display:none}
+  :root[data-theme] .wb-nav-item{flex-direction:column;justify-content:center;gap:5px;min-height:58px;padding:8px 4px;
+    border:1px solid var(--cx-line);background:var(--cx-surface);font-size:12px;line-height:1.25;text-align:center;white-space:normal}
+  :root[data-theme] .wb-nav-item span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  :root[data-theme] .wb-nav-item--active{border-color:var(--cx-accent)!important}
+  :root[data-theme] .wb-nav-item--active::before{display:none}
+  :root[data-theme] .wb-root:not(.wb-root--embedded) .wb-body{overflow:visible;padding:16px 14px 40px}
+  :root[data-theme] .wb-header{padding:12px 14px 10px}
+
+  .stu-frame{display:block}
+  .stu-rail{display:none}
+  :root[data-theme] .stu-root{padding:14px 14px 40px}
+  .stu-header{flex-wrap:wrap}
+  .stu-header-actions{width:100%}
+  .stu-header-actions .stu-light-button{flex:none}
+  .stu-switch{display:block;flex:1;min-width:0;height:38px;padding:0 10px;border-radius:10px;border:1px solid var(--cx-line-strong);
+    background:var(--cx-surface);color:var(--cx-text);font-size:14px}
+  :root[data-theme] .stu-hero{padding:22px 18px}
+  :root[data-theme] .stu-module{min-height:0}
+}
+
+/* ── Search palette ─────────────────────────────────── */
+.sp-backdrop{position:fixed;inset:0;z-index:120;background:var(--cx-scrim);display:flex;justify-content:center;align-items:flex-start;
+  padding:11vh 16px 16px;animation:cx-fade .15s;backdrop-filter:blur(3px)}
+.sp-panel{width:min(660px,100%);max-height:min(620px,78vh);display:flex;flex-direction:column;background:var(--cx-raised);border:1px solid var(--cx-line);
+  border-radius:18px;box-shadow:var(--cx-shadow);overflow:hidden;animation:cx-rise .2s var(--cx-ease);color:var(--cx-text)}
+.sp-input{display:flex;align-items:center;gap:12px;padding:0 12px 0 18px;height:62px;border-bottom:1px solid var(--cx-line);color:var(--cx-muted);flex:none}
+.sp-input-icon{flex:none;color:var(--cx-accent)}
+.sp-input input{flex:1;min-width:0;height:100%;border:0;outline:0;background:none;color:var(--cx-text);font-size:17px;letter-spacing:-.1px}
+.sp-input input::placeholder{color:var(--cx-faint)}
+.sp-clear{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;border-radius:50%;
+  background:var(--cx-side-active);color:var(--cx-text-2)}
+.sp-clear:hover{background:var(--cx-line-strong);color:var(--cx-text)}
+.sp-close{display:flex;align-items:center;justify-content:center;height:30px;min-width:30px;padding:0 6px;border-radius:8px;background:none;color:var(--cx-muted);flex:none}
+.sp-close:hover{background:var(--cx-side-hover);color:var(--cx-text)}
+.sp-close-icon{display:none}
+.sp-close-kbd{display:inline-flex;align-items:center;height:22px;padding:0 7px;border:1px solid var(--cx-line-strong);border-radius:6px;font-size:11px!important;color:var(--cx-muted)!important}
+.sp-list{overflow-y:auto;padding:6px 8px 8px;overscroll-behavior:contain;scrollbar-width:thin}
+.sp-group{position:sticky;top:-6px;z-index:1;font-size:11.5px;font-weight:600;letter-spacing:.3px;color:var(--cx-faint);
+  padding:12px 10px 6px;background:var(--cx-raised)}
+.sp-item{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:9px 10px;border-radius:10px;background:none;color:var(--cx-text);
+  text-align:left;position:relative;scroll-margin:34px 0 6px}
+.sp-item[data-active="true"]{background:var(--cx-side-hover)}
+.sp-item[data-active="true"]::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--cx-accent)}
+.sp-item-icon{display:flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;border-radius:8px;background:var(--cx-side);color:var(--cx-muted)}
+.sp-item[data-active="true"] .sp-item-icon{background:var(--cx-accent-soft);color:var(--cx-accent)}
+.sp-item-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.sp-item-title{display:flex;align-items:baseline;gap:10px;min-width:0}
+.sp-item-title strong{flex:1;min-width:0;font-size:14px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-item-title time{flex:none;font-size:12px;color:var(--cx-faint);font-variant-numeric:tabular-nums}
+.sp-item-copy small{font-size:12.5px;line-height:1.45;color:var(--cx-muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.sp-item mark{background:var(--cx-accent-soft);color:var(--cx-accent-strong);border-radius:3px;padding:0 1px;font-weight:650}
+.sp-item kbd{flex:none;font-size:11px;color:var(--cx-faint);padding:3px 6px;border:1px solid var(--cx-line);border-radius:5px}
+.sp-enter{flex:none;color:var(--cx-faint);opacity:0}
+.sp-item[data-active="true"] .sp-enter{opacity:1}
+.sp-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:40px 20px 44px;text-align:center;color:var(--cx-muted)}
+.sp-empty-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:50%;background:var(--cx-side);color:var(--cx-faint);margin-bottom:6px}
+.sp-empty strong{font-size:14.5px;font-weight:600;color:var(--cx-text)}
+.sp-empty small{font-size:12.5px}
+.sp-foot{display:flex;gap:18px;padding:9px 16px;border-top:1px solid var(--cx-line);font-size:12px;color:var(--cx-muted);flex:none;background:var(--cx-side)}
+.sp-foot span{display:inline-flex;align-items:center;gap:3px}
+.sp-foot kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;margin-right:2px;
+  border:1px solid var(--cx-line-strong);border-bottom-width:2px;border-radius:5px;background:var(--cx-raised);color:var(--cx-text-2)}
+@media (max-width:760px){
+  .sp-backdrop{padding:0;align-items:stretch;background:var(--cx-raised);backdrop-filter:none}
+  .sp-panel{width:100%;max-height:none;height:100%;border:0;border-radius:0;box-shadow:none;padding-top:var(--sa-top);padding-bottom:var(--sa-bottom)}
+  .sp-input{height:58px;padding:0 8px 0 16px}
+  .sp-input input{font-size:17px}
+  .sp-close-kbd{display:none}
+  .sp-close-icon{display:block}
+  .sp-close{width:40px;height:40px}
+  .sp-list{flex:1;padding:4px 6px 16px}
+  .sp-item{min-height:52px;padding:10px 10px}
+  .sp-foot{display:none}
+}
+
+/* Studio forms and notes in the shell palette. */
+:root[data-theme] .stu-banner{background:var(--cx-side);border-color:var(--cx-line);color:var(--cx-text-2);font-size:12.5px}
+:root[data-theme] .stu-banner svg{color:var(--cx-accent)}
+:root[data-theme] .stu-form label{color:var(--cx-text-2);font-size:12.5px}
+:root[data-theme] .stu-form input,:root[data-theme] .stu-form select,:root[data-theme] .stu-form textarea,
+:root[data-theme] .stu-inline-form input,:root[data-theme] .stu-inline-form select,:root[data-theme] .stu-ide-toolbar input,
+:root[data-theme] .stu-ide-toolbar select,:root[data-theme] .stu-new-file input,:root[data-theme] .stu-search-bar{
+  background:var(--cx-bg);color:var(--cx-text);border-color:var(--cx-line-strong);font-size:13.5px}
+:root[data-theme] .stu-form input:focus,:root[data-theme] .stu-form select:focus,:root[data-theme] .stu-form textarea:focus,
+:root[data-theme] .stu-inline-form input:focus,:root[data-theme] .stu-ide-toolbar input:focus{border-color:var(--cx-accent);box-shadow:0 0 0 3px var(--cx-accent-soft)}
+:root[data-theme] .stu-search-bar input{background:transparent}
+.stu-form .stu-actions{align-items:flex-end}
+:root[data-theme] .stu-status--ready{color:var(--cx-accent-strong);background:var(--cx-accent-soft);border-color:transparent}
+:root[data-theme] .stu-feature-launch,:root[data-theme] .stu-dropzone{background:var(--cx-surface);border-color:var(--cx-line-strong);color:var(--cx-text)}
+:root[data-theme] .stu-feature-launch svg,:root[data-theme] .stu-dropzone svg{color:var(--cx-accent)}
+:root[data-theme] .stu-small{color:var(--cx-muted)}
+:root[data-theme] .wb-mobile-top span{color:var(--cx-text)}
+
+/* Commercial pages (apps / skills / billing) in the shell palette. */
+:root[data-theme] .com-root,:root[data-theme] .com-page{color:var(--cx-text)}
+:root[data-theme] .com-eyebrow,:root[data-theme] .com-section-head svg,:root[data-theme] .com-info svg,:root[data-theme] .com-empty>svg,
+:root[data-theme] .com-unavailable svg{color:var(--cx-accent)}
+:root[data-theme] .com-page-head h2,:root[data-theme] .com-card h3,:root[data-theme] .com-app-card h3,:root[data-theme] .com-skill-title h3,
+:root[data-theme] .com-metric strong,:root[data-theme] .com-empty strong{color:var(--cx-text)}
+:root[data-theme] .com-page-head p,:root[data-theme] .com-metric>span,:root[data-theme] .com-metric small,:root[data-theme] .com-app-card p,
+:root[data-theme] .com-app-card small,:root[data-theme] .com-skill-details p,:root[data-theme] .com-skill-title span,:root[data-theme] .com-note,
+:root[data-theme] .com-budget-numbers,:root[data-theme] .com-rates,:root[data-theme] .com-empty,:root[data-theme] .com-unavailable p,
+:root[data-theme] .com-readiness p,:root[data-theme] .com-readiness>span,:root[data-theme] .com-skill-ready,:root[data-theme] .com-skill-tags>span{color:var(--cx-muted)}
+:root[data-theme] .com-section-head>span,:root[data-theme] .com-rates span:first-child,:root[data-theme] .com-bar-row,
+:root[data-theme] .com-budget-form label,:root[data-theme] .com-table th,:root[data-theme] .com-table td{color:var(--cx-text-2)}
+:root[data-theme] .com-card,:root[data-theme] .com-metric,:root[data-theme] .com-app-card,:root[data-theme] .com-skill{background:var(--cx-surface);border-color:var(--cx-line)}
+:root[data-theme] .com-app-card:hover{box-shadow:var(--cx-shadow-sm)}
+:root[data-theme] .com-period,:root[data-theme] .com-readiness,:root[data-theme] .com-info{background:var(--cx-side);border-color:var(--cx-line);color:var(--cx-text-2)}
+:root[data-theme] .com-billing-tabs{background:var(--cx-side)}
+:root[data-theme] .com-billing-tabs button{color:var(--cx-muted);font-size:12.5px}
+:root[data-theme] .com-billing-tabs .com-tab-active{background:var(--cx-surface);color:var(--cx-text);box-shadow:var(--cx-shadow-sm)}
+:root[data-theme] .com-icon,:root[data-theme] .com-skill-mark{background:var(--cx-accent-soft);color:var(--cx-accent)}
+:root[data-theme] .com-pin{color:var(--cx-faint)}
+:root[data-theme] .com-pin:hover,:root[data-theme] .com-pin--active{color:var(--cx-accent);background:var(--cx-accent-soft)}
+:root[data-theme] .com-status--ready{color:var(--cx-accent-strong)}
+:root[data-theme] .com-primary{background:var(--cx-text);border-color:var(--cx-text);color:var(--cx-bg);font-size:12.5px}
+:root[data-theme] .com-primary:hover{background:var(--cx-text-2)}
+:root[data-theme] .com-secondary,:root[data-theme] .com-open{background:transparent;border-color:var(--cx-line-strong);color:var(--cx-text-2);font-size:12.5px}
+:root[data-theme] .com-secondary:hover,:root[data-theme] .com-open:hover{background:var(--cx-side-hover)}
+:root[data-theme] .com-budget-form input,:root[data-theme] .com-budget-form select,:root[data-theme] .com-tools select,:root[data-theme] .com-search{
+  background:var(--cx-bg);border-color:var(--cx-line-strong);color:var(--cx-text);font-size:13.5px}
+:root[data-theme] .com-search input{color:var(--cx-text)}
+:root[data-theme] .com-budget-form input:focus,:root[data-theme] .com-budget-form select:focus,:root[data-theme] .com-tools select:focus{
+  border-color:var(--cx-accent);box-shadow:0 0 0 3px var(--cx-accent-soft)}
+:root[data-theme] .com-budget-progress,:root[data-theme] .com-bar-track{background:var(--cx-side-active)}
+:root[data-theme] .com-budget-progress span,:root[data-theme] .com-bar-track i{background:var(--cx-accent)}
+:root[data-theme] .com-bar-row>strong,:root[data-theme] .com-table td code{color:var(--cx-text)}
+:root[data-theme] .com-table th{background:var(--cx-side)}
+:root[data-theme] .com-table th,:root[data-theme] .com-table td,:root[data-theme] .com-rates{border-color:var(--cx-line)}
+:root[data-theme] .com-skill-tags code{background:var(--cx-side);color:var(--cx-text-2)}
+/* The whole search row is the field: no inner focus ring on the input itself. */
+.cx-shell .sp-input input:focus-visible,.sp-input input:focus-visible,.sp-input input:focus{outline:none;box-shadow:none}
+.sp-input:focus-within{box-shadow:inset 0 -2px 0 var(--cx-accent)}
+:root[data-theme] .wb-mobile-top button{color:var(--cx-text-2)}
+:root[data-theme="dark"] .sp-item[data-active="true"]{background:var(--cx-side-active)}

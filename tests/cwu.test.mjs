@@ -110,5 +110,12 @@ test("phone sign-up and sign-in with SMS codes (one use, wrong codes refused, sa
     const login = await b("/api/account/login", { method: "POST", body: { phone: "13812345678", smsCode: codes.at(-1) } });
     assert.equal(login.status, 200); assert.equal(login.json.user.id, reg.json.user.id);
     assert.equal((await b("/api/account/login", { method: "POST", body: { email: "", password: "x" } })).status, 401, "no empty-email match");
+    // No password yet: set one with an SMS code, then sign in with phone + password.
+    assert.equal(login.json.user.hasPassword, false);
+    assert.equal((await b("/api/account/password", { method: "POST", body: { smsCode: "000000", newPassword: pw } })).status, 401);
+    assert.equal((await b("/api/account/password/sms", { method: "POST", body: {} })).status, 200);
+    assert.equal((await b("/api/account/password", { method: "POST", body: { smsCode: codes.at(-1), newPassword: pw } })).status, 200);
+    const again = await ctx.client()("/api/account/login", { method: "POST", body: { phone: "13812345678", password: pw } });
+    assert.equal(again.status, 200); assert.equal(again.json.user.hasPassword, true);
   } finally { console.info = orig; env.CIRO_SMS_PROVIDER = prev; await ctx.close(); }
 });

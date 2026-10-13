@@ -69,6 +69,8 @@ export function createApiGateway({ accounts, dir, upstreamUrl, apiKey, models, c
     const p = accounts.principal(req);
     if (!p || p.mode !== "api-key") { fail(res, 401, "Invalid, expired or revoked API key", "authentication_error"); return null; }
     if (!p.scopes.includes("chat:invoke")) { fail(res, 403, "This API key lacks the chat:invoke scope", "permission_error"); return null; }
+    // CWU billing: calls need a positive balance on the key owner's account (charged in log() below).
+    if (accounts.cwu && !accounts.cwu.canSpend(p.id)) { fail(res, 402, "Insufficient CWU balance. Top up in the Ciro app.", "insufficient_cwu"); return null; }
     return p;
   }
 
@@ -100,8 +102,9 @@ export function createApiGateway({ accounts, dir, upstreamUrl, apiKey, models, c
     }
     const controller = new AbortController();
     res.on("close", () => { if (!res.writableEnded) controller.abort(); });
-    const log = (status, meter, error) => record(p.keyId, { model: payload.model, status, ms: Date.now() - started,
-      cwu: meter?.cwu || 0, gwu: meter?.gwu || 0, stream: payload.stream, ...(error ? { error: String(error).slice(0, 160) } : {}) });
+    const log = (status, meter, error) => { if (meter?.cwu > 0) { try { accounts.cwu?.charge(p.id, meter.cwu, undefined, "api"); } catch (e) { console.error("[ciro] CWU charge failed:", e.message); } }
+      return record(p.keyId, { model: payload.model, status, ms: Date.now() - started,
+      cwu: meter?.cwu || 0, gwu: meter?.gwu || 0, stream: payload.stream, ...(error ? { error: String(error).slice(0, 160) } : {}) }); };
     try {
       const upstream = await fetch(upstreamUrl, { method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: "Bearer " + apiKey } : {}) },

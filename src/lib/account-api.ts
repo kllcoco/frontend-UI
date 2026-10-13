@@ -1,6 +1,6 @@
 export type SessionSnapshot={
   enabled:boolean;authenticated:boolean;user:{
-    id:string;email:string;displayName:string;memoryEnabled:boolean;createdAt:string;role?:"owner"|"user"
+    id:string;email:string;phone?:string;hasPassword?:boolean;displayName:string;memoryEnabled:boolean;createdAt:string;role?:"owner"|"user"
   }|null;csrf:string|null;mode:string|null;bootstrapAvailable:boolean;
   /** Whether new people can create accounts on this server. */
   registration?:"open"|"invite"|"closed";
