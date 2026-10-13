@@ -467,6 +467,7 @@ const translations: Readonly<Record<string,string>> = {
   "GitHub 暂时限制了查询次数，请稍后再试": "GitHub is limiting lookups for now; try again later",
   "暂时连不上更新服务器（GitHub），请稍后再试": "Can't reach the update server (GitHub) right now; try again later",
   "公告": "Announcements",
+  "黑金": "Black & gold",
   "使用 Ciro 官方服务器：注册或登录后即可对话，聊天记录可在你的设备间同步。": "Use the official Ciro server: sign up or sign in to start chatting, with your chats synced across your devices.",
   "连接官方服务器": "Connect to the official server",
   "或者连接你自己的服务器：": "Or connect your own server:",

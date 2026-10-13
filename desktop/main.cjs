@@ -141,7 +141,7 @@ function showQuick() {
     quickWindow = new BrowserWindow({
       width: 680, height: 480, minWidth: 420, minHeight: 260, show: false, frame: false, resizable: true,
       alwaysOnTop: true, skipTaskbar: true, fullscreenable: false, title: "Ciro",
-      backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1b19" : "#faf9f6",
+      backgroundColor: nativeTheme.shouldUseDarkColors ? "#15120f" : "#f8f5ef",
       webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true }
     });
     quickWindow.on("blur", () => { if (quickWindow && !quickWindow.webContents.isDevToolsOpened()) quickWindow.hide(); });
@@ -296,7 +296,7 @@ function createWindow(route = "/") {
     minHeight: 560,
     show: false,
     title: "Ciro",
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1b1b19" : "#faf9f6",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#15120f" : "#f8f5ef",
     titleBarStyle: isMac ? "hiddenInset" : "default",
     trafficLightPosition: { x: 16, y: 18 },
     icon: path.join(__dirname, "..", "build", "icon.png"),

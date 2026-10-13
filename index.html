@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#faf9f6" />
+    <meta name="theme-color" content="#f8f5ef" />
     <meta name="description" content="Ciro — Think further. AI 对话工作台。" />
     <link rel="icon" type="image/svg+xml" href="/ciro-mark.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -20,12 +20,12 @@
       } catch (e) {}
     </script>
     <style>
-      html { background: #faf9f6; } html[data-theme="dark"] { background: #141a18; }
+      html { background: #f8f5ef; } html[data-theme="dark"] { background: #15120f; }
       #ciro-boot { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: inherit;
         transition: opacity .42s cubic-bezier(.2,.7,.2,1), visibility .42s; }
       #ciro-boot svg { width: 64px; height: 64px; animation: ciro-boot 1.6s cubic-bezier(.4,0,.2,1) infinite; }
-      #ciro-boot .b { stop-color: #0b6b4b; } #ciro-boot .a { stop-color: #22b07a; } #ciro-boot circle { fill: #2bbf82; }
-      html[data-theme="dark"] #ciro-boot .a { stop-color: #8ff0c0; } html[data-theme="dark"] #ciro-boot .b { stop-color: #3fbf86; }
+      #ciro-boot .b { stop-color: #8a6224; } #ciro-boot .a { stop-color: #d6ad62; } #ciro-boot .s { fill: #b98a3a; }
+      html[data-theme="dark"] #ciro-boot .a { stop-color: #f5dfa8; } html[data-theme="dark"] #ciro-boot .b { stop-color: #b58a43; } html[data-theme="dark"] #ciro-boot .s { fill: #fbe9c0; }
       html.ciro-ready #ciro-boot { opacity: 0; visibility: hidden; pointer-events: none; }
       html.ciro-ready #ciro-boot svg { transform: scale(.86); transition: transform .42s cubic-bezier(.2,.7,.2,1); animation: none; }
       @keyframes ciro-boot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.94); opacity: .82; } }
@@ -36,7 +36,7 @@
     <div id="ciro-boot" aria-hidden="true">
       <svg viewBox="0 0 64 64" fill="none"><defs><linearGradient id="cb" x1="10" y1="8" x2="52" y2="58" gradientUnits="userSpaceOnUse">
         <stop class="a"/><stop offset="1" class="b"/></linearGradient></defs>
-        <path d="M48.5 17.5A22 22 0 1 0 48.5 46.5" stroke="url(#cb)" stroke-width="8.5" stroke-linecap="round"/><circle cx="51" cy="32" r="5"/></svg>
+        <path d="M48.5 17.5A22 22 0 1 0 48.5 46.5" stroke="url(#cb)" stroke-width="8.5" stroke-linecap="round"/><path class="s" d="M51 23.5C51.6 29.4 53.6 31.4 59.5 32C53.6 32.6 51.6 34.6 51 40.5C50.4 34.6 48.4 32.6 42.5 32C48.4 31.4 50.4 29.4 51 23.5Z"/></svg>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

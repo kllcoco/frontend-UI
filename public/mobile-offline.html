@@ -4,8 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ciro</title>
 <style>
-:root{color-scheme:light dark;--bg:#faf9f6;--text:#1c1b18;--muted:#7b7970;--line:#e7e5df;--accent:#0f8159}
-@media (prefers-color-scheme:dark){:root{--bg:#1b1b19;--text:#ecebe6;--muted:#9b998f;--line:#2b2b28;--accent:#5dcf9c}}
+:root{color-scheme:light dark;--bg:#f8f5ef;--text:#1d1914;--muted:#695f52;--line:#e6dfd2;--accent:#946d2b}
+@media (prefers-color-scheme:dark){:root{--bg:#15120f;--text:#f0e8da;--muted:#a3978a;--line:#2c251e;--accent:#d9b46a}}
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);
   font-family:-apple-system,"Segoe UI","PingFang SC","Noto Sans SC",sans-serif;padding:calc(24px + var(--safe-area-inset-top,env(safe-area-inset-top,0px))) 24px calc(24px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)));box-sizing:border-box;text-align:center}
 svg{width:56px;height:56px}h1{font-size:20px;margin:18px 0 8px}p{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 22px}
@@ -15,7 +15,7 @@ button.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
 </head>
 <body>
 <main>
-  <svg viewBox="0 0 64 64" fill="none"><path d="M48.5 17.5A22 22 0 1 0 48.5 46.5" stroke="#1f9a6c" stroke-width="8.5" stroke-linecap="round"/><circle cx="51" cy="32" r="5" fill="#2bbf82"/></svg>
+  <svg viewBox="0 0 64 64" fill="none"><path d="M48.5 17.5A22 22 0 1 0 48.5 46.5" stroke="#c39a52" stroke-width="8.5" stroke-linecap="round"/><path d="M51 23.5C51.6 29.4 53.6 31.4 59.5 32C53.6 32.6 51.6 34.6 51 40.5C50.4 34.6 48.4 32.6 42.5 32C48.4 31.4 50.4 29.4 51 23.5Z" fill="#d9b46a"/></svg>
   <h1 id="t">无法连接到 Ciro 服务器</h1>
   <p id="d">请检查手机网络和服务器地址，或先使用离线模式。</p>
   <button class="primary" id="retry">重试</button>

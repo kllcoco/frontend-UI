@@ -40,7 +40,7 @@
 .acc-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:35px 15px;gap:10px;color:#9aae9e;font-size:11px}
 .acc-empty svg{color:#76b891}
 .acc-unavailable,.acc-login{max-width:510px;margin:18px auto;display:flex;align-items:flex-start;flex-direction:column;gap:10px}
-.acc-unavailable>svg,.acc-login>svg{color:#559d6d}
+.acc-unavailable>svg,.acc-login>svg{color:var(--cx-accent,#946d2b)}
 .acc-unavailable p,.acc-login p{color:#83978a;font-size:11px;line-height:1.6;margin:0}
 .acc-login form{width:100%;display:flex;flex-direction:column;gap:12px;margin-top:10px}
 .acc-login form label+label{margin:0}
@@ -86,5 +86,5 @@
  .acc-spend-cards,.acc-sync-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .acc-list-line,.acc-notification{align-items:flex-start;flex-wrap:wrap}
  .acc-list-line .acc-secondary,.acc-notification .acc-secondary{margin-left:auto}}
-.acc-link{border:0;background:none;color:#5fb98a;font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
+.acc-link{border:0;background:none;color:var(--cx-accent,#946d2b);font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
 .acc-login .acc-muted{margin-top:-6px}

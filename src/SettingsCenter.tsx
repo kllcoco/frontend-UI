@@ -6,7 +6,7 @@ import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
 import type { ChatPreferences } from "./lib/preferences";
 import { ACCENTS } from "./lib/preferences";
-const ACCENT_NAMES = { jade: "翡翠绿", blue: "湖蓝", violet: "紫罗兰", amber: "琥珀", rose: "玫瑰", graphite: "石墨" } as const;
+const ACCENT_NAMES = { gold: "黑金", jade: "翡翠绿", blue: "湖蓝", violet: "紫罗兰", amber: "琥珀", rose: "玫瑰", graphite: "石墨" } as const;
 import type { ApiStatus, Conversation } from "./types";
 import { LANGUAGES, localeTag, translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
@@ -254,7 +254,7 @@ export default function SettingsCenter({
                 {ACCENTS.map((id) => <button type="button" key={id} role="radio" aria-checked={preferences.accent === id}
                   aria-label={t(ACCENT_NAMES[id])} title={t(ACCENT_NAMES[id])} data-swatch={id}
                   className={preferences.accent === id ? "sc-accent sc-accent--on" : "sc-accent"}
-                  onClick={() => updatePreference("accent", id)}><span/>{preferences.accent === id && <Check size={13}/>}</button>)}
+                  onClick={() => onPreferencesChange({ ...preferences, accent: id, accentChosen: true })}><span/>{preferences.accent === id && <Check size={13}/>}</button>)}
               </div>
             </SettingBlock>
             <SettingBlock title={t("界面字体")}>

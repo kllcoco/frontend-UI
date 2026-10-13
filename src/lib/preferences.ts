@@ -10,14 +10,16 @@ export type ChatPreferences = {
   autoTitle: boolean;
   followUps: boolean;
   accent: Accent;
+  /** Set once the user picks an accent themselves (so a later default change leaves their choice alone). */
+  accentChosen?: boolean;
   fontFamily: FontFamily;
   memoryEnabled: boolean;
   /** Let Ciro summarize conversations and save lasting facts/preferences to memory by itself. */
   autoMemory: boolean;
 };
-export type Accent = "jade" | "blue" | "violet" | "amber" | "rose" | "graphite";
+export type Accent = "gold" | "jade" | "blue" | "violet" | "amber" | "rose" | "graphite";
 export type FontFamily = "sans" | "system" | "serif";
-export const ACCENTS: Accent[] = ["jade", "blue", "violet", "amber", "rose", "graphite"];
+export const ACCENTS: Accent[] = ["gold", "jade", "blue", "violet", "amber", "rose", "graphite"];
 
 const KEY = "ciro.chat-preferences.v1";
 export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
@@ -30,7 +32,7 @@ export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   notifySchedules: true,
   autoTitle: true,
   followUps: true,
-  accent: "jade",
+  accent: "gold",
   fontFamily: "sans",
   memoryEnabled: true,
   autoMemory: true
@@ -50,7 +52,9 @@ export function loadChatPreferences(): ChatPreferences {
       notifySchedules: typeof value.notifySchedules === "boolean" ? value.notifySchedules : true,
       autoTitle: typeof value.autoTitle === "boolean" ? value.autoTitle : true,
       followUps: typeof value.followUps === "boolean" ? value.followUps : true,
-      accent: ACCENTS.includes(value.accent as Accent) ? value.accent as Accent : "jade",
+      // v0.10 moved the default from jade to Ciro's black-and-gold; earlier installs saved "jade" without choosing it.
+      accent: !value.accent || (value.accent === "jade" && !value.accentChosen) ? "gold" : ACCENTS.includes(value.accent as Accent) ? value.accent as Accent : "gold",
+      accentChosen: value.accentChosen === true,
       fontFamily: ["sans", "system", "serif"].includes(value.fontFamily || "") ? value.fontFamily as FontFamily : "sans",
       memoryEnabled: typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : true,
       autoMemory: typeof value.autoMemory === "boolean" ? value.autoMemory : true
