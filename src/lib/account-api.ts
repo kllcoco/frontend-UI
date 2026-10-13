@@ -4,6 +4,8 @@ export type SessionSnapshot={
   }|null;csrf:string|null;mode:string|null;bootstrapAvailable:boolean;
   /** Whether new people can create accounts on this server. */
   registration?:"open"|"invite"|"closed";
+  /** Phone number + SMS code sign-up / sign-in is available (email stays the default). */
+  phoneSignIn?:boolean;
 };
 export type AccountTab="account"|"subscription"|"api-keys"|"spending"|"notifications"|"memory"|"sync";
 /** Parses an API response. A page served instead of JSON (offline app, wrong server, proxy page) is an error,

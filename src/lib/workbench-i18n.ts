@@ -2,6 +2,9 @@ import { localize } from "./i18n";
 import type { Language } from "./i18n";
 const english: Readonly<Record<string,string>> = {
   "账单与用量": "Billing & usage",
+  "任务": "Tasks",
+  "连接与权限": "Connections",
+  "应用与账单": "Apps & billing",
   "官方应用": "Official apps",
   "技能中心": "Skills",
   "协作空间": "Collaboration Space",

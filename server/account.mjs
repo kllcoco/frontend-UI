@@ -1,3 +1,4 @@
+import { createSmsCodes, maskPhone, normalizePhone } from "./sms.mjs";
 import { createCwuLedger, cwuEnabled, cwuPacks } from "./cwu.mjs";
 import {createSyncStore,SYNC_KINDS,SYNC_LIMITS} from "./sync-store.mjs";
 import express from "express";
@@ -61,7 +62,7 @@ function parseCookies(req){
   return cookies;
 }
 function publicOwner(owner){
-  return owner?{id:owner.id,email:owner.email,displayName:owner.displayName,role:owner.role==="owner"?"owner":"user",
+  return owner?{id:owner.id,email:owner.email||"",phone:maskPhone(owner.phone||""),displayName:owner.displayName,role:owner.role==="owner"?"owner":"user",
     createdAt:owner.createdAt,memoryEnabled:owner.memoryEnabled===true}:null;
 }
 /** Who may create an account: "closed" (only the owner, via bootstrap), "invite" (with a code) or "open". */
@@ -199,6 +200,8 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   const dataDir=dir||env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime";
   const store=createAccountStore(dataDir);
   const cwu=createCwuLedger(store,env);
+  const sms=createSmsCodes(env,fetchFn);
+  const smsSends=new Map(); // per network address, against code spamming
   let syncDb=null;
   const syncStore=()=>syncDb||(syncDb=createSyncStore(dataDir,store.owner()?.id||null));
   const router=express.Router();
@@ -302,8 +305,17 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     res.json({enabled,authenticated:enabled&&Boolean(p),user:enabled&&p?publicOwner(userOf(p)):null,
       mode:p?.mode||null,csrf:p?.mode==="session"?p.csrf:null,
       registration:enabled&&store.owner()?registration:"closed",
+      phoneSignIn:enabled&&sms.enabled(),
       bootstrapAvailable:enabled&&!store.owner()&&typeof env.CIRO_BOOTSTRAP_TOKEN==="string"&&env.CIRO_BOOTSTRAP_TOKEN.length>=24});
   });
+  /** An account made with a phone number; a password is optional (it can always sign in with an SMS code). */
+  async function phoneUser(phone,body){
+    const displayName=body?.displayName?validateName(body.displayName):"Ciro 用户 "+phone.slice(-4);
+    const salt=randomBytes(16).toString("base64");
+    const pw=typeof body?.password==="string"&&body.password?validatePassword(body.password):randomBytes(24).toString("base64");
+    return {id:randomUUID(),email:"",phone,displayName,role:"user",passwordHash:await passwordHash(pw,salt),salt,
+      memoryEnabled:false,createdAt:new Date().toISOString(),disabledAt:null};
+  }
   async function newUser(body,role){
     const email=validateEmail(body?.email),displayName=validateName(body?.displayName);
     const pw=validatePassword(body?.password),salt=randomBytes(16).toString("base64");
@@ -325,6 +337,23 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const session=issueSession(res,user);
     res.status(201).json({authenticated:true,user:publicOwner(user),csrf:session.csrf});
   }));
+  // Phone sign-up / sign-in: a 6-digit code by SMS (see server/sms.mjs).
+  router.post("/sms/send",wrapped(async(req,res)=>{
+    if(!enabled||!sms.enabled())throw bad("Phone sign-in is not available",503);
+    confirmOrigin(req,env);
+    const ip=String(req.socket.remoteAddress||"unknown"),now=Date.now(),hits=(smsSends.get(ip)||[]).filter(x=>now-x<3600000);
+    if(hits.length>=20)throw bad("Too many codes requested; try again later",429);
+    smsSends.set(ip,[...hits,now]);if(smsSends.size>5000)smsSends.clear();
+    const phone=normalizePhone(req.body?.phone),purpose=req.body?.purpose==="login"?"login":"register";
+    if(!phone)throw bad("请输入正确的手机号",400);
+    const known=store.get().users.find(x=>x.phone===phone);
+    if(purpose==="register"){
+      if(!store.owner()||registration==="closed")throw bad("Registration is closed on this server",403);
+      if(known)throw bad("这个手机号已经注册，请直接登录",409);
+    } else if(!known)throw bad("这个手机号还没有注册",404);
+    await sms.send(phone,purpose);
+    res.json({sent:true});
+  }));
   router.post("/register",wrapped(async(req,res)=>{
     if(!enabled)throw bad("Accounts are disabled",503);
     confirmOrigin(req,env);
@@ -334,10 +363,14 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const code=typeof req.body?.inviteCode==="string"?req.body.inviteCode.trim().toUpperCase():"";
     const invite=registration==="invite"?store.get().invites.find(x=>x.code===code&&!x.usedAt&&x.expiresAt>Date.now()):null;
     if(registration==="invite"&&!invite)throw bad("Invalid or used invite code",403);
-    const user=await newUser(req.body,"user");
+    const phone=req.body?.phone!==undefined?normalizePhone(req.body.phone):"";
+    if(req.body?.phone!==undefined&&!phone)throw bad("请输入正确的手机号",400);
+    if(phone&&!sms.check(phone,"register",req.body?.smsCode))throw bad("验证码不正确或已过期",401);
+    const user=phone?await phoneUser(phone,req.body):await newUser(req.body,"user");
     if(store.get().users.length>=Number(env.CIRO_MAX_USERS||100000))throw bad("This server is not accepting new accounts",403);
     store.change("account.registered",s=>{
-      if(s.users.some(x=>x.email===user.email))throw bad("This email is already registered",409);
+      if(user.email&&s.users.some(x=>x.email===user.email))throw bad("This email is already registered",409);
+      if(user.phone&&s.users.some(x=>x.phone===user.phone))throw bad("这个手机号已经注册，请直接登录",409);
       s.users.push(user);
       if(invite){const i=s.invites.find(x=>x.code===invite.code);i.usedAt=new Date().toISOString();i.usedBy=user.id;}
     });
@@ -350,10 +383,20 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   router.post("/login",wrapped(async(req,res)=>{
     if(!enabled)throw bad("Accounts are disabled",503);
     confirmOrigin(req,env);const clear=ipLimit(req);
-    const email=typeof req.body?.email==="string"?req.body.email.toLowerCase():"";
-    const user=store.get().users.find(x=>equal(email,x.email));
-    if(!user||typeof req.body?.password!=="string"||!(await passwordMatches(req.body.password,user)))
-      throw bad("Invalid credentials",401);
+    let user;
+    if(req.body?.phone!==undefined){
+      // Phone: an SMS code, or the password if one was set.
+      const phone=normalizePhone(req.body.phone);
+      user=phone?store.get().users.find(x=>x.phone===phone):null;
+      const ok=user&&(req.body?.smsCode?sms.check(phone,"login",req.body.smsCode)
+        :typeof req.body?.password==="string"&&await passwordMatches(req.body.password,user));
+      if(!ok)throw bad("Invalid credentials",401);
+    } else {
+      const email=typeof req.body?.email==="string"?req.body.email.toLowerCase():"";
+      user=email?store.get().users.find(x=>x.email&&equal(email,x.email)):null;
+      if(!user||typeof req.body?.password!=="string"||!(await passwordMatches(req.body.password,user)))
+        throw bad("Invalid credentials",401);
+    }
     if(user.disabledAt)throw bad("This account has been disabled",403);
     clear();
     const session=issueSession(res,user);
@@ -593,7 +636,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     const origin=env.CIRO_PUBLIC_ORIGIN.replace(/\/+$/,"");
     const session=await stripeCall(env,"checkout/sessions",{
       mode:"payment","line_items[0][price]":pack.stripePrice,"line_items[0][quantity]":"1",
-      success_url:origin+"/?cwu=success",cancel_url:origin+"/?cwu=cancel",client_reference_id:u.id,customer_email:u.email,
+      success_url:origin+"/?cwu=success",cancel_url:origin+"/?cwu=cancel",client_reference_id:u.id,...(u.email?{customer_email:u.email}:{}),
       "metadata[ciro_kind]":"cwu","metadata[ciro_user]":u.id,"metadata[ciro_cwu]":String(pack.cwu),"metadata[ciro_pack]":pack.id
     },fetchFn);
     res.json({url:session.url,id:session.id});

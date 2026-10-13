@@ -88,3 +88,11 @@
  .acc-list-line .acc-secondary,.acc-notification .acc-secondary{margin-left:auto}}
 .acc-link{border:0;background:none;color:var(--cx-accent,#946d2b);font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
 .acc-login .acc-muted{margin-top:-6px}
+/* Sign in with email (default) or phone + SMS code */
+.acc-way{display:inline-flex;gap:4px;padding:3px;margin:4px 0 2px;border-radius:999px;background:color-mix(in srgb,var(--accent,#946d2b) 10%,transparent)}
+.acc-way button{border:0;background:none;padding:6px 16px;border-radius:999px;font:inherit;font-size:13px;color:inherit;cursor:pointer}
+.acc-way .acc-way--on{background:var(--surface,#fff);color:var(--accent,#946d2b);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.acc-code-row{display:flex;gap:8px}
+.acc-code-row input{flex:1;min-width:0;letter-spacing:.2em}
+.acc-code-btn{flex:none;white-space:nowrap;border:1px solid var(--accent,#946d2b);background:none;color:var(--accent,#946d2b);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;cursor:pointer}
+.acc-code-btn:disabled{opacity:.45;cursor:not-allowed}

@@ -325,14 +325,30 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   function labelledNumber(n:number|undefined,suffix=""){
     return typeof n==="number"?new Intl.NumberFormat(localeTag(language),{maximumFractionDigits:1}).format(n)+suffix:"—";
   }
-  return <div className="stu-root">
+  return <div className="stu-frame">
+    <nav className="stu-rail" aria-label={t("融合工作台")}>
+      <span className="stu-rail-label">{t("工具")}</span>
+      <button type="button" aria-current={section==="studio"?"page":undefined}
+        className={section==="studio"?"stu-rail-item stu-rail-item--active":"stu-rail-item"}
+        onClick={()=>onNavigate("studio")}><Layers size={17}/><span>{t("概览")}</span></button>
+      {modules.map(item=>{const Icon=item.icon;
+        return <button type="button" key={item.id} aria-current={section===item.id?"page":undefined}
+          className={section===item.id?"stu-rail-item stu-rail-item--active":"stu-rail-item"}
+          onClick={()=>onNavigate(item.id)}><Icon size={17}/><span>{t(item.name)}</span></button>;})}
+    </nav>
+    <div className="stu-root">
     <header className="stu-header">
       <div><div className="stu-eyebrow"><Sparkles size={15}/> CIRO UNIFIED STUDIO · V0.7</div>
         <h1>{section==="studio"?t("融合工作台"):t(modules.find(x=>x.id===section)?.name||"融合工作台")}</h1>
         <p>{section==="studio"?t("从灵感到交付，保持每一步可见。"):
           t(modules.find(x=>x.id===section)?.desc||"全能对话 + 自主执行")}</p>
       </div>
-      {section!=="studio"&&<button className="stu-light-button" onClick={()=>onNavigate("studio")}><ArrowLeft size={16}/>{t("融合工作台")}</button>}
+      {section!=="studio"&&<div className="stu-header-actions">
+        <button className="stu-light-button" onClick={()=>onNavigate("studio")}><ArrowLeft size={16}/>{t("融合工作台")}</button>
+        <select className="stu-switch" aria-label={t("切换模块")} value={section} onChange={e=>onNavigate(e.target.value)}>
+          <option value="studio">{t("概览")}</option>
+          {modules.map(item=><option key={item.id} value={item.id}>{t(item.name)}</option>)}
+        </select></div>}
     </header>
     {error&&<div className="stu-alert stu-alert--error" role="alert"><CircleAlert size={17}/><span>{error}</span>
       <button onClick={()=>setError("")}><X size={14}/></button></div>}
@@ -591,7 +607,6 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </div>
         <button className="stu-link" onClick={()=>onNavigate("billing")}>{t("查看账单")} <ArrowRight size={14}/></button>
       </section>
-    </>}
 
       <section className="stu-card stu-model-console">
         <div className="stu-section-head"><h3><BrainCircuit size={18}/>{t("模型与训练控制台")}</h3>
@@ -642,8 +657,9 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <span>SHA256: {trainingDetail.evidenceSha256||t("无独立证据")}</span></div>
         </div>}
       </section>
+    </>}
 
-        {section==="library"&&<>
+    {section==="library"&&<>
       <Banner>{t("本地会话可搜索、分支和恢复；打开跨设备同步后将随对话快照同步。")}</Banner>
       <label className="stu-search-bar"><Search size={17}/>
         <input aria-label={t("历史对话与版本")} value={libraryQuery} onChange={e=>setLibraryQuery(e.target.value)}
@@ -742,5 +758,6 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </section>
       </div>
     </>}
+    </div>
   </div>;
 }

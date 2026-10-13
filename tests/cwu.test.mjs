@@ -84,3 +84,31 @@ test("usedCwu reads only the usage object, never the reply text", () => {
   assert.equal(usedCwu('data: {"choices":[{"delta":{"content":"say \\"cwu\\":5"}}]}'), 0);
   assert.deepEqual(cwuPacks({ CIRO_CWU_PACKS: "not json" }), []);
 });
+
+test("phone sign-up and sign-in with SMS codes (one use, wrong codes refused, same account as email users)", async () => {
+  const codes = [];
+  const orig = console.info;
+  console.info = (line) => { const m = /code for .*?: (\d{6})/.exec(String(line)); if (m) codes.push(m[1]); else orig(line); };
+  const prev = env.CIRO_SMS_PROVIDER; env.CIRO_SMS_PROVIDER = "log";
+  const ctx = await setup();
+  try {
+    const owner = ctx.client(), a = ctx.client(), b = ctx.client();
+    await owner("/api/account/bootstrap", { method: "POST", body: { bootstrapToken: env.CIRO_BOOTSTRAP_TOKEN, email: "owner@example.com", displayName: "O", password: pw } });
+    assert.equal((await a("/api/account/session")).json.phoneSignIn, true);
+    assert.equal((await a("/api/account/sms/send", { method: "POST", body: { phone: "12345", purpose: "register" } })).status, 400);
+    assert.equal((await a("/api/account/sms/send", { method: "POST", body: { phone: "138 1234 5678", purpose: "register" } })).status, 200);
+    assert.equal((await a("/api/account/sms/send", { method: "POST", body: { phone: "13812345678", purpose: "register" } })).status, 429, "resend waits a minute");
+    assert.equal((await a("/api/account/register", { method: "POST", body: { phone: "13812345678", smsCode: "000000" } })).status, 401);
+    const reg = await a("/api/account/register", { method: "POST", body: { phone: "+8613812345678", smsCode: codes.at(-1) } });
+    assert.equal(reg.status, 201);
+    assert.equal(reg.json.user.phone, "138****5678");
+    assert.equal((await a("/api/account/cwu")).json.balance, 500, "phone accounts get the same CWU account");
+    assert.equal((await b("/api/account/register", { method: "POST", body: { phone: "13812345678", smsCode: codes.at(-1) } })).status, 401, "a code works once");
+    assert.equal((await b("/api/account/sms/send", { method: "POST", body: { phone: "13812345678", purpose: "register" } })).status, 409);
+    assert.equal((await b("/api/account/sms/send", { method: "POST", body: { phone: "13900000000", purpose: "login" } })).status, 404);
+    assert.equal((await b("/api/account/sms/send", { method: "POST", body: { phone: "13812345678", purpose: "login" } })).status, 200);
+    const login = await b("/api/account/login", { method: "POST", body: { phone: "13812345678", smsCode: codes.at(-1) } });
+    assert.equal(login.status, 200); assert.equal(login.json.user.id, reg.json.user.id);
+    assert.equal((await b("/api/account/login", { method: "POST", body: { email: "", password: "x" } })).status, 401, "no empty-email match");
+  } finally { console.info = orig; env.CIRO_SMS_PROVIDER = prev; await ctx.close(); }
+});

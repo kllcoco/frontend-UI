@@ -26,13 +26,19 @@ type Props = { language: Language; initialTab?: WorkbenchTab; embedded?: boolean
 const tabs: {id:WorkbenchTab;title:string;Icon:typeof Users}[] = [
   {id:"goals",title:"目标与项目",Icon:Users},
   {id:"remote",title:"工作模式",Icon:MonitorSmartphone},
+  {id:"schedules",title:"定时任务",Icon:CalendarClock},
   {id:"permissions",title:"权限与沙盒",Icon:ShieldCheck},
   {id:"github",title:"GitHub 仓库",Icon:GitBranch},
   {id:"plugins",title:"插件中心",Icon:PlugZap},
-  {id:"schedules",title:"定时任务",Icon:CalendarClock},
-  {id:"billing",title:"账单与用量",Icon:Wallet},
   {id:"apps",title:"官方应用",Icon:Grid2X2},
-  {id:"skills",title:"技能中心",Icon:Blocks}
+  {id:"skills",title:"技能中心",Icon:Blocks},
+  {id:"billing",title:"账单与用量",Icon:Wallet}
+];
+/** The tool rail groups related pages; on phones it collapses into a compact tile grid. */
+const tabGroups:{label:string;ids:WorkbenchTab[]}[]=[
+  {label:"任务",ids:["goals","remote","schedules"]},
+  {label:"连接与权限",ids:["permissions","github","plugins"]},
+  {label:"应用与账单",ids:["apps","skills","billing"]}
 ];
 const stages:{phase:string;title:string;role:string;Icon:typeof Users}[]=[
   {phase:"plan",title:"规划",role:"计划代理",Icon:ClipboardCheck},
@@ -179,10 +185,15 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
         <p>{t("把想法交给 Ciro，把成果带回来。")}</p></div>
       <button type="button" className="wb-refresh" title={t("刷新")} onClick={()=>void w.refresh()}><RefreshCcw size={16}/>{t("刷新")}</button>
     </header>}
+    <div className={embedded?"wb-frame wb-frame--embedded":"wb-frame"}>
     {!embedded&&<nav className="wb-nav" aria-label={t("自主协作工作台")}>
-      {tabs.map(({id,title,Icon})=><button key={id} type="button"
-        className={tab===id?"wb-nav-item wb-nav-item--active":"wb-nav-item"}
-        onClick={()=>{if(onNavigate)onNavigate(id);else setTab(id);w.setError("");}}><Icon size={17}/>{t(title)}</button>)}
+      {tabGroups.map(group=><div className="wb-nav-group" key={group.label}>
+        <span className="wb-nav-label">{t(group.label)}</span>
+        {group.ids.map(id=>{const {title,Icon}=tabs.find(x=>x.id===id)!;
+          return <button key={id} type="button" aria-current={tab===id?"page":undefined}
+            className={tab===id?"wb-nav-item wb-nav-item--active":"wb-nav-item"}
+            onClick={()=>{if(onNavigate)onNavigate(id);else setTab(id);w.setError("");}}><Icon size={17}/><span>{t(title)}</span></button>;})}
+      </div>)}
     </nav>}
     <div className="wb-body">
       {w.error&&<div role="alert" className="wb-alert wb-alert--error"><CircleAlert size={17}/><span>{w.error}</span><button aria-label={t("关闭设置")} onClick={()=>w.setError("")}><X size={15}/></button></div>}
@@ -344,6 +355,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
         </article>)}</div>
         <div className="wb-footnote"><ShieldCheck size={17}/>{t("重要：定时自动执行也遵循权限模式。")}</div>
       </div>}
+    </div>
     </div>
   </section>;
 }

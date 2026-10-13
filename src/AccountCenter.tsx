@@ -62,6 +62,14 @@ export default function AccountCenter({language,section}:Props){
   const [email,setEmail]=useState(""),[password,setPassword]=useState(""),
     [bootstrap,setBootstrap]=useState(""),[displayName,setDisplayName]=useState("");
   const [registering,setRegistering]=useState(false),[invite,setInvite]=useState("");
+  // Email is the default; a phone number with an SMS code is the alternative when the server offers it.
+  const [byPhone,setByPhone]=useState(false),[phone,setPhone]=useState(""),[smsCode,setSmsCode]=useState(""),[smsWait,setSmsWait]=useState(0);
+  useEffect(()=>{if(smsWait<=0)return;const id=window.setTimeout(()=>setSmsWait(w=>w-1),1000);return()=>window.clearTimeout(id);},[smsWait]);
+  async function sendCode(){
+    setError("");
+    try{await accountApi("/sms/send","POST",{phone,purpose:registering?"register":"login"});setSmsWait(60);setNotice(t("验证码已发送"));}
+    catch(e){setError(t(e instanceof Error&&/[\u4e00-\u9fff]/.test(e.message)?e.message:"验证码发送失败，请稍后再试"));}
+  }
   const [oldPassword,setOldPassword]=useState(""),[newPassword,setNewPassword]=useState("");
   const [keyName,setKeyName]=useState(""),[keyDays,setKeyDays]=useState("90"),
     [keyScopes,setKeyScopes]=useState<string[]>(["chat:invoke"]),[newSecret,setNewSecret]=useState("");
@@ -129,9 +137,11 @@ export default function AccountCenter({language,section}:Props){
     e.preventDefault();
     const signup=!initial&&registering;
     await action(async()=>{
+      const phoneWay=byPhone&&!initial;
       await accountApi(initial?"/bootstrap":signup?"/register":"/login","POST",{
-        email,password,...(initial?{bootstrapToken:bootstrap,displayName}:{}),
-        ...(signup?{displayName,...(session?.registration==="invite"?{inviteCode:invite}:{})}:{})
+        ...(phoneWay?{phone,smsCode,...(password?{password}:{})}:{email,password}),
+        ...(initial?{bootstrapToken:bootstrap,displayName}:{}),
+        ...(signup?{...(displayName?{displayName}:{}),...(session?.registration==="invite"?{inviteCode:invite}:{})}:{})
       });
       await refreshAuthAfterLogin();
       void syncNow();
@@ -173,12 +183,23 @@ export default function AccountCenter({language,section}:Props){
     {!loading&&session?.enabled&&!auth&&<div className="acc-card acc-login">
       <LogIn size={26}/><h3>{t(session.bootstrapAvailable?"初始化管理员账户":registering?"注册 Ciro 账户":"登录 Ciro")}</h3>
       <p>{t(session.bootstrapAvailable?"使用服务端配置的一次性初始化口令。":registering?"注册后，你的对话、密钥和同步数据只属于你自己。":"需要先登录才能管理此页面。")}</p>
+      {session.phoneSignIn&&!session.bootstrapAvailable&&<div className="acc-way" role="tablist" aria-label={t("登录方式")}>
+        <button type="button" role="tab" aria-selected={!byPhone} className={!byPhone?"acc-way--on":""} onClick={()=>{setByPhone(false);setError("");}}>{t("邮箱")}</button>
+        <button type="button" role="tab" aria-selected={byPhone} className={byPhone?"acc-way--on":""} onClick={()=>{setByPhone(true);setError("");}}>{t("手机号")}</button>
+      </div>}
       <form onSubmit={e=>void signIn(e,session.bootstrapAvailable)}>
-        <label>{t("邮箱")}<input required type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label>
-        {(session.bootstrapAvailable||registering)&&<label>{t("显示名称")}<input required maxLength={80} value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>}
-        <label>{t("登录密码")}<input required type="password" minLength={12} autoComplete={session.bootstrapAvailable||registering?"new-password":"current-password"} value={password}
-          onChange={e=>setPassword(e.target.value)}/></label>
-        {(session.bootstrapAvailable||registering)&&<small className="acc-muted">{t("密码至少 12 位")}</small>}
+        {byPhone&&!session.bootstrapAvailable?<>
+          <label>{t("手机号")}<input required type="tel" inputMode="tel" autoComplete="tel" placeholder="138 0000 0000" value={phone} onChange={e=>setPhone(e.target.value)}/></label>
+          <label>{t("验证码")}<span className="acc-code-row"><input required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="\d{6}" value={smsCode} onChange={e=>setSmsCode(e.target.value.replace(/\D/g,""))}/>
+            <button type="button" className="acc-code-btn" disabled={smsWait>0||phone.replace(/\D/g,"").length<7} onClick={()=>void sendCode()}>{smsWait>0?smsWait+"s":t("获取验证码")}</button></span></label>
+          {registering&&<label>{t("显示名称")}<input maxLength={80} placeholder={t("可不填")} value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>}
+        </>:<>
+          <label>{t("邮箱")}<input required type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label>
+          {(session.bootstrapAvailable||registering)&&<label>{t("显示名称")}<input required maxLength={80} value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>}
+          <label>{t("登录密码")}<input required type="password" minLength={12} autoComplete={session.bootstrapAvailable||registering?"new-password":"current-password"} value={password}
+            onChange={e=>setPassword(e.target.value)}/></label>
+          {(session.bootstrapAvailable||registering)&&<small className="acc-muted">{t("密码至少 12 位")}</small>}
+        </>}
         {registering&&session.registration==="invite"&&<label>{t("邀请码")}<input required autoComplete="off" maxLength={12} value={invite} onChange={e=>setInvite(e.target.value)}/></label>}
         {session.bootstrapAvailable&&<label>{t("初始化口令")}<input required type="password" autoComplete="off" value={bootstrap} onChange={e=>setBootstrap(e.target.value)}/></label>}
         <button className="acc-primary" type="submit" disabled={busy}>{t(session.bootstrapAvailable?"创建账户":registering?"注册":"登录")}</button>

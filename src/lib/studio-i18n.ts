@@ -1,6 +1,9 @@
 import { localize } from "./i18n";
 import type {Language} from "./i18n";
 const terms:Readonly<Record<string,string>>={
+  "概览": "Overview",
+  "工具": "Tools",
+  "切换模块": "Switch module",
   "模型与训练控制台": "Model & training console",
   "从原生模型读取": "Read from native runtime",
   "尚无来自 CIRO 的训练数据": "No verified CIRO training data yet",
