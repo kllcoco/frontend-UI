@@ -316,7 +316,12 @@ export default function App() {
   const currentProject = current?.projectId ? projects.find((p) => p.id === current.projectId) : undefined;
   const activeProject = current ? currentProject : viewProject;
   const displayName = session?.user?.displayName || profile.displayName || t("本地访客");
-  const plan = session?.enabled ? (session.authenticated ? t("Ciro 账户") : t("未登录")) : t("本地模式");
+  const [cwu, setCwu] = useState<number | null>(null);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const plan = session?.enabled
+    ? (session.authenticated ? (cwu !== null ? new Intl.NumberFormat(localeTag(language), { maximumFractionDigits: 0 }).format(cwu) + " CWU" : t("Ciro 账户")) : t("未登录"))
+    : operator ? t("本地模式") : t("未登录");
 
   async function refreshStatus() {
     setStatusLoading(true);
@@ -338,7 +343,9 @@ export default function App() {
       if (next.enabled && next.authenticated) {
         const result = await accountApi<{ unread: number }>("/notifications");
         setUnread(Number(result.unread) || 0);
-      } else setUnread(0);
+        // CWU balance of this account (shown in the sidebar; the same on every device).
+        accountApi<{ enabled: boolean; balance: number }>("/cwu").then((c) => setCwu(c.enabled ? c.balance : null), () => setCwu(null));
+      } else { setUnread(0); setCwu(null); }
     } catch { /* account service optional */ }
   }
 
@@ -874,10 +881,14 @@ export default function App() {
         const message = friendlyError(error);
         patchMessage(conversationId, assistantId, {
           content: (answer ? answer + "\n\n---\n\n" : "") + "⚠️ " + t("生成中断：") + message });
-        notify(operatorRef.current ? "请求失败，请检查 CIRO 后端" : "发送失败，请稍后重试");
+        const outOfCwu = /CWU 额度不足|insufficient_cwu|402/.test(error instanceof Error ? error.message : String(error));
+        if (outOfCwu) { notify("CWU 额度不足，充值后即可继续。"); setSettingsSection("cwu"); }
+        else notify(operatorRef.current ? "请求失败，请检查 CIRO 后端" : "发送失败，请稍后重试");
         if (mirror) petStream({ id: assistantId, text: (answer ? clean(answer) + "\n\n" : "") + t("生成中断：") + message, done: true, error: true });
       }
     } finally {
+      if (sessionRef.current?.enabled && sessionRef.current.authenticated)
+        accountApi<{ enabled: boolean; balance: number }>("/cwu").then((c) => setCwu(c.enabled ? c.balance : null), () => undefined);
       if (thought && !thoughtDone) patchMessage(conversationId, assistantId, { thinkingMs: Date.now() - started });
       controllerRef.current = null;
       setGeneratingId(null);

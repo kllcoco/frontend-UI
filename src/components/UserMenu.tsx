@@ -119,6 +119,7 @@ export default function UserMenu(props: Props) {
       <Row icon={<Bell size={16}/>} label={t("通知中心")} onClick={() => run({ type: "studio", tab: "notifications" })}>
         {unread > 0 && <span className="um-count">{unread > 99 ? "99+" : unread}</span>}
       </Row>
+      {accountsEnabled && authenticated && <Row icon={<Sparkles size={16}/>} label={t("CWU 额度")} onClick={() => run({ type: "settings", section: "cwu" })}/>}
       {operator ? <Row icon={<Wallet size={16}/>} label={t("账单与用量")} onClick={() => run({ type: "studio", tab: "billing" })}/>
         : <Row icon={<Wallet size={16}/>} label={t("订阅与账单")} onClick={() => run({ type: "studio", tab: "subscription" })}/>}
       {(operator || team) && <Row icon={<Users size={16}/>} label={t("团队")} onClick={() => run({ type: "settings", section: "team" })}/>}

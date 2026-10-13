@@ -25,6 +25,7 @@ import UserAdmin from "./components/UserAdmin";
 import { nativePet, petEnabled, petMirror, petQuiet, petScale, resetPetPlace, setPetEnabled, setPetMirror, setPetQuiet, setPetScale } from "./lib/pet";
 import { UPDATE_RESULT, UPDATE_START } from "./lib/update-result";
 import { nativeVoice } from "./lib/phone";
+import CwuPanel from "./components/CwuPanel";
 import { devMode, setDevMode } from "./lib/operator";
 import type { UpdateResult } from "./lib/update-result";
 import AnnouncementList from "./components/AnnouncementList";
@@ -37,7 +38,7 @@ import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "announce" | "users" | "general" | "pet" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
+type Section = "announce" | "users" | "cwu" | "general" | "pet" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -83,6 +84,7 @@ const sections: SectionInfo[] = [
   { id: "usage", label: "用量统计", icon: Activity, group: "数据与同步", keys: "用量 CWU GWU usage" },
   { id: "storage", label: "文件与存储", icon: Database, group: "数据与同步", keys: "备份 恢复 导出 导入 删除 backup export" },
   { id: "sync", label: "跨设备同步", icon: RefreshCcw, group: "数据与同步", keys: "同步 sync", account: true },
+  { id: "cwu", label: "CWU 额度", icon: Wallet, group: "账户", keys: "CWU 额度 余额 充值 购买 balance credits top up", account: true },
   { id: "account", label: "账户与安全", icon: UserRound, group: "账户", keys: "登录 密码 账户 login password" },
   { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用", account: true, operator: true },
   { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing", ownerTools: true },
@@ -260,6 +262,7 @@ export default function SettingsCenter({
         <div className="sc-scroll"><ViewBoundary t={t} resetKey={section}>
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
             <AccountCenter key={section} language={language} section={section as AccountTab}/>}
+          {section === "cwu" && <CwuPanel t={t} locale={localeTag(language)}/>}
           {section === "api-keys" && accountsOn && <ApiConsole t={t} locale={localeTag(language)}/>}
           {section === "users" && canAnnounce && <UserAdmin t={t} locale={localeTag(language)}/>}
           {section === "announce" && <>{canAnnounce && <AnnouncementEditor t={t}/>}<AnnouncementList t={t} locale={localeTag(language)}/></>}

@@ -218,3 +218,26 @@
 .sc-update-msg{font-size:13px;color:var(--muted,#8a8173)}
 .sc-update-go{background:var(--accent,#946d2b);color:#fff}
 .sc-update-go:hover{filter:brightness(1.08)}
+/* CWU 额度 */
+.cwu-panel{display:flex;flex-direction:column;gap:14px;max-width:720px}
+.cwu-balance{display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent,#946d2b) 16%,transparent),color-mix(in srgb,var(--accent,#946d2b) 4%,transparent));
+  border:1px solid color-mix(in srgb,var(--accent,#946d2b) 35%,transparent);color:var(--accent,#946d2b)}
+.cwu-balance>div{flex:1;display:flex;flex-direction:column;gap:2px}
+.cwu-balance small{color:var(--muted,#8a8173);font-size:12.5px}
+.cwu-balance strong{font-size:28px;font-weight:700;color:var(--text,#2b241c);letter-spacing:-.01em}
+.cwu-balance strong span{font-size:14px;font-weight:600;color:var(--accent,#946d2b)}
+.cwu-note{color:var(--muted,#8a8173);font-size:13px;margin:0}
+.cwu-title{display:flex;align-items:center;gap:6px;margin:6px 0 0;font-size:14px}
+.cwu-packs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.cwu-pack{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:14px;cursor:pointer;text-align:left;
+  border:1px solid var(--border,rgba(0,0,0,.1));background:var(--surface,#fff);color:inherit;font:inherit;transition:border-color .15s,transform .15s}
+.cwu-pack:hover:not(:disabled){border-color:var(--accent,#946d2b);transform:translateY(-1px)}
+.cwu-pack svg{color:var(--accent,#946d2b)}
+.cwu-pack strong{font-size:15px}
+.cwu-pack span{font-size:18px;font-weight:700}
+.cwu-pack em{font-style:normal;font-size:12px;color:var(--accent,#946d2b)}
+.cwu-ledger{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.cwu-ledger li{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--border,rgba(0,0,0,.08));font-size:13.5px}
+.cwu-ledger time{color:var(--muted,#8a8173);font-size:12px}
+.cwu-plus{color:#3d8b52}.cwu-minus{color:var(--text,#2b241c)}
