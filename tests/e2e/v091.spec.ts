@@ -109,14 +109,20 @@ test("chat settings expose notifications and auto titles; web-search chip explai
   await expect(page.getByRole("switch", { name: "回答完成时通知" })).toBeVisible();
 });
 
-test("reply notifications: browser permission and a clear reason when blocked", async ({ page, context }) => {
+test("reply notifications: browser permission and a clear reason when blocked", async ({ page }) => {
   const openChat = async () => {
     await go(page, "设置");
     await page.locator(".sc-nav").getByRole("button", { name: "对话设置", exact: true }).click();
     return page.getByRole("switch", { name: "回答完成时通知" });
   };
-  // Browser: granted permission turns it on.
-  await context.grantPermissions(["notifications"]);
+  // Browser: granted permission turns it on. (Headless Chromium has no real notification service, so the
+  // permission prompt is answered by a stand-in that behaves like a browser where the user clicks "Allow".)
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("deny")) return;
+    let state: NotificationPermission = "default";
+    Object.defineProperty(Notification, "permission", { configurable: true, get: () => state });
+    Notification.requestPermission = (() => { state = "granted"; return Promise.resolve(state); }) as typeof Notification.requestPermission;
+  });
   await fresh(page);
   let toggle = await openChat();
   await toggle.click();
@@ -124,8 +130,8 @@ test("reply notifications: browser permission and a clear reason when blocked", 
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   // Browser: denied permission explains how to allow it instead of silently doing nothing.
-  await context.clearPermissions();
-  await page.addInitScript(() => Object.defineProperty(Notification, "permission", { get: () => "denied" }));
+  await page.evaluate(() => sessionStorage.setItem("deny", "1"));
+  await page.addInitScript(() => Object.defineProperty(Notification, "permission", { configurable: true, get: () => "denied" }));
   await page.reload({ waitUntil: "domcontentloaded" });
   toggle = await openChat();
   await toggle.click();

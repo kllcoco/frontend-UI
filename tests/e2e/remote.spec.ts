@@ -110,8 +110,10 @@ test("phone pairs a home computer and runs commands and an approved AI task in i
   await phone.getByRole("button", { name: "返回" }).click();
   await phone.getByRole("button", { name: "断开与这台电脑的连接" }).click();
   await expect(phone.getByText("还没有连接这台电脑")).toBeVisible();
+  // The code shown earlier was used up by the first connection: wait for the refreshed QR, not the old image.
+  const used = await card.getByAltText("连接二维码").getAttribute("src");
   await card.getByRole("button", { name: "刷新" }).click();
-  await expect(card.getByAltText("连接二维码")).toBeVisible();
+  await expect(card.getByAltText("连接二维码")).not.toHaveAttribute("src", used!);
   const fresh = PNG.sync.read(Buffer.from((await card.getByAltText("连接二维码").getAttribute("src"))!.split(",")[1], "base64"));
   await phone.goto(jsQR(new Uint8ClampedArray(fresh.data), fresh.width, fresh.height)!.data);
   await expect(phone.locator(".rw-ok")).toContainText("已连接到 家里的台式机", { timeout: 15_000 });
