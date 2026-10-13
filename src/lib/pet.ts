@@ -6,7 +6,7 @@ import type { Mood } from "../pet/Chibi";
 const KEY = "ciro.pet.v1";
 /** Android app: the pet that floats over other apps while Ciro is in the background (PetOverlay.java). */
 type NativePet = { setEnabled?: (on: boolean) => void; command?: (json: string) => void; progress?: (json: string) => void;
-  stream?: (json: string) => void; signal?: (signal: string) => void; overlayAllowed?: () => boolean; requestOverlay?: () => void; resetPlace?: () => void;
+  stream?: (json: string) => void; signal?: (signal: string) => void; overlayAllowed?: () => boolean; setFloating?: (on: boolean) => void; floating?: () => boolean; requestOverlay?: () => void; resetPlace?: () => void;
   setScale?: (v: number) => void; setQuiet?: (on: boolean) => void };
 export const nativePet = (): NativePet | undefined => (window as unknown as { CiroPet?: NativePet }).CiroPet;
 export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave", "eat"];

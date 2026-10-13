@@ -78,6 +78,9 @@ html.pet-page #ciro-boot{display:none}
 .pet-sprite.pet-sprite--art{width:calc(186px * var(--pet-scale, 1));height:calc(248px * var(--pet-scale, 1))}
 .pet-root--inline .pet-sprite.pet-sprite--art{width:calc(126px * var(--pet-scale, 1));height:calc(168px * var(--pet-scale, 1))}
 @media (max-width:760px){.pet-root--inline .pet-sprite.pet-sprite--art{width:calc(102px * var(--pet-scale, 1));height:calc(136px * var(--pet-scale, 1))}}
+/* Android floating pet: exactly her size in the app on a phone (window size in PetOverlay.java matches). */
+.pet-root--floating .pet-sprite.pet-sprite--art{width:calc(102px * var(--pet-scale, 1));height:calc(136px * var(--pet-scale, 1))}
+.pet-root--floating .pet-say{max-width:150px;font-size:12px;padding:6px 10px}
 .pet-sign{right:14%;top:6%;width:26px;height:26px;animation:pet-sign-in .35s cubic-bezier(.3,1.6,.5,1) both}
 .pet-shy{color:#e0607a;font-size:22px;font-weight:700;line-height:1}
 .pet-think{color:#d9b46a;font:700 24px/1 "DM Sans",sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.4)}

@@ -70,6 +70,13 @@ final class PetOverlay {
         } catch (Exception ignored) { /* no such settings page on this device */ }
     }
 
+    /** 在手机桌面上显示 (Settings → 桌宠): off keeps her inside the app only. */
+    boolean floating() { return prefs().getBoolean("floating", true); }
+    void setFloating(boolean on) {
+        prefs().edit().putBoolean("floating", on).apply();
+        if (!on) main.post(this::hide);
+    }
+
     void setEnabled(boolean on) {
         enabled = on;
         prefs().edit().putBoolean("enabled", on).apply();
@@ -77,9 +84,9 @@ final class PetOverlay {
     }
 
     private float density() { return activity.getResources().getDisplayMetrics().density; }
-    private float scale() { return Math.max(0.5f, Math.min(1.6f, prefs().getFloat("scale", 0.7f))); }
-    private int widthPx() { float s = scale(); return Math.round(Math.max(expanded ? 280 : 150, 186 * s + 40) * density()); }
-    private int heightPx() { float s = scale(); return Math.round((248 * s + (expanded ? 250 : 80)) * density()); }
+    private float scale() { return Math.max(0.5f, Math.min(1.6f, prefs().getFloat("scale", 0.85f))); }
+    private int widthPx() { float s = scale(); return Math.round(Math.max(expanded ? 280 : 132, 102 * s + 38) * density()); }
+    private int heightPx() { float s = scale(); return Math.round((136 * s + (expanded ? 250 : 64)) * density()); }
     /** System bar heights: the screen edges there belong to the notification shade and home / back gestures. */
     private int dimen(String name) {
         int id = activity.getResources().getIdentifier(name, "dimen", "android");

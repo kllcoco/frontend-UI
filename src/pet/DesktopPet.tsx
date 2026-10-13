@@ -7,7 +7,7 @@ import type { Mood } from "./Chibi";
 import { desktop } from "../lib/desktop";
 import { androidPetBridge } from "./android-bridge";
 import { loadLanguage, translate } from "../lib/i18n";
-import { bubbleText, PET_MOODS, petQuiet, setPetEnabled } from "../lib/pet";
+import { bubbleText, nativePet, PET_MOODS, petQuiet, setPetEnabled } from "../lib/pet";
 import type { PetCommand, PetEdge, PetProgress, PetStream } from "../lib/pet";
 
 /* Ciro pet. Desktop app: its own transparent always-on-top window (?pet=1). Web / Android: `inline`,
@@ -30,6 +30,8 @@ function greeting(t: (s: string) => string): string {
 }
 
 const INLINE_POS = "ciro.pet-pos.v1";
+/** Android floating pet (PetOverlay.java loads the page with ?overlay=1): same size as in the app on a phone. */
+const FLOATING = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("overlay");
 const INLINE_SCALE = "ciro.pet-scale.v1";
 const INLINE_EDGE = "ciro.pet-edge.v1";
 export const MIN_SCALE = .5, MAX_SCALE = 1.6;
@@ -80,6 +82,8 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const [scale, setScale] = useState(() => clampScale(Number(inline ? stored(INLINE_SCALE) : query.get("scale")) || (inline ? .85 : .8)));
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
+  // Android: the floating pet uses the same size as the one in the app (it keeps its own copy natively).
+  useEffect(() => { if (inline) try { nativePet()?.setScale?.(scaleRef.current); } catch { /* not the Android app */ } }, []);
   const [edge, setEdge] = useState<PetEdge>(() => {
     const e = inline ? stored(INLINE_EDGE) : query.get("edge") || "";
     return e === "left" || e === "right" || e === "bottom" || e === "top" ? e : null;
@@ -524,7 +528,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     else onAsk?.();
   };
 
-  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "")}
+  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "")}
     onMouseLeave={() => hover(false)}
     style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale }}>
     {reply && <div className={"pet-reply" + (reply.error ? " pet-reply--error" : "")} role="log" aria-live="polite" aria-label={t("Ciro 的回答")}

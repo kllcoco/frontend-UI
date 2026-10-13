@@ -147,6 +147,7 @@ export default function SettingsCenter({
   const [wakeNote, setWakeNote] = useState("");
   const [petSize, setPetSizeState] = useState(() => Math.round(petScale() * 100));
   // Android: "display over other apps" permission (checked again when you come back from the system settings).
+  const [floatOn, setFloatOn] = useState(() => { try { return nativePet()?.floating?.() !== false; } catch { return true; } });
   const [overlayOk, setOverlayOk] = useState(() => { try { return Boolean(nativePet()?.overlayAllowed?.()); } catch { return false; } });
   useEffect(() => {
     const check = () => { try { setOverlayOk(Boolean(nativePet()?.overlayAllowed?.())); } catch { /* not Android */ } };
@@ -278,8 +279,8 @@ export default function SettingsCenter({
             <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。")}>
               <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
               {nativePet()?.overlayAllowed && <SettingRow title={t("在手机桌面上显示")} description={t("Ciro 切到后台时，她浮在其他应用上面，继续告诉你回答和工作进度。需要允许“显示在其他应用上层”。")}>
-                {overlayOk ? <span className="sc-static-value">{t("已允许")}</span>
-                  : <button type="button" className="sc-action-secondary" onClick={() => { nativePet()?.requestOverlay?.(); }}>{t("去允许")}</button>}</SettingRow>}
+                {!overlayOk ? <button type="button" className="sc-action-secondary" onClick={() => { nativePet()?.requestOverlay?.(); }}>{t("去允许")}</button>
+                  : <Toggle checked={floatOn} title={t("在手机桌面上显示")} onChange={(v) => { try { nativePet()?.setFloating?.(v); } catch { /* old app */ } setFloatOn(v); }}/>}</SettingRow>}
               {nativeVoice()?.setWake && <SettingRow title={t("语音唤醒")} description={wakeNote || t("喊一声“Ciro”就能直接跟她说话：设闹钟和倒计时、打开应用、打电话和发短信（由你确认发送）、导航、搜索、手电筒、音量、加日程。开启后通知栏会显示“Ciro 在听”；有些手机每次识别会有提示音。")}>
                 <Toggle checked={wakeOn} title={t("语音唤醒")} onChange={(v) => {
                   const r = String(nativeVoice()?.setWake?.(v) ?? "");

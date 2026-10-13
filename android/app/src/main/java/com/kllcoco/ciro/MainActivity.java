@@ -103,7 +103,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStop() {
         super.onStop();
-        if (petOverlay != null && petOverlay.enabled && !isChangingConfigurations()) petOverlay.show();
+        if (petOverlay != null && petOverlay.enabled && petOverlay.floating() && !isChangingConfigurations()) petOverlay.show();
     }
 
     @Override
@@ -456,6 +456,8 @@ public class MainActivity extends BridgeActivity {
     /** window.CiroPet in the app: whether she is on, and what she should show while floating over other apps. */
     private class PetBridge {
         @JavascriptInterface public void setEnabled(boolean on) { petOverlay.setEnabled(on); }
+        @JavascriptInterface public void setFloating(boolean on) { petOverlay.setFloating(on); }
+        @JavascriptInterface public boolean floating() { return petOverlay.floating(); }
         @JavascriptInterface public boolean overlayAllowed() { return petOverlay.allowed(); }
         @JavascriptInterface public void requestOverlay() { runOnUiThread(petOverlay::requestPermission); }
         @JavascriptInterface public void resetPlace() { petOverlay.resetPlace(); }
