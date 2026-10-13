@@ -210,6 +210,8 @@ export default function App() {
   const [webSearchOn, setWebSearchOn] = useState(() => loadFlag("ciro.web-search.v1", false));
   const [status, setStatus] = useState<ApiStatus>(PREVIEW);
   const [statusLoading, setStatusLoading] = useState(true);
+  const [serviceUnreachable, setServiceUnreachable] = useState(false);
+  const [connectionBannerDismissed, setConnectionBannerDismissed] = useState(false);
   const [model, setModel] = useState("ciro");
   const [studioOpen, setStudioOpen] = useState(() => ["studio", "plugins"].includes(new URLSearchParams(window.location.search).get("view") || ""));
   const [studioTab, setStudioTab] = useState<WorkbenchTab>(() => {
@@ -255,7 +257,8 @@ export default function App() {
   const operatorRef = useRef(operator);
   operatorRef.current = operator;
   /** What a customer sees instead of the operator's "configure CIRO_API_BASE_URL" preview text. */
-  const offlineText = () => operatorRef.current ? previewText(language) : t("暂时连不上 Ciro 服务，请检查网络后重试。");
+  const offlineText = () => operatorRef.current ? previewText(language)
+    : t(serviceUnreachable ? "暂时连不上 Ciro 服务，请检查网络后重试。" : "Ciro 对话服务暂未开通，请稍后再试。");
   /** Errors in customer words; the operator keeps the raw message for debugging. */
   const friendlyError = (error: unknown) => {
     const raw = error instanceof Error ? error.message : String(error || "");
@@ -342,9 +345,11 @@ export default function App() {
     setStatusLoading(true);
     try {
       const next = await getApiStatus();
+      setServiceUnreachable(false);
       setStatus(next);
       setModel((before) => next.models.includes(before) || (isCustomModel(before) && customById(before)) ? before : next.model);
     } catch {
+      setServiceUnreachable(true);
       setStatus(PREVIEW);
       setModel("ciro");
     } finally {
@@ -2003,11 +2008,16 @@ export default function App() {
                 <h1>{t("临时对话")}</h1>
                 <p className="cx-temp-note">{t("此对话不会出现在历史记录中，也不会同步或用于记忆。离开后即删除。")}</p>
               </> : <h1>{t("让每一个想法，")}{language === "en" ? " " : ""}<em>{t("走得更远。")}</em></h1>}
-              {!status.configured && !statusLoading && !temporaryMode && !isCustomModel(model) && (operator
-                ? <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>
-                : <div className="cx-connect cx-connect--down" role="status"><strong>{t("暂时连不上 Ciro 服务")}</strong>
-                    <p>{t("请检查网络后重试；如果一直这样，可能是服务正在维护，稍后再来。")}</p>
-                    <div className="cx-connect-row"><button type="button" onClick={() => void refreshStatus()}>{t("重试")}</button></div></div>)}
+              {!status.configured && !statusLoading && !temporaryMode && !isCustomModel(model) && operator &&
+                <ConnectCard t={t} onOpenModels={() => setSettingsSection("models")}/>}
+              {/* A reachable preview server has no model but is not a network outage. */}
+              {serviceUnreachable && !statusLoading && !temporaryMode && !isCustomModel(model) && !operator && !connectionBannerDismissed &&
+                <div className="cx-connect cx-connect--down" role="status">
+                  <button type="button" className="cx-connect-dismiss" aria-label={t("关闭")} onClick={() => setConnectionBannerDismissed(true)}><X size={16}/></button>
+                  <strong>{t("暂时连不上 Ciro 服务")}</strong>
+                  <p>{t("请检查网络后重试；如果一直这样，可能是服务正在维护，稍后再来。")}</p>
+                  <div className="cx-connect-row"><button type="button" onClick={() => { setConnectionBannerDismissed(false); void refreshStatus(); }}>{t("重试")}</button></div>
+                </div>}
               {!temporaryMode && <Announcements t={t}/>}
             </section>
           ) : (
