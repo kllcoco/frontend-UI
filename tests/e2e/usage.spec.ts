@@ -19,7 +19,7 @@ test("replies show reported CWU and the usage page totals them (tokens are never
   await expect(today).toContainText("3,702");
   await expect(today).toContainText("3 次调用");
   await expect(page.locator(".us-grid")).toContainText("对话回答");
-  await expect(page.locator(".us-grid")).toContainText("ciro");
+  await expect(page.locator(".us-root")).not.toContainText("GWU");
   await expect(page.locator(".us-root")).not.toContainText("176");
 });
 

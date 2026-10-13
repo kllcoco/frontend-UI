@@ -7,7 +7,7 @@ import type { AndroidRelease } from "../lib/android-update";
 const DISMISS = "ciro.update-dismissed.v1";
 type Phase = "available" | "downloading" | "permission" | "failed" | "latest";
 
-/** Android app: offers the newer version from GitHub Releases and installs it in place (settings and chats stay). */
+/** Android app: offers the newer published release and installs it in place (settings and chats stay). */
 export default function AndroidUpdate({ t, onNotify }: { t: (s: string) => string; onNotify: (text: string) => void }) {
   const [release, setRelease] = useState<AndroidRelease | null>(null);
   const [phase, setPhase] = useState<Phase>("available");
@@ -35,7 +35,7 @@ export default function AndroidUpdate({ t, onNotify }: { t: (s: string) => strin
       } catch (e) {
         if (!manual) return;
         const kind = e instanceof UpdateCheckError ? e.kind : "unavailable";
-        const text = kind === "network" ? "检查更新失败：手机没有联网" : kind === "rate-limited" ? "GitHub 暂时限制了查询次数，请稍后再试" : "暂时连不上更新服务器（GitHub），请稍后再试";
+        const text = kind === "network" ? "检查更新失败：手机没有联网" : "暂时无法检查更新，请稍后再试";
         reportUpdate({ text });
         onNotify(text);
       } finally { checking.current = false; }

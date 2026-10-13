@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, X } from "lucide-react";
+import { X } from "lucide-react";
 import CiroMark from "./CiroMark";
 import { accountFetch } from "../lib/account-api";
 import { localeTag } from "../lib/i18n";
@@ -43,7 +43,7 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
 
   useEffect(() => {
     alive.current = true;
-    if (canListen) void listen(); else { setPhase("error"); setError(t("语音对话需要支持语音识别的浏览器（Chrome / Edge），或在服务端开启 CIRO_VOICE=on")); }
+    if (canListen) void listen(); else { setPhase("error"); setError(t("当前设备不支持语音对话")); }
     return () => { alive.current = false; stopRef.current(); window.speechSynthesis?.cancel(); audioRef.current?.pause(); };
   }, []);
   useEffect(() => {
@@ -145,7 +145,7 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
       if (!alive.current) return;
       setPhase("error");
       const code = e instanceof Error ? e.message : String(e);
-      setError(code === "not-allowed" || /Permission|NotAllowed/i.test(code) ? t("麦克风权限被拒绝") : code);
+      setError(code === "not-allowed" || /Permission|NotAllowed/i.test(code) ? t("麦克风权限被拒绝") : t("语音暂时不可用，请稍后再试"));
     }
   }
   function tapOrb() {
@@ -167,7 +167,5 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
       {reply && phase !== "thinking" && <p className="vm-reply">{plainText(reply).slice(0, 220)}{plainText(reply).length > 220 ? "…" : ""}</p>}
       {error && <p className="vm-error" role="alert">{error}</p>}
     </div>
-    <div className="vm-foot"><Mic size={14}/>{Recognizer ? t("使用浏览器语音识别") : serverStt ? t("使用服务端语音识别") : t("未启用语音识别")}
-      · {serverTts ? t("服务端语音合成") : t("系统语音合成")}</div>
   </div>;
 }

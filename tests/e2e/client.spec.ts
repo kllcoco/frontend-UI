@@ -128,7 +128,7 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
 
   await page.getByRole("button", { name: "文件与存储", exact: true }).click();
   await expect(page.getByText("本地数据")).toBeVisible();
-  await expect(page.getByRole("button", { name: "导出全部对话 JSON" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "导出全部对话" })).toBeDisabled();
   await page.screenshot({ path: imageDir + "/11-settings-storage.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "快捷键", exact: true }).click();
@@ -136,11 +136,11 @@ test("remaining settings pages render and the visible toggles work", async ({ pa
   await page.screenshot({ path: imageDir + "/12-settings-shortcuts.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "隐私与安全", exact: true }).click();
-  await expect(page.getByText("模型密钥保留在服务端")).toBeVisible();
+  await expect(page.getByText("连接加密")).toBeVisible();
   await page.screenshot({ path: imageDir + "/13-settings-privacy.png", fullPage: true, animations: "disabled" });
 
   await page.getByRole("button", { name: "关于 Ciro", exact: true }).click();
-  await expect(page.getByText("CIRO CLIENT · v" + pkg.version)).toBeVisible();
+  await expect(page.getByText("Ciro · v" + pkg.version)).toBeVisible();
   await page.screenshot({ path: imageDir + "/14-settings-about.png", fullPage: true, animations: "disabled" });
 });
 

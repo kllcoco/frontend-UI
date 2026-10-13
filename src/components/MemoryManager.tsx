@@ -19,7 +19,7 @@ export default function MemoryManager({ t, enabled }: { t: (s: string) => string
     {!enabled && <p className="sc-help-text">{t("记忆已关闭：已保存的内容不会随对话发送。")}</p>}
     <form className="mm-add" onSubmit={(e) => { e.preventDefault(); void add(); }}>
       <input className="sc-text-input" value={draft} maxLength={300} onChange={(e) => setDraft(e.target.value)}
-        placeholder={t("例如：我是前端工程师，偏好 TypeScript")} aria-label={t("添加记忆")}/>
+        placeholder={t("例如：我喜欢简洁的回答")} aria-label={t("添加记忆")}/>
       <button className="sc-action-secondary" disabled={!draft.trim()}><Plus size={15}/> {t("添加")}</button>
     </form>
     <div className="mm-list">

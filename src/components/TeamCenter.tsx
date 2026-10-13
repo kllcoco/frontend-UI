@@ -25,12 +25,12 @@ export default function TeamCenter({ t, onImportProject }: { t: (s: string) => s
   const [role, setRole] = useState<Role>("member");
   const fileRef = useRef<HTMLInputElement>(null);
   async function refresh() {
-    try { setState(await call<TeamState>("")); setError(""); } catch (e) { setError(e instanceof Error ? e.message : String(e)); setState({ enabled: false }); }
+    try { setState(await call<TeamState>("")); setError(""); } catch { setState({ enabled: false }); }
   }
   useEffect(() => { void refresh(); }, []);
   async function act(fn: () => Promise<unknown>, done: string) {
     setError(""); setNotice("");
-    try { await fn(); await refresh(); setNotice(t(done)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    try { await fn(); await refresh(); setNotice(t(done)); } catch (e) { const raw = e instanceof Error ? e.message : String(e); setError(/HTTP \d|request failed|Failed to fetch|CIRO_/i.test(raw) ? t("操作失败，请稍后再试。") : raw); }
   }
   async function invite(event: FormEvent) {
     event.preventDefault();
@@ -49,8 +49,7 @@ export default function TeamCenter({ t, onImportProject }: { t: (s: string) => s
   return <div className="tm-root">
     {!state && <p className="sc-help-text">{t("正在读取团队信息…")}</p>}
     {state && !state.enabled && <div className="sc-info-card"><Users size={18}/><div>
-      <strong>{t("团队服务尚未接入")}</strong>
-      <p>{t("团队成员、角色权限与共享项目需要多租户团队服务。部署后在服务端设置 CIRO_TEAM_URL（及 CIRO_TEAM_TOKEN）即可启用本页的全部功能。")}</p>
+      <strong>{t("团队功能即将推出")}</strong>
     </div></div>}
     {state?.enabled && <>
       <div className="tm-head"><Users size={18}/><strong>{state.name || t("我的团队")}</strong>

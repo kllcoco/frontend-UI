@@ -55,7 +55,7 @@ export default function ConversationManager({ t, conversations, onBulk, onImport
     event.target.value = "";
     if (!file) return;
     try { onImport(parseImport(await file.text())); }
-    catch { onError(t("无法导入：文件不是 Ciro 导出的对话 JSON")); }
+    catch { onError(t("无法导入：文件不是 Ciro 导出的对话文件")); }
   }
 
   return <div className="cm-root">
@@ -65,8 +65,8 @@ export default function ConversationManager({ t, conversations, onBulk, onImport
         <button className={filter === "all" ? "sc-selected" : ""} onClick={() => setFilter("all")}>{t("全部")}</button>
         <button className={filter === "archived" ? "sc-selected" : ""} onClick={() => setFilter("archived")}>{t("已归档")}</button>
       </div>
-      <button className="sc-action-secondary" onClick={() => fileRef.current?.click()}><FileUp size={15}/> {t("导入对话 JSON")}</button>
-      <input ref={fileRef} type="file" hidden accept="application/json,.json" onChange={(e) => void importFile(e)} aria-label={t("导入对话 JSON")}/>
+      <button className="sc-action-secondary" onClick={() => fileRef.current?.click()}><FileUp size={15}/> {t("导入对话")}</button>
+      <input ref={fileRef} type="file" hidden accept="application/json,.json" onChange={(e) => void importFile(e)} aria-label={t("导入对话")}/>
     </div>
     <div className="cm-actions">
       <label className="cm-check"><input type="checkbox" checked={allChecked} onChange={() => setSelected(allChecked ? new Set() : new Set(list.map((c) => c.id)))}

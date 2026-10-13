@@ -1,3 +1,4 @@
+import { createCwuLedger, cwuEnabled, cwuPacks } from "./cwu.mjs";
 import {createSyncStore,SYNC_KINDS,SYNC_LIMITS} from "./sync-store.mjs";
 import express from "express";
 import {
@@ -197,6 +198,7 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   const registration=registrationMode(env);
   const dataDir=dir||env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime";
   const store=createAccountStore(dataDir);
+  const cwu=createCwuLedger(store,env);
   let syncDb=null;
   const syncStore=()=>syncDb||(syncDb=createSyncStore(dataDir,store.owner()?.id||null));
   const router=express.Router();
@@ -340,6 +342,8 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
       if(invite){const i=s.invites.find(x=>x.code===invite.code);i.usedAt=new Date().toISOString();i.usedBy=user.id;}
     });
     clear();
+    const bonus=Number(env.CIRO_CWU_SIGNUP_BONUS||0);
+    if(cwuEnabled(env)&&Number.isFinite(bonus)&&bonus>0)cwu.credit(user.id,Math.min(bonus,1e9),"signup","signup:"+user.id);
     const session=issueSession(res,user);
     res.status(201).json({authenticated:true,user:publicOwner(user),csrf:session.csrf});
   }));
@@ -576,6 +580,32 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     store.change("admin.invite.deleted",s=>{s.invites=s.invites.filter(x=>x.code!==req.params.code);});
     res.json({ok:true});
   }));
+  // CWU: one balance per account, the same on every device and wherever it was bought.
+  router.get("/cwu",protectedSession((_req,res,_p,u)=>{
+    res.json({enabled:cwuEnabled(env),balance:cwu.balance(u.id),ledger:cwu.ledger(u.id),
+      packs:cwuPacks(env).map(({stripePrice,...pack})=>pack),
+      buy:cwuEnabled(env)&&Boolean(env.CIRO_STRIPE_SECRET_KEY)&&typeof env.CIRO_PUBLIC_ORIGIN==="string"});
+  }));
+  router.post("/cwu/checkout",protectedSession(async(req,res,_p,u)=>{
+    if(!cwuEnabled(env))throw bad("CWU purchases are not available",503);
+    const pack=cwuPacks(env).find(x=>x.id===req.body?.pack);
+    if(!pack)throw bad("Unknown CWU pack",400);
+    const origin=env.CIRO_PUBLIC_ORIGIN.replace(/\/+$/,"");
+    const session=await stripeCall(env,"checkout/sessions",{
+      mode:"payment","line_items[0][price]":pack.stripePrice,"line_items[0][quantity]":"1",
+      success_url:origin+"/?cwu=success",cancel_url:origin+"/?cwu=cancel",client_reference_id:u.id,customer_email:u.email,
+      "metadata[ciro_kind]":"cwu","metadata[ciro_user]":u.id,"metadata[ciro_cwu]":String(pack.cwu),"metadata[ciro_pack]":pack.id
+    },fetchFn);
+    res.json({url:session.url,id:session.id});
+  }));
+  // The owner can give CWU (support, promotions, refunds); negative amounts take CWU back.
+  router.post("/admin/users/:id/cwu",ownerSession((req,res)=>{
+    const amount=Number(req.body?.cwu);
+    if(!Number.isFinite(amount)||amount===0||Math.abs(amount)>1e9)throw bad("Invalid CWU amount",400);
+    if(!store.user(req.params.id))throw bad("No such user",404);
+    if(amount>0)cwu.credit(req.params.id,amount,"grant");else cwu.charge(req.params.id,-amount);
+    res.json({balance:cwu.balance(req.params.id)});
+  }));
   // Stripe subscription: the server owner's own plan for this deployment.
   const hasStripe=()=>publicSubscription(store,env).configured;
   router.post("/subscription/checkout",ownerSession(async(_req,res,p,owner)=>{
@@ -604,6 +634,15 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   router.post("/subscription/webhook",wrapped((req,res)=>{
     const event=verifyStripeEvent(req,env);
     const payload=event.data?.object||{},owner=store.owner();
+    // A CWU pack paid (in the app or on the website): credit that account, once per Stripe session.
+    if(event.type==="checkout.session.completed"&&payload.metadata?.ciro_kind==="cwu"&&payload.payment_status!=="unpaid"){
+      const amount=Number(payload.metadata.ciro_cwu);
+      const user=store.user(payload.metadata.ciro_user||payload.client_reference_id||"")||cwu.userByEmail(payload.customer_details?.email||payload.customer_email);
+      if(!user||!Number.isSafeInteger(amount)||amount<=0)return res.status(202).json({ignored:true});
+      const applied=cwu.credit(user.id,amount,"purchase","stripe:"+payload.id);
+      if(applied)notify({type:"info",title:"CWU 已到账",body:"充值 "+amount+" CWU 已到账。",userId:user.id});
+      return res.json({received:true,applied});
+    }
     if(!owner)return res.status(202).json({ignored:true});
     if(store.get().webhookEvents.includes(event.id))return res.json({received:true,duplicate:true});
     const sub=store.get().subscription;
@@ -643,5 +682,5 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
   }
   /** API key ids that belong to the signed-in user (for the API console). */
   const keyIdsOf=userId=>new Set(store.get().apiKeys.filter(x=>x.userId===userId).map(x=>x.id));
-  return {router,guard,store,principal,memoryContext,notify,enabled,isOwner,keyIdsOf};
+  return {router,guard,store,principal,memoryContext,notify,enabled,isOwner,keyIdsOf,cwu};
 }

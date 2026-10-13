@@ -4,8 +4,18 @@ import { ArrowLeft, Bot, Check, CircleStop, FolderOpen, FolderPlus, KeyRound, La
 import { accountFetch, readApiJson } from "../lib/account-api";
 import QrScanner from "./QrScanner";
 import { petEnabled, petProgress } from "../lib/pet";
+import { OFFICIAL_SERVER } from "../lib/mobile";
 import type { PetProgress } from "../lib/pet";
 
+/** Plain-language error for the page: sign-in and service problems get one friendly line, raw HTTP/server text never shows. */
+function friendly(t: (s: string) => string, e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  if (/503|需要服务器|开启账户|CIRO_|401|sign in|请先登录|unauthori|Device token|revoked device/i.test(raw)) return t("请先登录 Ciro 账户。");
+  if (/Failed to fetch|NetworkError|Load failed|未连接到 Ciro 服务|ECONN|ENOTFOUND|timed? ?out/i.test(raw)) return t("网络连接失败，请检查网络后重试。");
+  // The work-mode service words its own user-facing errors in Chinese (e.g. "配对码无效或已过期"); keep those.
+  if (/[\u4e00-\u9fff]/.test(raw) && !/HTTP|https?:\/\//i.test(raw)) return raw;
+  return t("操作失败，请稍后再试。");
+}
 const shortText = (v: unknown, n: number) => { const x = String(v ?? "").replace(/\s+/g, " ").trim(); return x.length > n ? x.slice(0, n - 1) + "…" : x; };
 const fileName = (v: unknown) => String(v ?? "").split(/[\\/]/).filter(Boolean).pop() || ".";
 /** A work-mode event worth telling through the pet (same wording as on the computer). */
@@ -80,8 +90,8 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
       setDevices(list); setCloudError("");
       setDeviceId((id) => id && list.some((d) => d.id === id) ? id : list.find((d) => d.connected && d.online)?.id || list.find((d) => d.online)?.id || list[0]?.id || "");
       return list;
-    } catch (e) { setDevices(null); setCloudError(e instanceof Error ? e.message : String(e)); return null; }
-  }, []);
+    } catch (e) { setDevices(null); setCloudError(friendly(t, e)); return null; }
+  }, [t]);
   const connected = useCallback(async (d: Device) => {
     setDeviceId(d.id); setNotice(t("已连接到") + " " + d.name); setScanning(false); setTyping(false); setTyped("");
     sessionStorage.removeItem(PENDING);
@@ -94,13 +104,13 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
         ? await cloud<{ device: Device }>("/connect", "POST", { code: payload.code })
         : await cloud<{ device: Device }>("/devices/" + encodeURIComponent(payload.device!) + "/connect", "POST", { nonce: payload.nonce });
       await connected(device);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-  }, [connected]);
+    } catch (e) { setError(friendly(t, e)); }
+  }, [connected, t]);
   const onScan = useCallback((text: string) => {
     setScanning(false);
     const target = parseConnect(text);
     if (!target) { setError(t("这不是 Ciro 电脑的连接二维码")); return; }
-    if (target.origin !== window.location.origin) { setError(t("这个二维码属于另一台服务器：") + target.origin); return; }
+    if (target.origin !== window.location.origin) { setError(t("这个二维码不属于当前账户，请在电脑上刷新后重试")); return; }
     void connectWith({ device: target.device, nonce: target.nonce });
   }, [connectWith, t]);
 
@@ -121,7 +131,7 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
   }, [deviceId]);
   useEffect(() => { void refreshSessions(); }, [refreshSessions]);
 
-  const act = async (fn: () => Promise<unknown>) => { setError(""); try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
+  const act = async (fn: () => Promise<unknown>) => { setError(""); try { await fn(); } catch (e) { setError(friendly(t, e)); } };
   const device = devices?.find((d) => d.id === deviceId);
   const open = sessions.find((s) => s.id === openId);
 
@@ -146,9 +156,9 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
           <button type="button" className="cx-btn" onClick={() => { setTyping((v) => !v); setTyped(""); }}><KeyRound size={15}/>{t("输入配对码")}</button>
           <button type="button" className="cx-btn" onClick={() => void act(async () => setPairCode(await cloud("/pairing-code", "POST", {})))}><Plus size={15}/>{t("添加电脑")}</button>
         </div>}</div>
-      {cloudError && localState?.paired && /需要|503|账户/.test(cloudError) ? <p className="rw-muted">
-        {t("这台电脑已连接到")} <code>{localState.serverUrl}</code>{t("。在手机上打开这个地址并登录，进入 协作空间 → 工作模式，扫描上方二维码或输入配对码即可控制这台电脑。")}</p>
-      : cloudError && <p className="rw-muted">{/需要|503|账户/.test(cloudError) ? t("工作模式需要连接一台开启了账户的 Ciro 服务器（按部署教程配置域名即可）。") : /sign in|登录|401/i.test(cloudError) ? t("请先登录 Ciro 账户，再控制你的电脑。") : cloudError}</p>}
+      {cloudError && localState?.paired && cloudError === t("请先登录 Ciro 账户。") ? <p className="rw-muted">
+        {t("这台电脑已添加到你的 Ciro 账户。在手机上登录同一账户，进入 协作空间 → 工作模式，扫描上方二维码或输入配对码即可控制这台电脑。")}</p>
+      : cloudError && <p className="rw-muted">{cloudError}</p>}
       {typing && <form className="rw-typecode" onSubmit={(e) => { e.preventDefault(); if (typed.trim()) void connectWith({ code: typed.trim() }); }}>
         <input value={typed} onChange={(e) => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} maxLength={8} placeholder="ABCD2345"
           aria-label={t("电脑上显示的配对码")} autoComplete="off" autoCapitalize="characters" inputMode="text"/>
@@ -159,7 +169,7 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
         <span>{t("添加一台电脑")}</span><strong>{pairCode.code}</strong>
         <ol>
           <li>{t("在要添加的电脑上打开 Ciro → 协作空间 → 工作模式 → 配对码")}</li>
-          <li>{t("填写服务器地址：")}<code>{window.location.origin}</code></li>
+          {!OFFICIAL_SERVER && <li>{t("填写服务器地址：")}<code>{window.location.origin}</code></li>}
           <li>{t("输入上面的配对码（10 分钟内有效，只能使用一次）。添加后这部手机会自动连接那台电脑")}</li>
         </ol>
         <p className="rw-muted">{t("也可以直接在电脑上用账号登录，电脑会自动出现在这里。")}</p>
@@ -205,7 +215,7 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
 
 function ThisComputer({ t, state, onChange, onError }: { t: (s: string) => string; state: LocalStatus; onChange: (s: LocalStatus) => void; onError: (e: string) => void }) {
   const [method, setMethod] = useState<"login" | "code">("login");
-  const [serverUrl, setServerUrl] = useState(state.serverUrl);
+  const [serverUrl, setServerUrl] = useState(state.serverUrl || OFFICIAL_SERVER);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -215,7 +225,7 @@ function ThisComputer({ t, state, onChange, onError }: { t: (s: string) => strin
   const [qr, setQr] = useState<{ url: string; code: string; expiresAt: number; image: string } | null>(null);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [now, setNow] = useState(Date.now());
-  const run = async (fn: () => Promise<LocalStatus>) => { setBusy(true); onError(""); try { onChange(await fn()); } catch (e) { onError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
+  const run = async (fn: () => Promise<LocalStatus>) => { setBusy(true); onError(""); try { onChange(await fn()); } catch (e) { onError(friendly(t, e)); } finally { setBusy(false); } };
   const addFolder = async (p: string) => { if (p.trim()) await run(() => local("/folders", { folders: [...state.folders, p.trim()] })); setPath(""); };
   const pick = desktopBridge()?.pickFolder;
   const live = state.paired && state.enabled;
@@ -256,7 +266,8 @@ function ThisComputer({ t, state, onChange, onError }: { t: (s: string) => strin
       </div>
       <p className="rw-muted">{method === "login" ? t("登录你的 Ciro 账号，这台电脑会出现在同一账号的所有设备里。密码只用于这一次，不会保存在电脑上。")
         : t("在手机上打开 协作空间 → 工作模式 → 添加电脑，把得到的 8 位配对码填在这里。")}</p>
-      <label>{t("服务器地址")}<input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://ciro.example.com" required inputMode="url"/></label>
+      {/* Customer builds sign in to the official service; the address field is only for self-hosted servers. */}
+      {!OFFICIAL_SERVER && <label>{t("服务器地址")}<input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://ciro.example.com" required inputMode="url"/></label>}
       {method === "login" ? <>
         <label>{t("邮箱")}<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username"/></label>
         <label>{t("密码")}<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password"/></label>
@@ -264,7 +275,7 @@ function ThisComputer({ t, state, onChange, onError }: { t: (s: string) => strin
       <label>{t("电脑名称")}<input value={name} onChange={(e) => setName(e.target.value)} maxLength={60}/></label>
       <button type="submit" className="cx-btn cx-btn--primary" disabled={busy}><Link2 size={15}/>{method === "login" ? t("登录并添加这台电脑") : t("连接")}</button>
     </form> : <>
-      <p className="rw-muted">{t("服务器：")}{state.serverUrl}{state.account ? " · " + state.account : ""}{state.lastError ? " · " + state.lastError : ""}</p>
+      {state.account && <p className="rw-muted">{t("已登录：")}{state.account}</p>}
       {live && <div className="rw-qr">
         {qr ? <img src={qr.image} alt={t("连接二维码")} width={180} height={180}/> : <div className="rw-qr-wait"><LoaderCircle size={20} className="cx-spin"/></div>}
         <div>
@@ -312,7 +323,7 @@ function NewTask({ t, device, onStarted, onError }: { t: (s: string) => string; 
     if (!text.trim()) return;
     setBusy(true); onError("");
     try { const { session } = await cloud<{ session: Session }>("/sessions", "POST", { deviceId: device.id, folder, kind, text, autoApprove: kind === "agent" && auto }); setText(""); onStarted(session); }
-    catch (err) { onError(err instanceof Error ? err.message : String(err)); }
+    catch (err) { onError(friendly(t, err)); }
     finally { setBusy(false); }
   }
   return <form className="rw-new" onSubmit={start}>
@@ -358,7 +369,7 @@ function SessionView({ t, sessionId, initial, onBack }: { t: (s: string) => stri
             }
             after = res.events[res.events.length - 1].seq; setEvents((old) => [...old, ...res.events]);
           }
-        } catch (e) { setError(e instanceof Error ? e.message : String(e)); await new Promise((r) => setTimeout(r, 3000)); }
+        } catch (e) { setError(friendly(t, e)); await new Promise((r) => setTimeout(r, 3000)); }
       }
     })();
     return () => { stopped = true; };
@@ -366,7 +377,7 @@ function SessionView({ t, sessionId, initial, onBack }: { t: (s: string) => stri
   useEffect(() => { if (stick.current) logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [events]);
   const resolved = new Set(events.filter((e) => e.type === "approval_result").map((e) => String(e.data.requestId)));
   const cwu = events.filter((e) => e.type === "usage").reduce((sum, e) => sum + Number(e.data.cwu || 0), 0);
-  const send = async (path: string, body: unknown) => { setError(""); try { await cloud("/sessions/" + sessionId + "/" + path, "POST", body); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } };
+  const send = async (path: string, body: unknown) => { setError(""); try { await cloud("/sessions/" + sessionId + "/" + path, "POST", body); } catch (e) { setError(friendly(t, e)); } };
   return <section className="rw-root rw-session-view" aria-label={t("远程任务")}>
     <header className="rw-sv-head">
       <button type="button" className="cx-icon" onClick={onBack} aria-label={t("返回")}><ArrowLeft size={18}/></button>

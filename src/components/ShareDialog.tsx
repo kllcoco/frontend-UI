@@ -37,14 +37,14 @@ export default function ShareDialog({ t, chat, onShared, onClose }: Props) {
       if (chat.shareId) await call("/" + chat.shareId, "DELETE").catch(() => undefined);
       const { id } = await call("", "POST", { title: chat.title, messages });
       onShared(id);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    } catch { setError(t("分享失败，请稍后再试")); }
     finally { setBusy(false); }
   }
   async function revoke() {
     if (!chat.shareId) return;
     setBusy(true); setError("");
     try { await call("/" + chat.shareId, "DELETE"); onShared(undefined); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    catch { setError(t("分享失败，请稍后再试")); }
     finally { setBusy(false); }
   }
   async function copy() {
@@ -67,7 +67,7 @@ export default function ShareDialog({ t, chat, onShared, onClose }: Props) {
           </div>
         </> : <button type="button" className="cx-btn cx-btn--primary sh-create" disabled={busy || messages.length === 0} onClick={() => void publish()}>
           <Link2 size={15}/>{busy ? t("正在生成…") : t("创建分享链接")}</button>}
-        <p className="sh-hint">{t("链接指向当前 Ciro 服务器；桌面版本地服务只能在本机访问，对外分享请使用部署在服务器上的 Ciro。")}</p>
+        <p className="sh-hint">{t("任何拿到链接的人都能查看这段对话。")}</p>
         {error && <p className="sc-error" role="alert">{error}</p>}
       </div>
     </div>

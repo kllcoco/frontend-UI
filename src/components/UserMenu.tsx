@@ -84,7 +84,7 @@ export default function UserMenu(props: Props) {
     {open && <div className="um-menu" role="menu" aria-label={t("账户菜单")}>
       <div className="um-identity">
         <span className="um-avatar um-avatar--lg">{initials(name)}</span>
-        <span className="um-identity-copy"><strong>{name}</strong><small>{email || t("本地模式 · 数据保存在此设备")}</small></span>
+        <span className="um-identity-copy"><strong>{name}</strong><small>{email || (accountsEnabled ? t("未登录 · 注册后额度和记录多端互通") : t("本地模式 · 数据保存在此设备"))}</small></span>
       </div>
       <div className="um-sep"/>
       <Row icon={<Settings2 size={16}/>} label={t("设置")} hint={mod + " ,"} onClick={() => run({ type: "settings", section: "general" })}/>
@@ -131,7 +131,7 @@ export default function UserMenu(props: Props) {
         <div className="um-sep"/>
         {authenticated
           ? <Row icon={<LogOut size={16}/>} label={t("退出登录")} danger onClick={() => run({ type: "logout" })}/>
-          : <Row icon={<LogIn size={16}/>} label={t("登录")} onClick={() => run({ type: "studio", tab: "account" })}/>}
+          : <Row icon={<LogIn size={16}/>} label={t("注册 / 登录")} onClick={() => run({ type: "studio", tab: "account" })}/>}
       </>}
     </div>}
     <button type="button" className={open ? "um-trigger um-trigger--open" : "um-trigger"} onClick={() => setOpen((v) => !v)}

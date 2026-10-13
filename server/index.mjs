@@ -1,3 +1,4 @@
+import { usedCwu } from "./cwu.mjs";
 import "dotenv/config";
 import express from "express";
 import { fileURLToPath } from "node:url";
@@ -158,6 +159,12 @@ app.post("/api/chat", async (req, res) => {
 
   const controller = new AbortController();
   res.on("close", () => controller.abort());
+  // CWU: no balance left → no reply (the app shows "top up"). Charged below with what the model reports.
+  const payer=req.principal?.id||"local";
+  if (accounts.cwu && !accounts.cwu.canSpend(payer)) {
+    return res.status(402).json({ error: "CWU 额度不足，充值后即可继续。", code: "insufficient_cwu" });
+  }
+  let meteredTail = "";
   try {
     const user=req.principal?.id||"local";
     // Only installed + authenticated + policy-allowed tools are exposed. No model-install API.
@@ -202,6 +209,8 @@ app.post("/api/chat", async (req, res) => {
       for await (const chunk of upstream.body) {
         if (controller.signal.aborted || res.writableEnded) break;
         res.write(chunk);
+        // usage arrives in the last events: keep a short tail to read the CWU from
+        meteredTail = (meteredTail + Buffer.from(chunk).toString("utf8")).slice(-8192);
       }
     } else {
       // Graceful fallback for OpenAI-compatible servers that return JSON despite stream=true.
@@ -221,10 +230,13 @@ app.post("/api/chat", async (req, res) => {
         .filter((k) => responseJson[k] !== undefined).map((k) => [k, responseJson[k]]));
       const annotations = responseJson?.choices?.[0]?.message?.annotations;
       res.write("data: " + JSON.stringify({ choices: [{ delta: { content, ...(Array.isArray(annotations) ? { annotations } : {}) } }], ...metering }) + "\n\n");
+      meteredTail = JSON.stringify({ usage: responseJson.usage ?? responseJson.ciro_usage ?? null });
       res.write("data: [DONE]\n\n");
     }
     if (!res.writableEnded) res.end();
+    accounts.cwu?.charge(payer, usedCwu(meteredTail));
   } catch (error) {
+    accounts.cwu?.charge(payer, usedCwu(meteredTail)); // what was generated before an interruption still counts
     if (controller.signal.aborted) return;
     if (!res.headersSent) {
       res.status(502).json({ error: "无法连接 CIRO 后端：" + error.message });

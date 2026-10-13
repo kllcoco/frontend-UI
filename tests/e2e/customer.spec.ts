@@ -17,7 +17,7 @@ test("customer view hides the model connection; developer options bring it back"
   await expect(page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true })).toHaveCount(0);
   await page.locator(".sc-nav").getByRole("button", { name: "关于 Ciro", exact: true }).click();
   await expect(page.getByText("推理服务", { exact: true })).toHaveCount(0);
-  const version = page.getByText(/CIRO CLIENT · v/);
+  const version = page.getByText(/Ciro · v\d/);
   for (let i = 0; i < 7; i += 1) await version.click();
   await expect(page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true })).toBeVisible();
   await expect(page.getByRole("switch", { name: "开发者选项" })).toBeVisible();

@@ -123,7 +123,7 @@ test("team page explains setup and project export/import round-trips", async ({ 
   await page.getByRole("button", { name: "导出项目" }).click();
   const file = await (await download).path();
   await go(page, "团队");
-  await expect(page.getByText("团队服务尚未接入")).toBeVisible();
+  await expect(page.getByText("团队功能即将推出")).toBeVisible();
   await page.locator(".tm-share input[type=file]").setInputFiles(file!);
   await expect(page.locator(".cx-project-row").filter({ hasText: "共享项目" })).toHaveCount(2);
   await expect(page.getByRole("textbox", { name: "项目指令" })).toHaveValue("团队约定");

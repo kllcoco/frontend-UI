@@ -84,7 +84,7 @@ const sections: SectionInfo[] = [
   { id: "storage", label: "文件与存储", icon: Database, group: "数据与同步", keys: "备份 恢复 导出 导入 删除 backup export" },
   { id: "sync", label: "跨设备同步", icon: RefreshCcw, group: "数据与同步", keys: "同步 sync", account: true },
   { id: "account", label: "账户与安全", icon: UserRound, group: "账户", keys: "登录 密码 账户 login password" },
-  { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用 openai", account: true },
+  { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用", account: true, operator: true },
   { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing", ownerTools: true },
   { id: "subscription", label: "订阅管理", icon: Wallet, group: "账户", keys: "订阅 subscription", account: true, ownerTools: true },
   { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true, ownerTools: true },
@@ -169,9 +169,11 @@ export default function SettingsCenter({
   const [canAnnounce, setCanAnnounce] = useState(false);
   useEffect(() => { loadAnnouncements().then((r) => setCanAnnounce(r.editable), () => setCanAnnounce(false)); }, []);
   const operator = ownerSignedIn || dev || Boolean(status.setupHints);
-  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && member)
+  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly) && !(item.ownerOnly && !canAnnounce) && !(item.ownerTools && !operator)
     && !(item.operator && !operator));
   const q = query.trim().toLowerCase();
+  // Opened directly (menu, link, slash command) but not for this person: back to the general page.
+  useEffect(() => { if (!visible.some((item) => item.id === section)) setSection("general"); }, [section, operator, member, accountsOn, canAnnounce]);
   const matches = q ? visible.filter((item) => (t(item.label) + " " + item.label + " " + (item.keys || "")).toLowerCase().includes(q)) : visible;
   const openSection = (id: Section) => { setSection(id); setError(null); setListView(false); setQuery(""); };
   const back = () => { if (isPhone() && !listView) { setListView(true); return true; } return false; };
@@ -265,7 +267,7 @@ export default function SettingsCenter({
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}
           {section === "pet" && <>
-            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，模型也能让她做表情、说话。")}>
+            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。")}>
               <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
               {nativePet()?.overlayAllowed && <SettingRow title={t("在手机桌面上显示")} description={t("Ciro 切到后台时，她浮在其他应用上面，继续告诉你回答和工作进度。需要允许“显示在其他应用上层”。")}>
                 {overlayOk ? <span className="sc-static-value">{t("已允许")}</span>
@@ -392,7 +394,7 @@ export default function SettingsCenter({
 
           {section === "instructions" && <>
             <SettingBlock title={t("自定义指令")} subtitle={t("决定 Ciro 如何理解你的背景，以及如何回答。")}>
-              <SettingRow title={t("启用自定义指令")} description={t("启用后随普通聊天请求发送到你配置的模型服务。")}>
+              <SettingRow title={t("启用自定义指令")} description={t("启用后，Ciro 会在每次对话中参考这些信息。")}>
                 <Toggle checked={instructions.enabled} title={t("启用自定义指令")}
                   onChange={value=>onInstructionsChange({...instructions,enabled:value})}/>
               </SettingRow>
@@ -400,14 +402,14 @@ export default function SettingsCenter({
                 <span>{t("可填写角色、偏好和长期目标，最多 2000 字。")}</span>
                 <textarea aria-label={t("关于你")} maxLength={2000} rows={4} value={instructions.about}
                   onChange={event=>onInstructionsChange({...instructions,about:event.target.value})}
-                  placeholder={t("例如：我正在开发 CIRO，回答时先给结论。")}/>
+                  placeholder={t("例如：我是一名产品经理，回答时先给结论。")}/>
                 <small>{instructions.about.length}/2000</small>
               </label>
               <label className="sc-instructions-field"><strong>{t("希望 Ciro 如何回答")}</strong>
                 <span>{t("对语言、格式、严谨程度和交付物的偏好。")}</span>
                 <textarea aria-label={t("希望 Ciro 如何回答")} maxLength={2000} rows={4} value={instructions.style}
                   onChange={event=>onInstructionsChange({...instructions,style:event.target.value})}
-                  placeholder={t("例如：中文优先，重要工程结论必须附验证证据。")}/>
+                  placeholder={t("例如：中文优先，回答简洁，重要信息给出出处。")}/>
                 <small>{instructions.style.length}/2000</small>
               </label>
             </SettingBlock>
@@ -497,8 +499,8 @@ export default function SettingsCenter({
             <div className="sc-info-card"><MessageSquare size={18}/><div><strong>{t("按你习惯的方式思考")}</strong><p>{t("字号和密度调整后，现有对话也会同步更新。")}</p></div></div>
           </>}
 
-          {section === "usage" && <SettingBlock title={t("用量统计")} subtitle={t("按 CWU 统计模型调用")}>
-            <UsagePanel t={t} locale={localeTag(language)} conversations={conversations} onOpenBilling={() => setSection("billing")}/>
+          {section === "usage" && <SettingBlock title={t("用量统计")} subtitle={t("按 CWU 统计你的用量")}>
+            <UsagePanel t={t} locale={localeTag(language)} conversations={conversations} onOpenBilling={() => setSection("subscription")}/>
           </SettingBlock>}
 
           {section === "storage" && <>
@@ -507,9 +509,9 @@ export default function SettingsCenter({
               <div><strong>{totalMessages}</strong><span>{t("消息总数")}</span></div>
               <div><strong>{t("本设备")}</strong><span>{t("数据位置")}</span></div>
             </div>
-              <p className="sc-help-text">{t("历史对话保存在 localStorage，图片附件与自定义背景使用 IndexedDB。登录后可在「跨设备同步」中开启云端同步。")}</p>
+              <p className="sc-help-text">{t("历史对话、图片附件和自定义背景保存在此设备上。登录后可在「跨设备同步」中开启云端同步。")}</p>
               <div className="sc-action-list">
-                <button className="sc-action-secondary" disabled={conversations.length === 0} onClick={onExportAll}><ArrowDownToLine size={17}/> {t("导出全部对话 JSON")}</button>
+                <button className="sc-action-secondary" disabled={conversations.length === 0} onClick={onExportAll}><ArrowDownToLine size={17}/> {t("导出全部对话")}</button>
                 <button className="sc-action-danger" disabled={conversations.length === 0} onClick={onClearHistory}><Trash2 size={17}/> {t("删除全部本地对话")}</button>
               </div></SettingBlock>
             <SettingBlock title={t("完整备份")} subtitle={t("一个文件保存此设备上的全部数据")}>
@@ -521,7 +523,7 @@ export default function SettingsCenter({
               {error && <p className="sc-error" role="alert">{error}</p>}
             </SettingBlock>
             <SettingBlock title={t("附件支持")}><div className="sc-info-card"><FileText size={18}/><div><strong>{t("文本与代码文件")}</strong>
-              <p>{t("每次最多 5 个附件：图片（自动压缩，按多模态格式发送）、PDF（在本机提取文字）、文本或代码文件。模型能否理解图片取决于后端。")}</p>
+              <p>{t("每次最多 5 个附件：图片（自动压缩后发送）、PDF（在本机提取文字）、文本或代码文件。")}</p>
             </div></div></SettingBlock>
           </>}
 
@@ -550,10 +552,10 @@ export default function SettingsCenter({
 
           {section === "security" && <>
             <SettingBlock title={t("隐私边界")}>
-              <div className="sc-security-line"><ShieldCheck size={19}/><div><strong>{t("模型密钥保留在服务端")}</strong><p>{t("前端只向本项目的 API 代理发消息，不会把 CIRO_API_KEY 存到浏览器。")}</p></div></div>
-              <div className="sc-security-line"><Database size={19}/><div><strong>{t("对话保存在本设备")}</strong><p>{t("历史记录保存在此浏览器或应用里；开启跨设备同步后，会逐条加密保存在你的 Ciro 服务器上。发送的消息会交给服务器配置的推理服务处理。")}</p></div></div>
-              {accountsOn === true && <div className="sc-security-line"><UserRound size={19}/><div><strong>{t("已开启账户登录")}</strong><p>{t("这台服务器需要登录后才能使用；同步数据与记忆在服务器上加密保存，API 密钥只保存哈希。")}</p></div></div>}
-              {accountsOn === false && <div className="sc-security-line"><Code2 size={19}/><div><strong>{t("这台服务器没有开启账户")}</strong><p>{t("能打开这个网址的人都可以使用它和它的模型额度。只在自己电脑或内网使用没问题；放到公网请开启账户并使用 HTTPS（见部署教程）。")}</p></div></div>}
+              <div className="sc-security-line"><ShieldCheck size={19}/><div><strong>{t("连接加密")}</strong><p>{t("你的对话通过加密连接发送给 Ciro，任何服务密钥都不会保存在你的设备上。")}</p></div></div>
+              <div className="sc-security-line"><Database size={19}/><div><strong>{t("对话保存在本设备")}</strong><p>{t("历史记录保存在此设备上；开启跨设备同步后，会逐条加密保存在 Ciro 云端。")}</p></div></div>
+              {accountsOn === true && <div className="sc-security-line"><UserRound size={19}/><div><strong>{t("账户保护")}</strong><p>{t("同步数据与记忆加密保存，只有你登录后才能看到。")}</p></div></div>}
+              {accountsOn === false && operator && <div className="sc-security-line"><Code2 size={19}/><div><strong>{t("这台服务器没有开启账户")}</strong><p>{t("能打开这个网址的人都可以使用它和它的模型额度。只在自己电脑或内网使用没问题；放到公网请开启账户并使用 HTTPS（见部署教程）。")}</p></div></div>}
               <div className="sc-security-line"><ShieldCheck size={19}/><div><strong>{t("工作模式只碰你允许的文件夹")}</strong><p>{t("远程控制电脑时，只能访问你在电脑上手动添加的文件夹；写入文件和运行命令默认需要你在手机上逐次批准。")}</p></div></div>
             </SettingBlock>
           </>}
@@ -565,9 +567,8 @@ export default function SettingsCenter({
                 const now = Date.now();
                 versionTaps.current = [...versionTaps.current.filter((x) => now - x < 3000), now];
                 if (versionTaps.current.length >= 7 && !dev) { versionTaps.current = []; setDevMode(true); setDev(true); }
-              }}>CIRO CLIENT · v{__APP_VERSION__}</small></div>
-            <SettingBlock title={t("项目")}><SettingRow title={t("客户端仓库")} description={t("独立于 NCPA 模型和验收主线")}>
-              <a className="sc-repo-link" href="https://github.com/kllcoco/frontend-UI" target="_blank" rel="noopener noreferrer">frontend-UI ↗</a></SettingRow>
+              }}>Ciro · v{__APP_VERSION__}</small></div>
+            <SettingBlock title={t("关于")}>
               {Boolean(window.ciroDesktop?.updateAction || (window as unknown as { CiroUpdate?: unknown }).CiroUpdate) && <SettingRow title={t("检查更新")}
                 description={t("有新版本时会在应用内下载并安装，聊天记录和设置都会保留")}>
                 <span className="sc-update">
@@ -587,7 +588,7 @@ export default function SettingsCenter({
             </SettingBlock>
           </>}
         </ViewBoundary></div>
-        <footer className="sc-footer"><span><Clock3 size={13}/> {t("设置自动保存到此浏览器")}</span>
+        <footer className="sc-footer"><span><Clock3 size={13}/> {t("设置已自动保存")}</span>
           <button onClick={onClose}>{t("完成")} <Check size={15}/></button></footer>
       </div>
     </section>

@@ -36,11 +36,10 @@ export default function ApiConsole({ t, locale }: { t: (s: string) => string; lo
   return <div className="api-root">
     <section className="api-card">
       <h3><BookOpen size={17}/>{t("接入方式")}</h3>
-      <p className="api-muted">{t("与 OpenAI Chat Completions 接口兼容：把 Base URL 换成下面的地址、使用这里创建的 API 密钥即可，支持流式输出。用量按 Ciro 原生 CWU 计量。")}</p>
+      <p className="api-muted">{t("兼容主流 Chat Completions SDK：把 Base URL 换成下面的地址、使用这里创建的 API 密钥即可，支持流式输出。用量按 Ciro 原生 CWU 计量。")}</p>
       <div className="api-base"><code>{base}</code>
         <button type="button" onClick={() => copy("base", base)} aria-label={t("复制 Base URL")}>{copied === "base" ? <Check size={15}/> : <Copy size={15}/>}</button></div>
       <p className="api-muted">{t("可用模型：")}{data?.models.map((m) => <code key={m} className="api-chip">{m}</code>)}</p>
-      {data && !data.configured && <p className="api-warn">{t("这台服务器还没有连接推理服务，API 请求会返回 503。")}</p>}
       <div className="api-tabs" role="tablist">
         {([["curl", "curl"], ["python", "Python"], ["js", "JavaScript"]] as const).map(([id, label]) =>
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}

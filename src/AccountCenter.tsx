@@ -5,7 +5,7 @@ import {
   Activity,ArrowUpRight,Bell,Check,CheckCircle2,
   CircleAlert,Cloud,Copy,CreditCard,
   Fingerprint,KeyRound,LockKeyhole,LogIn,LogOut,Plus,RefreshCcw,
-  ShieldCheck,ShieldAlert,Trash2,UserCircle,Wallet,BookOpen
+  ShieldAlert,Trash2,UserCircle,Wallet,BookOpen
 } from "lucide-react";
 import type {Language} from "./lib/i18n";
 import {accountTranslate} from "./lib/account-i18n";
@@ -29,11 +29,25 @@ const labels:Record<AccountTab,string>={
   account:"账户与安全",subscription:"订阅管理", "api-keys":"API 控制台",
   spending:"消费限额",notifications:"通知中心",memory:"记忆管理",sync:"跨设备同步"
 };
-const titleFor=(code:string)=>(code==="not_connected"?"尚未连接支付服务":code);
+/** Customer-facing subscription state; raw provider status codes never reach the page. */
+const SUBSCRIPTION_STATES:Record<string,string>={active:"已订阅",trialing:"试用中",past_due:"付款未完成",unpaid:"付款未完成",canceled:"已取消",incomplete:"付款未完成"};
+const statusFor=(code:string|undefined)=>SUBSCRIPTION_STATES[code||""]||"暂未订阅";
+/** API key scopes are sent to the server as-is but shown by name. */
+const SCOPES:readonly [string,string][]=[["chat:invoke","对话"],["sync:read","读取同步"],["sync:write","写入同步"]];
+const scopeName=(scope:string)=>SCOPES.find(([value])=>value===scope)?.[1]||scope;
+const CATEGORIES:Record<string,string>={general:"通用",style:"风格",project:"项目"};
+/** Server and network failures are reported in plain words; meaningful account messages pass through. */
+function friendlyError(e:unknown):string{
+  const raw=e instanceof Error?e.message:String(e);
+  if(/Failed to fetch|NetworkError|Load failed|未连接到 Ciro 服务/i.test(raw))return "网络连接失败，请检查网络后重试。";
+  if(/HTTP \d|CIRO_|\.env|request failed|account service|not configured|stripe|webhook/i.test(raw))return "操作失败，请稍后再试。";
+  return raw;
+}
 const money=(value:number|null,l:Language)=>formatUsdMicros(value,l==="en"?"en-US":"zh-CN");
 const toDollar=(micro:number|null)=>micro===null?"":String(micro/1000000);
 export default function AccountCenter({language,section}:Props){
   const t=(value:string)=>accountTranslate(language,value);
+  const day=(value:string|number)=>new Date(value).toLocaleDateString(localeTag(language));
   const [session,setSession]=useState<SessionSnapshot|null>(null);
   const [profile,setProfile]=useState<Profile|null>(null);
   const [keys,setKeys]=useState<ApiKey[]>([]);
@@ -97,7 +111,7 @@ export default function AccountCenter({language,section}:Props){
   },[]);
   useEffect(()=>{
     mounted.current=true;setLoading(true);setError("");
-    void refresh(section).catch(e=>{if(mounted.current){setError(e instanceof Error?e.message:String(e));setLoading(false);}});
+    void refresh(section).catch(e=>{if(mounted.current){setError(t(friendlyError(e)));setLoading(false);}});
     return ()=>{mounted.current=false;};
   },[section,refresh]);
   useEffect(()=>{
@@ -108,7 +122,7 @@ export default function AccountCenter({language,section}:Props){
   async function action(task:()=>Promise<unknown>,message="操作成功"){
     setBusy(true);setError("");setNotice("");
     try{await task();setNotice(t(message));await refresh(section);}
-    catch(e){setError(e instanceof Error?e.message:String(e));try{await refresh(section);}catch{/* keep reported error */}}
+    catch(e){setError(t(friendlyError(e)));try{await refresh(section);}catch{/* keep reported error */}}
     finally{setBusy(false);}
   }
   async function signIn(e:FormEvent<HTMLFormElement>,initial:boolean){
@@ -148,17 +162,14 @@ export default function AccountCenter({language,section}:Props){
   const auth=session?.authenticated;
   return <section className="acc-root" aria-label={t(labels[section])}>
     <header className="acc-head">
-      <span className="acc-eyebrow"><ShieldCheck size={15}/> CIRO ACCOUNT & SECURITY</span>
       <h2>{t(labels[section])}</h2>
-      <p>{t("来自可信服务端")}</p>
     </header>
     {error&&<div className="acc-alert acc-error" role="alert"><CircleAlert size={16}/><span>{error}</span>
       <button onClick={()=>{setError("");void refresh(section);}}>{t("刷新")}</button></div>}
     {notice&&<div className="acc-alert acc-success" role="status"><CheckCircle2 size={16}/>{notice}</div>}
     {loading&&<div className="acc-empty"><Activity size={23}/>{t("正在处理…")}</div>}
     {!loading&&session&&!session.enabled&&<div className="acc-card acc-unavailable"><LockKeyhole size={31}/>
-      <h3>{t("账户尚未启用")}</h3><p>{t("要启用跨设备服务，请在服务器上配置账户系统。")}</p>
-      <p>{t("当前是本地预览，不会伪造登录状态。")}</p></div>}
+      <h3>{t("暂时无法登录")}</h3><p>{t("登录后可在多台设备间同步。请稍后再试。")}</p></div>}
     {!loading&&session?.enabled&&!auth&&<div className="acc-card acc-login">
       <LogIn size={26}/><h3>{t(session.bootstrapAvailable?"初始化管理员账户":registering?"注册 Ciro 账户":"登录 Ciro")}</h3>
       <p>{t(session.bootstrapAvailable?"使用服务端配置的一次性初始化口令。":registering?"注册后，你的对话、密钥和同步数据只属于你自己。":"需要先登录才能管理此页面。")}</p>
@@ -193,15 +204,17 @@ export default function AccountCenter({language,section}:Props){
         <p className="acc-muted">{t("密码修改会注销其他设备，并撤销所有 API 密钥。")}</p>
       </section>
       <section className="acc-card"><div className="acc-section-title"><Fingerprint size={19}/><h3>{t("当前设备会话")}</h3></div>
-        <p className="acc-metadata">{profile?.sessions.length||0} sessions</p>
+        <p className="acc-metadata">{t("{n} 台设备已登录").replace("{n}",String(profile?.sessions.length||0))}</p>
         <button className="acc-secondary" onClick={()=>void action(()=>accountApi("/sessions/revoke","POST",{allOthers:true}))}>
           {t("撤销其他设备会话")}</button></section>
     </>}
     {!loading&&auth&&section==="subscription"&&<section className="acc-card acc-subscription">
       <div className="acc-section-title"><CreditCard size={19}/><h3>{t("订阅状态")}</h3></div>
-      <div className="acc-state"><span>{t("来自可信服务端")}</span><strong>{t(titleFor(note?.status||"not_connected"))}</strong>
-        <small>{note?.lastVerifiedAt||t("尚无已验证的订阅")}</small></div>
-      {!note?.configured?<p className="acc-muted">{t("无法显示任何虚假的订阅方案或支付状态。")}</p>:<>
+      <div className="acc-state"><span>{t("当前状态")}</span><strong>{t(note?.configured?statusFor(note.status):"暂未订阅")}</strong>
+        <small>{note?.configured&&note.currentPeriodEnd&&(note.status==="active"||note.status==="trialing")
+          ?t(note.cancelAtPeriodEnd?"订阅将于 {date} 到期":"订阅将于 {date} 续费").replace("{date}",day(note.currentPeriodEnd))
+          :note?.configured&&note.lastVerifiedAt?t("更新于 {date}").replace("{date}",day(note.lastVerifiedAt)):""}</small></div>
+      {note?.configured&&<>
         <div className="acc-actions"><button className="acc-primary" onClick={()=>void action(async()=>{
           const reply=await accountApi<{url:string}>("/subscription/checkout","POST",{});
           openVerifiedCheckout(reply.url);
@@ -210,18 +223,18 @@ export default function AccountCenter({language,section}:Props){
           const reply=await accountApi<{url:string}>("/subscription/portal","POST",{});
           openVerifiedCheckout(reply.url);
         })}>{t("管理订阅")}</button></div>
-        <p className="acc-muted">{t("付款由 Stripe 托管完成，只有签名回调更新订阅状态。")}</p>
+        <p className="acc-muted">{t("付款由安全的第三方支付完成。")}</p>
       </>}
     </section>}
     {!loading&&auth&&section==="api-keys"&&<>
       <section className="acc-card"><div className="acc-section-title"><KeyRound size={19}/><h3>{t("创建密钥")}</h3></div>
         <form onSubmit={e=>void addApiKey(e)} className="acc-fields">
-          <label>{t("密钥名称")}<input required maxLength={80} value={keyName} onChange={e=>setKeyName(e.target.value)} placeholder="CIRO CLI"/></label>
+          <label>{t("密钥名称")}<input required maxLength={80} value={keyName} onChange={e=>setKeyName(e.target.value)} placeholder={t("例如：我的脚本")}/></label>
           <label>{t("有效期（天）")}<input type="number" min={1} max={365} required value={keyDays} onChange={e=>setKeyDays(e.target.value)}/></label>
           <div><strong className="acc-label-title">{t("允许的权限")}</strong>
-            {["chat:invoke","sync:read","sync:write"].map(scope=><label key={scope} className="acc-checkbox">
+            {SCOPES.map(([scope,name])=><label key={scope} className="acc-checkbox">
               <input type="checkbox" checked={keyScopes.includes(scope)} onChange={e=>setKeyScopes(old=>
-                e.target.checked?[...old,scope]:old.filter(x=>x!==scope))}/>{scope}</label>)}</div>
+                e.target.checked?[...old,scope]:old.filter(x=>x!==scope))}/>{t(name)}</label>)}</div>
           <button className="acc-primary" disabled={busy||!keyScopes.length}>{t("创建密钥")}</button>
         </form>
         {newSecret&&<div className="acc-one-time"><ShieldAlert size={17}/><p>{t("密钥只显示一次，请妥善保存。")}</p>
@@ -229,10 +242,10 @@ export default function AccountCenter({language,section}:Props){
       </section>
       <section className="acc-card"><h3>{t("API 密钥")}</h3>{keys.length===0&&<p className="acc-muted">{t("没有 API 密钥")}</p>}
         {keys.map(k=><div className="acc-list-line" key={k.id}><div><strong>{k.name} · {k.prefix}…</strong>
-          <small>{k.scopes.join(", ")} · {t("截止")}: {new Date(k.expiresAt).toLocaleDateString()}</small>
+          <small>{k.scopes.map(scope=>t(scopeName(scope))).join(" / ")} · {t("截止")}: {day(k.expiresAt)}</small>
         </div><button className="acc-secondary" disabled={Boolean(k.revokedAt)} onClick={()=>void action(()=>accountApi("/api-keys/"+k.id+"/revoke","POST",{}))}>
           {k.revokedAt?t("已撤销"):t("撤销密钥")}</button></div>)}
-      </section><p className="acc-muted">{t("密钥不会赋予管理员权限。")}</p>
+      </section>
     </>}
     {!loading&&auth&&section==="spending"&&<><section className="acc-card">
       <div className="acc-section-title"><Wallet size={19}/><h3>{t("消费限额")}</h3></div>
@@ -240,12 +253,11 @@ export default function AccountCenter({language,section}:Props){
         {([{title:"日限额（美元）",value:daily,change:setDaily},
           {title:"月限额（美元）",value:monthly,change:setMonthly},
           {title:"单次上限（美元）",value:single,change:setSingle}] as const).map(x=><label key={x.title}>{t(x.title)}
-          <input inputMode="decimal" placeholder="Unlimited" value={x.value} onChange={e=>x.change(e.target.value)}/></label>)}
+          <input inputMode="decimal" placeholder={t("不限")} value={x.value} onChange={e=>x.change(e.target.value)}/></label>)}
         <button className="acc-primary" disabled={busy}>{t("保存限额")}</button></form>
-      <div className="acc-spend-cards"><div><span>{t("当前预留与累计费用")} · Daily</span><strong>{money(spending?.dailyCommittedPlusReservedMicros??0,language)}</strong></div>
-        <div><span>{t("当前预留与累计费用")} · Monthly</span><strong>{money(spending?.monthlyCommittedPlusReservedMicros??0,language)}</strong></div>
-        <div><span>{t("待结算额度")}</span><strong>{spending?.reservedCount??0}</strong></div></div>
-      </section><p className="acc-warning"><CircleAlert size={16}/>{t("限额需要原生执行器预授权，才能真正阻止超额计算。")}</p></>}
+      <div className="acc-spend-cards"><div><span>{t("今日已用")}</span><strong>{money(spending?.dailyCommittedPlusReservedMicros??0,language)}</strong></div>
+        <div><span>{t("本月已用")}</span><strong>{money(spending?.monthlyCommittedPlusReservedMicros??0,language)}</strong></div></div>
+      </section><p className="acc-muted">{t("达到限额后，新的请求会暂停。留空表示不限。")}</p></>}
     {!loading&&auth&&section==="notifications"&&<section className="acc-card">
       <div className="acc-section-title"><Bell size={19}/><h3>{t("通知中心")}</h3>
         <button className="acc-secondary" onClick={()=>void action(()=>accountApi("/notifications/read-all","POST",{}))}>{t("全部已读")}</button></div>
@@ -254,7 +266,6 @@ export default function AccountCenter({language,section}:Props){
         <div><strong>{n.title}</strong><p>{n.body}</p><small>{new Date(n.createdAt).toLocaleString(localeTag(language))}</small></div>
         {!n.readAt&&<button className="acc-secondary" onClick={()=>void action(()=>accountApi("/notifications/"+n.id+"/read","POST",{}))}><Check size={14}/>{t("标记已读")}</button>}
       </div>)}
-      <p className="acc-muted">{t("通知来自真实服务端事件，无法离线接收。")}</p>
     </section>}
     {!loading&&auth&&section==="memory"&&<><section className="acc-card">
       <div className="acc-section-title"><BookOpen size={19}/><h3>{t("记忆管理")}</h3></div>
@@ -265,15 +276,15 @@ export default function AccountCenter({language,section}:Props){
       });}}>
         <label>{t("记忆内容")}<textarea required maxLength={1500} rows={4} value={memoryText} onChange={e=>setMemoryText(e.target.value)}/></label>
         <label>{t("类别")}<select value={memoryCategory} onChange={e=>setMemoryCategory(e.target.value)}>
-          {["general","style","project"].map(x=><option value={x} key={x}>{t(x==="general"?"通用":x==="style"?"风格":"项目")}</option>)}</select></label>
+          {Object.entries(CATEGORIES).map(([x,name])=><option value={x} key={x}>{t(name)}</option>)}</select></label>
         <button className="acc-primary" disabled={busy||!memoryText.trim()}><Plus size={15}/>{t("添加记忆")}</button></form>
       </section><section className="acc-card">
         {!memories.length&&<div className="acc-empty">{t("没有保存的记忆")}</div>}
         {memories.map(m=><div className="acc-list-line" key={m.id}>
-          <div><strong>{m.content}</strong><small>{m.category} · {new Date(m.createdAt).toLocaleString()}</small></div>
+          <div><strong>{m.content}</strong><small>{t(CATEGORIES[m.category]||m.category)} · {new Date(m.createdAt).toLocaleString(localeTag(language))}</small></div>
           <button className="acc-secondary" onClick={()=>void action(()=>accountApi("/memories/"+m.id,"DELETE"))}><Trash2 size={15}/>{t("删除记忆")}</button>
         </div>)}</section>
-      <p className="acc-muted">{t("记忆内容会加密存储，开启时可注入后续聊天上下文。")}</p>
+      <p className="acc-muted">{t("记忆内容会加密保存。开启后 Ciro 会在对话中参考这些记忆。")}</p>
     </>}
     {!loading&&auth&&section==="sync"&&<><section className="acc-card">
       <div className="acc-section-title"><Cloud size={19}/><h3>{t("跨设备同步")}</h3></div>
@@ -281,10 +292,10 @@ export default function AccountCenter({language,section}:Props){
         <input type="checkbox" checked={automatic} onChange={e=>{
           const next=e.target.checked;setSyncEnabled(next);setAutomatic(next);
         }}/></label>
-      <p className="acc-muted">{t("对话、项目、提示词和设置会加密保存到你的服务器，并在登录同一账户的设备间自动同步；两台设备改了同一个对话时，以最后修改的为准。")}</p>
+      <p className="acc-muted">{t("对话、项目、提示词和设置会加密保存到 Ciro 云端，并在登录同一账户的设备间自动同步；两台设备改了同一个对话时，以最后修改的为准。")}</p>
       <div className="acc-state"><span>{t("同步状态")}</span>
         <strong>{t(({off:"已关闭",local:"本地模式",unauthenticated:"未登录",syncing:"正在同步…",ready:"已同步",error:"同步失败"} as const)[syncSignal.status])}</strong>
-        <small>{syncSignal.status==="error"?syncSignal.message:syncSignal.lastSyncedAt?t("上次同步：")+new Date(syncSignal.lastSyncedAt).toLocaleString():""}</small></div>
+        <small>{syncSignal.status==="error"?t("请检查网络后重试。"):syncSignal.lastSyncedAt?t("上次同步：")+new Date(syncSignal.lastSyncedAt).toLocaleString(localeTag(language)):""}</small></div>
       <div className="acc-sync-grid"><div><small>{t("本地对话")}</small><strong>{loadConversations().length}</strong></div>
         <div><small>{t("云端条目")}</small><strong>{syncSignal.cloudCount??"—"}</strong></div>
         <div><small>{t("本次会话已同步")}</small><strong>{syncSignal.pushed+syncSignal.pulled}</strong></div></div>
