@@ -341,6 +341,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     window.setTimeout(() => setFacing(1), 900);
   }
 
+  /** While she is held (dragged / pinched) the page's own swipe gestures (sidebar, sheets) stand down. */
+  const holding = (on: boolean) => { if (inline) { if (on) document.documentElement.dataset.petHold = "1"; else delete document.documentElement.dataset.petHold; } };
+
   /** New size: the window (desktop) or the floating box (in the app) follows. */
   const resize = (next: number) => {
     const v = clampScale(next);
@@ -361,6 +364,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     // Only the first finger drags; a second one (anywhere) turns it into a pinch, handled by the touch listeners below.
     if (!e.isPrimary || pinch.current) return;
     if (e.pointerType === "touch") touchingPet.current = true;
+    holding(true);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     if (e.button !== 0) return;
     wake();
@@ -395,6 +399,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   /** The system took the touch (edge swipe, notification shade…): forget it. */
   function onPointerCancel(_e: React.PointerEvent) {
     touchingPet.current = false;
+    holding(false);
     const d = drag.current;
     drag.current = null;
     if (d?.moving) { if (inline) { const box = rootRef.current?.getBoundingClientRect(); const next = keepIn(posRef.current, box?.width || 150, box?.height || 200); setPos(next); store(INLINE_POS, JSON.stringify(next)); } else bridge?.drag("end"); act("idle", 0); setSay(""); }
@@ -403,6 +408,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     if (!e.isPrimary) return;
     touchingPet.current = false;
+    if (!pinch.current) holding(false);
     if (pinch.current) { drag.current = null; return; }
     const d = drag.current;
     drag.current = null;
@@ -450,7 +456,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; resize(want); });
     };
     const onEnd = (e: TouchEvent) => {
-      if (e.touches.length === 0) touchingPet.current = false;
+      if (e.touches.length === 0) { touchingPet.current = false; holding(false); }
       if (pinch.current && e.touches.length < 2) { pinch.current = null; act("happy", 1600); speak(t("这个大小刚刚好。"), 1800); }
     };
     document.addEventListener("touchstart", onStart, { passive: false, capture: true });

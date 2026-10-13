@@ -3,7 +3,9 @@
 import { useEffect, useRef } from "react";
 
 const PHONE = "(max-width: 760px)";
-const KEEP = "textarea,input,select,[role=slider],.td-pop,.cx-plus-menu,.cv-root,.vm-root,.cx-lightbox,.sc-backdrop,.sp-backdrop,[data-no-swipe]";
+const KEEP = "textarea,input,select,[role=slider],.td-pop,.cx-plus-menu,.cv-root,.vm-root,.cx-lightbox,.sc-backdrop,.sp-backdrop,.pet-root,[data-no-swipe]";
+/** The pet is being dragged or pinched (set by DesktopPet): page gestures stand down until she is let go. */
+const petBusy = () => document.documentElement.dataset.petHold === "1";
 
 /** Short vibration on supporting phones (Android); silently ignored elsewhere. */
 export function haptic(ms = 8) {
@@ -51,7 +53,7 @@ export function useSidebarSwipe(open: boolean, setOpen: (open: boolean) => void,
     }
     const onStart = (e: TouchEvent) => {
       unhook();
-      if (!phone.matches || e.touches.length !== 1 || blockedRef.current()) return;
+      if (!phone.matches || e.touches.length !== 1 || blockedRef.current() || petBusy()) return;
       const target = e.target as Element;
       if (target.closest(KEEP) || (!openRef.current && scrollsSideways(target))) return;
       const p = e.touches[0];
@@ -64,6 +66,7 @@ export function useSidebarSwipe(open: boolean, setOpen: (open: boolean) => void,
     let lastMove: Event | null = null;
     function onMove(e: TouchEvent) {
       if (!start || e === lastMove) return;
+      if (petBusy()) { reset(); return; }
       lastMove = e;
       const p = e.touches[0];
       dx = p.clientX - start.x;
