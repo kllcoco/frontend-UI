@@ -16,6 +16,8 @@ export type ChatMessage = {
   attachText?: string;
   tools?: { name: string; args: string }[];
   webSearch?: boolean;
+  /** Assistant: web pages the model service reported as sources for this answer. */
+  sources?: { url: string; title?: string; snippet?: string }[];
   /** Assistant: every generated answer for this turn; versionIndex is the one shown. */
   versions?: AnswerVersion[];
   versionIndex?: number;

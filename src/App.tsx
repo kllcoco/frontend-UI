@@ -55,6 +55,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import SourceCards from "./components/SourceCards";
 import { findCitations } from "./lib/office";
 import type { Citation } from "./lib/office";
 import CanvasPanel from "./components/CanvasPanel";
@@ -642,6 +643,7 @@ export default function App() {
     let answer = "";
     let thought = "";
     const tools: { name: string; args: string }[] = [];
+    const sources: { url: string; title?: string; snippet?: string }[] = [];
     const useWeb = webSearchOn && Boolean(status.webSearch);
     if (useWeb) patchMessage(conversationId, assistantId, { webSearch: true });
     const started = Date.now();
@@ -658,6 +660,10 @@ export default function App() {
         webSearch: useWeb,
         usageKind: "chat", chatId: conversationId,
         onUsage: (usage) => patchMessage(conversationId, assistantId, { usage }),
+        onSources: (found) => {
+          for (const x of found) if (!sources.some((y) => y.url === x.url)) sources.push(x);
+          patchMessage(conversationId, assistantId, { sources: sources.slice(0, 20).map((x) => ({ ...x })) });
+        },
         memories: preferencesRef.current.memoryEnabled && !session?.authenticated &&
           !conversationsRef.current.find((c) => c.id === conversationId)?.temporary ? localMemoriesForChat() : undefined,
         onTool: (index, name, argsDelta) => {
@@ -1773,6 +1779,7 @@ export default function App() {
                     {preferences.showTime && <time className="message-time" dateTime={new Date(message.createdAt).toISOString()}>
                       {new Date(message.createdAt).toLocaleTimeString(localeTag(language), { hour: "2-digit", minute: "2-digit" })}
                     </time>}
+                    {assistant && !!message.sources?.length && <SourceCards t={t} sources={message.sources}/>}
                     {assistant && message.content && !isStreaming && (() => {
                       const asked = current.messages.slice(0, index).reverse().find((m) => m.role === "user");
                       const cites = asked?.attachText ? findCitations(message.content, asked.attachText) : [];

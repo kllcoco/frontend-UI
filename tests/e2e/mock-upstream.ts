@@ -10,7 +10,7 @@ export function startMockModel(port: number): Promise<Server> {
     let body = "";
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
-      const payload = JSON.parse(body || "{}") as { model?: string; messages?: { content: string }[] };
+      const payload = JSON.parse(body || "{}") as { model?: string; messages?: { content: string }[]; ciro_web_search?: boolean };
       const model = payload.model || "ciro";
       const last = payload.messages?.at(-1)?.content || "";
       // Auxiliary prompts (titles, follow-ups) get short answers.
@@ -31,6 +31,11 @@ export function startMockModel(port: number): Promise<Server> {
       const cwu = model === "ciro-pro" ? 2500 : 1234;
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       for (const part of [text.slice(0, 6), text.slice(6)]) res.write("data: " + JSON.stringify({ choices: [{ delta: { content: part } }] }) + "\n\n");
+      // Web search on: report sources in two common formats (OpenAI annotations + Perplexity-style search_results).
+      if (payload.ciro_web_search) {
+        res.write("data: " + JSON.stringify({ choices: [{ delta: { annotations: [{ type: "url_citation", url_citation: { url: "https://news.example.com/a", title: "新闻：今日要闻" } }] } }] }) + "\n\n");
+        res.write("data: " + JSON.stringify({ choices: [], search_results: [{ url: "https://docs.example.org/guide", title: "官方文档", snippet: "这是摘要" }, { url: "https://news.example.com/a", title: "重复" }, { url: "javascript:alert(1)", title: "不安全" }] }) + "\n\n");
+      }
       res.write("data: " + JSON.stringify({ choices: [], usage: { prompt_tokens: 99, completion_tokens: 77, cwu, gwu: model === "ciro-pro" ? 40 : 0 } }) + "\n\n");
       res.end("data: [DONE]\n\n");
     });

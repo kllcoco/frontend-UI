@@ -45,13 +45,37 @@ type StreamOptions = {
   memories?: string[];
   /** Reported CWU/GWU (never estimated). Recorded in the local usage ledger as `usageKind`. */
   onUsage?: (usage: Usage) => void;
+  /** Web sources reported with the reply (web search). */
+  onSources?: (sources: Source[]) => void;
   usageKind?: UsageKind;
   chatId?: string;
 };
 export type ReasoningRequest={mode:"fast"|"deep";effort?:"minimal"|"low"|"medium"|"high";maxSeconds?:number;priority?:1|2|5};
 
 type ToolHandler = (index: number, name: string | undefined, argsDelta: string) => void;
-function decodeSseEvent(event: string, onDelta: (text: string) => void, onReasoning?: (text: string) => void, onTool?: ToolHandler, onUsage?: (u: Usage) => void): boolean {
+export type Source = { url: string; title?: string; snippet?: string };
+/** Web sources a model service reports for a reply, in any of the common formats: OpenAI url_citation
+ *  annotations, Perplexity-style citations / search_results, or Ciro's own ciro_sources. */
+export function readSources(payload: unknown): Source[] {
+  if (!payload || typeof payload !== "object") return [];
+  const p = payload as Record<string, unknown>;
+  const out: Source[] = [];
+  const add = (url: unknown, title?: unknown, snippet?: unknown) => {
+    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return;
+    out.push({ url, ...(typeof title === "string" && title.trim() ? { title: title.trim().slice(0, 200) } : {}),
+      ...(typeof snippet === "string" && snippet.trim() ? { snippet: snippet.trim().slice(0, 300) } : {}) });
+  };
+  for (const c of Array.isArray(p.citations) ? p.citations : []) typeof c === "string" ? add(c) : add((c as Source)?.url, (c as Source)?.title);
+  for (const key of ["search_results", "ciro_sources", "sources"]) {
+    for (const r of Array.isArray(p[key]) ? p[key] as Record<string, unknown>[] : []) add(r?.url ?? r?.link, r?.title ?? r?.name, r?.snippet ?? r?.content ?? r?.description);
+  }
+  const choice = (Array.isArray(p.choices) ? p.choices[0] : undefined) as { delta?: { annotations?: unknown[] }; message?: { annotations?: unknown[] } } | undefined;
+  for (const a of [...(choice?.delta?.annotations ?? []), ...(choice?.message?.annotations ?? [])] as { type?: string; url_citation?: { url?: string; title?: string } }[]) {
+    if (a?.type === "url_citation") add(a.url_citation?.url, a.url_citation?.title);
+  }
+  return out;
+}
+function decodeSseEvent(event: string, onDelta: (text: string) => void, onReasoning?: (text: string) => void, onTool?: ToolHandler, onUsage?: (u: Usage) => void, onSources?: (s: Source[]) => void): boolean {
   const data = event.split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart())
@@ -73,6 +97,7 @@ function decodeSseEvent(event: string, onDelta: (text: string) => void, onReason
   };
   const usage = readUsage(payload);
   if (usage && onUsage) onUsage(usage);
+  if (onSources) { const found = readSources(payload); if (found.length) onSources(found); }
   if (entry.error) {
     throw new Error(typeof entry.error === "string" ? entry.error :
       entry.error.message || "后端流式响应失败");
@@ -102,7 +127,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
   }
 }
 
-async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage }: StreamOptions): Promise<void> {
+async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -136,11 +161,11 @@ async function streamChatInner({ messages, model, instructions, reasoning, proje
       while (split !== -1) {
         const event = pending.slice(0, split);
         pending = pending.slice(split + 2);
-        if (decodeSseEvent(event, onDelta, onReasoning, onTool, onUsage)) return;
+        if (decodeSseEvent(event, onDelta, onReasoning, onTool, onUsage, onSources)) return;
         split = pending.indexOf("\n\n");
       }
     }
-    if (pending.trim()) decodeSseEvent(pending, onDelta, onReasoning, onTool, onUsage);
+    if (pending.trim()) decodeSseEvent(pending, onDelta, onReasoning, onTool, onUsage, onSources);
   } finally {
     reader.releaseLock();
   }

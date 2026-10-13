@@ -190,9 +190,10 @@ app.post("/api/chat", async (req, res) => {
         throw new Error("后端返回格式不符合 OpenAI chat/completions 协议");
       }
       // Keep native metering (CWU/GWU usage or receipts) so the client can show it.
-      const metering = Object.fromEntries(["usage", "ciro_usage", "metering", "receipts"]
+      const metering = Object.fromEntries(["usage", "ciro_usage", "metering", "receipts", "citations", "search_results", "ciro_sources"]
         .filter((k) => responseJson[k] !== undefined).map((k) => [k, responseJson[k]]));
-      res.write("data: " + JSON.stringify({ choices: [{ delta: { content } }], ...metering }) + "\n\n");
+      const annotations = responseJson?.choices?.[0]?.message?.annotations;
+      res.write("data: " + JSON.stringify({ choices: [{ delta: { content, ...(Array.isArray(annotations) ? { annotations } : {}) } }], ...metering }) + "\n\n");
       res.write("data: [DONE]\n\n");
     }
     if (!res.writableEnded) res.end();
