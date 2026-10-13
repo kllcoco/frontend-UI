@@ -14,7 +14,6 @@ import {createShareRouters} from "./share.mjs";
 import {createMediaRouter,mediaFeatures} from "./media.mjs";
 import {createRemoteRouter} from "./remote.mjs";
 import {createRemoteAgent} from "./remote-agent.mjs";
-import {createPlanService,meterOf,quotaMessage,sseMeter} from "./plans.mjs";
 
 // A single-owner JSON account store is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -44,9 +43,6 @@ const studio=createStudioRouter();
 app.use("/api/studio",studio.router);
 const plugins=createPluginGateway();
 app.use("/api/plugins",plugins.router);
-// Plans and monthly CWU/GWU allowances (counted from the model service's native metering).
-const plans=createPlanService({dir:process.env.CIRO_WORKSPACE_DATA_DIR||".ciro-runtime"});
-app.use("/api/plan",plans.router);
 
 const apiBase = (process.env.CIRO_API_BASE_URL || "").trim().replace(/\/+$/, "");
 const apiPath = (process.env.CIRO_API_PATH || "/chat/completions").trim();
@@ -81,15 +77,8 @@ app.get("/api/status", (_req, res) => {
 app.use("/api", createMediaRouter({ apiBase, apiKey }));
 
 // One-shot (non-streaming) completion for work-mode agents running on paired computers.
-async function completeChat(messages, user = "local") {
+async function completeChat(messages) {
   if (!configured) throw Object.assign(new Error("CIRO 推理接口尚未配置"), { statusCode: 503 });
-  const over = plans.admit(user);
-  if (over) throw Object.assign(new Error(quotaMessage(over)), { statusCode: 402 });
-  const reply = await completeOnce(messages);
-  plans.record(user, meterOf(reply.raw));
-  return { content: reply.content, usage: reply.usage };
-}
-async function completeOnce(messages) {
   const upstream = await fetch(apiBase + "/" + apiPath.replace(/^\/+/, ""), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: "Bearer " + apiKey } : {}) },
@@ -100,14 +89,14 @@ async function completeOnce(messages) {
   const text = await upstream.text();
   if (!type.includes("event-stream")) {
     const json = JSON.parse(text);
-    return { content: String(json?.choices?.[0]?.message?.content ?? ""), usage: json.usage ?? json.ciro_usage ?? null, raw: json };
+    return { content: String(json?.choices?.[0]?.message?.content ?? ""), usage: json.usage ?? json.ciro_usage ?? null };
   }
-  let content = "", usage = null, raw = null;
+  let content = "", usage = null;
   for (const line of text.split("\n")) {
     if (!line.startsWith("data:") || line.includes("[DONE]")) continue;
-    try { const chunk = JSON.parse(line.slice(5)); content += chunk?.choices?.[0]?.delta?.content ?? ""; if (chunk.usage || chunk.ciro_usage) usage = chunk.usage ?? chunk.ciro_usage; if (meterOf(chunk)) raw = chunk; } catch { /* keep-alive */ }
+    try { const chunk = JSON.parse(line.slice(5)); content += chunk?.choices?.[0]?.delta?.content ?? ""; if (chunk.usage || chunk.ciro_usage) usage = chunk.usage ?? chunk.ciro_usage; } catch { /* keep-alive */ }
   }
-  return { content, usage, raw };
+  return { content, usage };
 }
 app.use("/api/remote", createRemoteRouter({
   dir: process.env.CIRO_WORKSPACE_DATA_DIR || ".ciro-runtime",
@@ -133,13 +122,10 @@ app.post("/api/chat", async (req, res) => {
     return res.status(error instanceof ValidationError ? 400 : 500).json({ error: error.message });
   }
 
-  const user=req.principal?.id||"local";
-  const over=plans.admit(user);
-  if(over)return res.status(402).json({error:quotaMessage(over),code:"quota_exceeded"});
   const controller = new AbortController();
   res.on("close", () => controller.abort());
-  const meter = sseMeter();
   try {
+    const user=req.principal?.id||"local";
     // Only installed + authenticated + policy-allowed tools are exposed. No model-install API.
     if(plugins.listModelTools(user).length){
       const result=await runPluginChat({
@@ -180,11 +166,9 @@ app.post("/api/chat", async (req, res) => {
     const contentType = upstream.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream") && upstream.body) {
       for await (const chunk of upstream.body) {
-        meter.push(chunk);
         if (controller.signal.aborted || res.writableEnded) break;
         res.write(chunk);
       }
-      plans.record(user, meter.result());
     } else {
       // Graceful fallback for OpenAI-compatible servers that return JSON despite stream=true.
       const responseText = await upstream.text();
@@ -201,7 +185,6 @@ app.post("/api/chat", async (req, res) => {
       // Keep native metering (CWU/GWU usage or receipts) so the client can show it.
       const metering = Object.fromEntries(["usage", "ciro_usage", "metering", "receipts"]
         .filter((k) => responseJson[k] !== undefined).map((k) => [k, responseJson[k]]));
-      plans.record(user, meterOf(responseJson));
       res.write("data: " + JSON.stringify({ choices: [{ delta: { content } }], ...metering }) + "\n\n");
       res.write("data: [DONE]\n\n");
     }

@@ -300,11 +300,11 @@ export function createRemoteRouter({ dir, enabled, complete }) {
     res.json({ seq: appendEvents(s.id, events.map((e) => ({ type: e?.type, data: e?.data }))) });
   }));
   router.post("/device/chat", wrap(async (req, res) => {
-    const d = deviceFrom(req);
+    deviceFrom(req);
     const messages = req.body?.messages;
     if (!Array.isArray(messages) || !messages.length || messages.length > 120) throw bad("Invalid messages");
     const clean = messages.map((m) => ({ role: ["system", "user", "assistant"].includes(m?.role) ? m.role : "user", content: String(m?.content ?? "").slice(0, 60_000) }));
-    res.json(await complete(clean, d.user_id || "local"));
+    res.json(await complete(clean));
   }));
   return router;
 }

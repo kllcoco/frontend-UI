@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Check, Gauge, Trash2, Wallet } from "lucide-react";
+import { Activity, Trash2, Wallet } from "lucide-react";
 import { clearUsage, formatUnits, loadUsage } from "../lib/usage";
-import { loadPlan } from "../lib/plan-api";
-import type { PlanSummary } from "../lib/plan-api";
 import type { UsageEntry, UsageKind } from "../lib/usage";
 import type { Conversation } from "../types";
 
@@ -15,14 +13,6 @@ export default function UsagePanel({ t, locale, conversations, onOpenBilling }: 
   t: (text: string) => string; locale: string; conversations: Conversation[]; onOpenBilling: () => void;
 }) {
   const [entries, setEntries] = useState<UsageEntry[]>(loadUsage);
-  const [plan, setPlan] = useState<PlanSummary | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const fetchPlan = () => { loadPlan().then((p) => { if (alive) setPlan(p); }, () => { if (alive) setPlan(null); }); };
-    fetchPlan();
-    window.addEventListener("ciro-usage", fetchPlan);
-    return () => { alive = false; window.removeEventListener("ciro-usage", fetchPlan); };
-  }, []);
   useEffect(() => {
     const refresh = () => setEntries(loadUsage());
     window.addEventListener("ciro-usage", refresh);
@@ -55,7 +45,6 @@ export default function UsagePanel({ t, locale, conversations, onOpenBilling }: 
   const title = (id: string) => conversations.find((c) => c.id === id)?.title || t("已删除的对话");
 
   return <div className="us-root">
-    {plan && <PlanQuota plan={plan} t={t} locale={locale} fmt={fmt}/>}
     <div className="us-cards">
       {([["今天", stats.today], ["近 7 天", stats.week], ["近 30 天", stats.month]] as const).map(([label, v]) =>
         <div className="us-card" key={label}><span>{t(label)}</span><strong>{fmt(v.cwu)} <small>CWU</small></strong>
@@ -79,44 +68,4 @@ export default function UsagePanel({ t, locale, conversations, onOpenBilling }: 
       <button className="sc-action-danger" disabled={!entries.length} onClick={() => { if (window.confirm(t("清空本设备的用量统计？"))) clearUsage(); }}><Trash2 size={17}/> {t("清空统计")}</button>
     </div>
   </div>;
-}
-
-/** Current plan's monthly allowance and the three plans (shown as "coming soon" until the server configures them). */
-function PlanQuota({ plan, t, locale, fmt }: { plan: PlanSummary; t: (s: string) => string; locale: string; fmt: (n: number) => string }) {
-  const current = plan.plans.find((p) => p.id === plan.current) || null;
-  const english = locale.startsWith("en");
-  const name = (p: { name: string; nameEn: string | null }) => english && p.nameEn ? p.nameEn : p.name;
-  const resets = new Date(plan.period.resetsAt).toLocaleDateString(locale, { month: "long", day: "numeric" });
-  const cap = plan.allowance.cwu;
-  const pct = cap ? Math.min(100, Math.round((plan.used.cwu / cap) * 100)) : 0;
-  const level = plan.exhausted || pct >= 100 ? "out" : pct >= 80 ? "low" : "ok";
-  return <section className="us-plan" aria-label={t("套餐与额度")}>
-    <div className="us-plan-head">
-      <Gauge size={18}/>
-      <div><strong>{current ? name(current) : t("暂未开通套餐")}</strong>
-        <small>{current ? t("本月额度") + " · " + resets + " " + t("重置") : t("套餐即将推出，目前不限额度")}</small></div>
-    </div>
-    {current && <>
-      {cap !== null ? <>
-        <div className={"us-meter us-meter--" + level} role="meter" aria-label={t("本月 CWU 额度")} aria-valuemin={0} aria-valuemax={cap} aria-valuenow={Math.min(plan.used.cwu, cap)}>
-          <span style={{ width: pct + "%" }}/>
-        </div>
-        <p className="us-plan-line"><span>{t("已用")} <b>{fmt(plan.used.cwu)}</b> / {fmt(cap)} CWU</span>
-          <span>{level === "out" ? t("额度已用完") : t("剩余") + " " + fmt(plan.remaining.cwu ?? 0) + " CWU"}</span></p>
-      </> : <p className="us-plan-line"><span>{t("已用")} <b>{fmt(plan.used.cwu)}</b> CWU</span><span>{t("CWU 不限量")}</span></p>}
-      {plan.allowance.gwu !== null && <p className="us-plan-line"><span>{t("已用")} <b>{fmt(plan.used.gwu)}</b> / {fmt(plan.allowance.gwu)} GWU</span>
-        <span>{t("剩余") + " " + fmt(plan.remaining.gwu ?? 0) + " GWU"}</span></p>}
-      {level === "out" && <p className="us-plan-warn" role="alert">{t("本月额度已用完，新的提问会被暂停，直到额度重置或升级套餐。")}</p>}
-      {level === "low" && <p className="us-plan-warn us-plan-warn--low">{t("本月额度已用掉 80% 以上。")}</p>}
-    </>}
-    <div className="us-plans">
-      {plan.plans.map((p) => <div key={p.id} className={"us-plan-card" + (p.id === plan.current ? " us-plan-card--current" : "")}>
-        <div className="us-plan-card-top"><b>{name(p)}</b>{p.id === plan.current && <span className="us-plan-badge"><Check size={12}/> {t("当前")}</span>}</div>
-        <strong>{p.monthlyCwu !== null ? fmt(p.monthlyCwu) : "—"} <small>{p.monthlyCwu !== null ? t("CWU / 月") : t("额度即将公布")}</small></strong>
-        {p.monthlyGwu !== null && <small>{fmt(p.monthlyGwu)} {t("GWU / 月")}</small>}
-        <small>{p.price || (p.monthlyCwu === null ? t("即将推出") : "")}</small>
-        {p.features.length > 0 && <ul>{p.features.map((f) => <li key={f}>{f}</li>)}</ul>}
-      </div>)}
-    </div>
-  </section>;
 }

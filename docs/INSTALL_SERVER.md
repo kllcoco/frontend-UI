@@ -256,20 +256,6 @@ sudo systemctl restart ciro      # 用了开机自启时；否则重新运行 ci
 
 电脑需要保持开机、Ciro 在运行（关闭窗口后会留在系统托盘）。电脑会主动连接服务器，不需要在家里路由器上开放端口。
 
-## 套餐与 CWU 额度
-
-在 `.env` 中配置三个套餐及每月额度（单位为原生 CWU / GWU，只统计模型服务实际上报的用量）：
-
-```ini
-CIRO_PLANS=[{"id":"basic","name":"基础版","monthlyCwu":100000,"price":"¥19 / 月"},{"id":"pro","name":"专业版","monthlyCwu":1000000},{"id":"max","name":"旗舰版","monthlyCwu":null}]
-CIRO_PLAN=basic
-```
-
-- 用户在 设置 → 用量统计 看到当前套餐、本月已用 / 剩余额度、重置日期和三个套餐的对比。
-- 额度用完后新的提问会被暂停（返回“本月套餐的 CWU 额度已用完”），每月 1 日（UTC）自动重置；`null` 表示不限。
-- 不配置 `CIRO_PLANS` 时三个套餐显示为“即将推出”，不限制用量。
-- 用量记录在数据目录的 `plan-usage.json`。
-
 ## 常见问题
 
 - **页面提示“尚未连接真实 CIRO 推理服务”**：`.env` 中 `CIRO_API_BASE_URL` 为空或没有生效。Docker 需要 `docker restart ciro`，npm 需要在 `.env` 所在目录运行，或使用 `--env` 指定。
