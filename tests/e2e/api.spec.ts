@@ -66,6 +66,11 @@ test("owner pushes an announcement that shows on every installed app's home scre
   await page.getByLabel("链接（https，可选）").fill("https://ciro.example.com/pro");
   await page.getByRole("button", { name: "发布公告" }).click();
   await expect(page.getByText("已发布。")).toBeVisible();
+  // Nobody but the signed-in owner can publish: not anonymous callers, not API keys.
+  const anon = await fetch(ciro.url + "/api/announcements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "x" }) });
+  expect(anon.status).toBe(401);
+  const keyed = await fetch(ciro.url + "/api/announcements", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer ciro_sk_not_real" }, body: JSON.stringify({ title: "x" }) });
+  expect([401, 403]).toContain(keyed.status);
   await expect(page.locator(".ann-item")).toContainText("专业版限时 8 折");
   await page.keyboard.press("Escape");
   const card = page.locator(".cx-ann").filter({ hasText: "专业版限时 8 折" });

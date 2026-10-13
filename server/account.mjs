@@ -532,5 +532,10 @@ export function createAccountService({env=process.env,dir,fetchFn=fetch}={}){
     if(subscription)notify({type:"info",title:"Stripe subscription updated",body:"Verified subscription status: "+payload.status});
     res.json({received:true,applied:Boolean(checkout||subscription)});
   }));
-  return {router,guard,store,principal,memoryContext,notify,enabled};
+  /** The server owner, signed in through the browser (API keys and paired devices never count). */
+  function isOwner(req){
+    const p=req.principal,owner=store.get().owner;
+    return Boolean(enabled&&p&&p.mode==="session"&&owner&&p.id===owner.id&&owner.role!=="member");
+  }
+  return {router,guard,store,principal,memoryContext,notify,enabled,isOwner};
 }
