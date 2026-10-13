@@ -116,6 +116,9 @@ test("phone pairs a home computer and runs commands and an approved AI task in i
   await expect(card.getByAltText("连接二维码")).not.toHaveAttribute("src", used!);
   const fresh = PNG.sync.read(Buffer.from((await card.getByAltText("连接二维码").getAttribute("src"))!.split(",")[1], "base64"));
   await phone.goto(jsQR(new Uint8ClampedArray(fresh.data), fresh.width, fresh.height)!.data);
-  await expect(phone.locator(".rw-ok")).toContainText("已连接到 家里的台式机", { timeout: 15_000 });
+  // The deep link remounts the work view: the success toast can disappear even though
+  // the server grant is valid. Assert durable connection state and an actionable task form.
+  await expect(phone.locator(".rw-device--on")).toContainText("在线 · 已连接", { timeout: 15_000 });
+  await expect(phone.locator(".rw-connect")).toHaveCount(0);
   await expect(phone.getByLabel("要执行的内容")).toBeVisible();
 });
