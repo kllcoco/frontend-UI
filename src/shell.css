@@ -1398,3 +1398,16 @@ html.ciro-quick,html.ciro-quick body{background:var(--cx-bg)}
 .qa-send:disabled{opacity:.35}
 .qa-continue{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;border:1px solid var(--cx-line-strong);background:transparent;color:var(--cx-text);font-size:13px}
 .qa-answer:empty{display:none}
+
+/* Hold to talk */
+.cx-hold{position:fixed;inset:0;z-index:130;display:flex;align-items:flex-end;justify-content:center;padding:0 16px calc(120px + var(--sa-bottom));
+  background:linear-gradient(to top,rgba(0,0,0,.42),rgba(0,0,0,.08) 60%,transparent);pointer-events:none;animation:cx-fade .15s}
+.cx-hold-card{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:200px;max-width:min(420px,100%);padding:16px 22px;border-radius:20px;
+  background:var(--cx-accent);color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.25);transition:background .15s,transform .15s}
+.cx-hold--cancel .cx-hold-card{background:var(--cx-danger);transform:scale(.96)}
+.cx-hold-card strong{font-size:14.5px}
+.cx-hold-card small{font-size:12.5px;opacity:.85;font-variant-numeric:tabular-nums}
+.cx-hold-heard{margin:0;font-size:15px;line-height:1.5;text-align:center;max-height:96px;overflow:hidden}
+.cx-hold-bars{display:flex;align-items:center;gap:4px;height:34px}
+.cx-hold-bars span{width:4px;height:100%;border-radius:2px;background:currentColor;transform-origin:center;transition:transform .08s linear}
+.cx-mic--voice{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}

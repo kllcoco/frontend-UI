@@ -53,6 +53,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Work mode: scan a computer's QR code -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Hold to talk / voice mode -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- "Notify when a reply finishes" -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />

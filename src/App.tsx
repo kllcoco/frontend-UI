@@ -55,6 +55,7 @@ import ViewBoundary from "./components/ViewBoundary";
 import { haptic, useSheetSwipe, useSidebarSwipe } from "./lib/gestures";
 import { appInBackground, notifyGranted, showNotify } from "./lib/notify";
 import ConnectCard from "./components/ConnectCard";
+import { useHoldToTalk } from "./lib/hold-to-talk";
 import SourceCards from "./components/SourceCards";
 import { findCitations } from "./lib/office";
 import type { Citation } from "./lib/office";
@@ -536,6 +537,12 @@ export default function App() {
     setConversations(chats);
     if (chats.some((c) => c.id === id)) { setActiveId(id); setStudioOpen(false); setSettingsSection(null); }
   }), []);
+  // Phones: press and hold the voice button to talk, release to send, slide up to cancel.
+  const sendRef = useRef<(text: string) => void>(() => {});
+  sendRef.current = (text: string) => sendMessage(text);
+  const hold = useHoldToTalk({ language, browserStt: canDictate, serverStt: Boolean(status.stt),
+    onText: (text) => sendRef.current(text), onTap: () => setVoiceOpen(true),
+    onError: (code) => notify(code === "mic-denied" ? "需要麦克风权限才能语音输入" : code === "not-allowed" ? "需要麦克风权限才能语音输入" : "语音识别失败：" + code) });
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
   // Scheduled tasks: poll the server's result feed and raise a notification for anything new.
   useEffect(() => {
@@ -1983,8 +1990,9 @@ export default function App() {
                   </div>}
                 </div>
                 <div className={draft.trim() || attachments.length ? "cx-send-group cx-send-group--typing" : "cx-send-group"}>
-                {composerMode === "chat" && (canDictate || status.stt) && <button type="button" className="cx-mic cx-mic--voice" onClick={(e) => { e.stopPropagation(); setVoiceOpen(true); }}
-                  aria-label={t("语音对话")} title={t("语音对话")}><AudioLines size={17}/></button>}
+                {composerMode === "chat" && (canDictate || status.stt) && <button type="button" className="cx-mic cx-mic--voice" {...hold.handlers}
+                  onClick={(e) => { e.stopPropagation(); if (hold.clickAllowed()) setVoiceOpen(true); }}
+                  aria-label={t("语音对话")} title={t("语音对话") + (hold.supported ? " · " + t("按住说话，松开发送") : "")}><AudioLines size={17}/></button>}
                 {canDictate && composerMode === "chat" && <button type="button" className={dictation.listening ? "cx-mic cx-mic--dictate cx-mic--on" : "cx-mic cx-mic--dictate"}
                   onClick={(e) => { e.stopPropagation(); dictation.toggle(); }} aria-pressed={dictation.listening}
                   aria-label={dictation.listening ? t("停止语音输入") : t("语音输入")} title={dictation.listening ? t("停止语音输入") : t("语音输入")}>
@@ -2011,6 +2019,15 @@ export default function App() {
         onAsk={(instruction) => askCanvas(current.canvas!.find((d) => d.id === canvasId)!, instruction)}/>}
       {voiceOpen && <VoiceMode t={t} language={language} serverStt={Boolean(status.stt)} serverTts={Boolean(status.tts)}
         onAsk={askVoice} onClose={() => setVoiceOpen(false)}/>}
+      {hold.state.phase !== "idle" && <div className={hold.state.cancel ? "cx-hold cx-hold--cancel" : "cx-hold"} role="status" aria-live="assertive">
+        <div className="cx-hold-card">
+          <div className="cx-hold-bars" aria-hidden="true">{Array.from({ length: 9 }, (_, i) =>
+            <span key={i} style={{ transform: "scaleY(" + Math.min(1, 0.18 + hold.state.level * (2.4 + (i % 3))) + ")" }}/>)}</div>
+          {hold.state.heard && <p className="cx-hold-heard">{hold.state.heard}</p>}
+          <strong>{hold.state.phase === "working" ? t("正在识别…") : hold.state.cancel ? t("松开取消") : t("松开发送，上滑取消")}</strong>
+          {hold.state.phase === "recording" && <small>0:{String(hold.state.seconds).padStart(2, "0")}</small>}
+        </div>
+      </div>}
       {citation && <div className="cx-cite-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setCitation(null); }}>
         <div className="cx-cite-dialog" role="dialog" aria-modal="true" aria-label={t("出处") + "：" + citation.file + " · " + citation.label}>
           <header><FileText size={16}/><strong>{citation.file}</strong><span>{citation.label}</span>
