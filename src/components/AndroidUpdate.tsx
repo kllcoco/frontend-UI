@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, X } from "lucide-react";
-import { androidUpdateAvailable, checkAndroidUpdate, downloadProgress, installDownloaded, startDownload } from "../lib/android-update";
+import { androidUpdateAvailable, checkAndroidUpdate, downloadProgress, installDownloaded, startDownload, UpdateCheckError } from "../lib/android-update";
 import type { AndroidRelease } from "../lib/android-update";
 
 const DISMISS = "ciro.update-dismissed.v1";
@@ -21,7 +21,11 @@ export default function AndroidUpdate({ t, onNotify }: { t: (s: string) => strin
         let dismissed = ""; try { dismissed = localStorage.getItem(DISMISS) || ""; } catch { /* ignore */ }
         if (found && (manual || dismissed !== found.version)) { setRelease(found); setPhase("available"); }
         else if (manual) onNotify(found ? "" : "已是最新版本");
-      } catch { if (manual) onNotify("检查更新失败，请检查网络"); }
+      } catch (e) {
+        if (!manual) return;
+        const kind = e instanceof UpdateCheckError ? e.kind : "unavailable";
+        onNotify(kind === "network" ? "检查更新失败：手机没有联网" : kind === "rate-limited" ? "GitHub 暂时限制了查询次数，请稍后再试" : "暂时连不上更新服务器（GitHub），请稍后再试");
+      }
     };
     const first = window.setTimeout(() => void check(false), 4000);
     const every = window.setInterval(() => void check(false), 6 * 3600_000);

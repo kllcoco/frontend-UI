@@ -112,7 +112,7 @@ test("Android app updates itself: newer release offered, downloaded, installer a
       install: () => { const r = allowed ? "started" : "need-permission"; allowed = true; (w.__installs as string[]).push(r); return r; }
     };
   });
-  await page.route("https://api.github.com/repos/kllcoco/frontend-UI/releases/latest", (route) => route.fulfill({ json: {
+  await page.route(/\/api\/app\/latest$|api\.github\.com\/repos\/kllcoco\/frontend-UI\/releases\/latest/, (route) => route.fulfill({ json: {
     tag_name: "v0.9.7", html_url: "https://github.com/kllcoco/frontend-UI/releases/tag/v0.9.7",
     assets: [{ name: "Android-Ciro-0.9.7.apk", browser_download_url: "https://github.com/kllcoco/frontend-UI/releases/download/v0.9.7/Android-Ciro-0.9.7.apk", size: 11534336 },
       { name: "Windows-Ciro-0.9.7-x64.exe", browser_download_url: "https://example.com/x.exe", size: 1 }] } }));
@@ -128,7 +128,7 @@ test("Android app updates itself: newer release offered, downloaded, installer a
 
 test("Android app on the latest version: no banner; About → Check for updates says so", async ({ page }) => {
   await page.addInitScript(() => { (window as unknown as Record<string, unknown>).CiroUpdate = { version: () => "0.9.7", download: () => true, progress: () => "{}", install: () => "missing" }; });
-  await page.route("https://api.github.com/repos/kllcoco/frontend-UI/releases/latest", (route) => route.fulfill({ json: { tag_name: "v0.9.7", assets: [{ name: "Android-Ciro-0.9.7.apk", browser_download_url: "https://github.com/kllcoco/frontend-UI/releases/download/v0.9.7/Android-Ciro-0.9.7.apk", size: 1 }] } }));
+  await page.route(/\/api\/app\/latest$|api\.github\.com\/repos\/kllcoco\/frontend-UI\/releases\/latest/, (route) => route.fulfill({ json: { tag_name: "v0.9.7", assets: [{ name: "Android-Ciro-0.9.7.apk", browser_download_url: "https://github.com/kllcoco/frontend-UI/releases/download/v0.9.7/Android-Ciro-0.9.7.apk", size: 1 }] } }));
   await page.goto(ciro.url + "/");
   await page.waitForTimeout(4500);
   await expect(page.locator(".cx-aupdate")).toHaveCount(0);
@@ -148,4 +148,28 @@ test("everyone has a read-only announcements page; regular users never see a pub
   await expect(page.locator(".ann-list")).toContainText("专业版限时 8 折"); // …still listed here
   await expect(page.getByRole("button", { name: "发布公告" })).toHaveCount(0);
   await expect(page.getByText("服务器所有者")).toHaveCount(0);
+});
+
+test("Android update check still works when GitHub's API is rate limited: the app reads the release page itself", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.CiroUpdate = { version: () => "0.9.8", download: () => true, progress: () => "{}", install: () => "missing",
+      checkLatest: () => setTimeout(() => (w.ciroLatestResult as (r: unknown) => void)({ tag: "v0.9.9" }), 50) };
+  });
+  await page.route("**/api/app/latest", (route) => route.fulfill({ status: 503, json: { error: "x" } }));
+  await page.route("https://api.github.com/**", (route) => route.fulfill({ status: 403, json: { message: "API rate limit exceeded" } }));
+  await page.goto(ciro.url + "/");
+  await expect(page.locator(".cx-aupdate")).toContainText("发现新版本 v0.9.9", { timeout: 10000 });
+});
+
+test("when every way fails, the message says what happened instead of blaming the network", async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as Record<string, unknown>).CiroUpdate = { version: () => "0.9.8", download: () => true, progress: () => "{}", install: () => "missing",
+    checkLatest: () => setTimeout(() => ((window as unknown as Record<string, unknown>).ciroLatestResult as (r: unknown) => void)({ error: "http-429" }), 50) }; });
+  await page.route("**/api/app/latest", (route) => route.fulfill({ status: 503, json: { error: "x" } }));
+  await page.route("https://api.github.com/**", (route) => route.fulfill({ status: 403, json: { message: "API rate limit exceeded" } }));
+  await page.goto(ciro.url + "/");
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "关于 Ciro" }).click();
+  await page.getByRole("button", { name: "检查更新" }).click();
+  await expect(page.getByText("GitHub 暂时限制了查询次数，请稍后再试")).toBeVisible();
 });

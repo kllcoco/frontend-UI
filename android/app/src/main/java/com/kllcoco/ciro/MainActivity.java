@@ -23,6 +23,8 @@ import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -278,6 +280,32 @@ public class MainActivity extends BridgeActivity {
         public String version() {
             try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
             catch (Exception e) { return ""; }
+        }
+
+        /** Finds the latest release tag without the rate-limited GitHub API: the /releases/latest page
+         *  redirects to /releases/tag/vX.Y.Z. Answers through window.ciroLatestResult(json). */
+        @JavascriptInterface
+        public void checkLatest() {
+            new Thread(() -> {
+                String result;
+                HttpURLConnection conn = null;
+                try {
+                    conn = (HttpURLConnection) new URL("https://github.com/kllcoco/frontend-UI/releases/latest").openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(10000);
+                    conn.setRequestMethod("HEAD");
+                    int code = conn.getResponseCode();
+                    String location = conn.getHeaderField("Location");
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("/releases/tag/(v[0-9][0-9A-Za-z.\\-]*)$").matcher(location == null ? "" : location);
+                    result = m.find() ? "{\"tag\":" + JSONObject.quote(m.group(1)) + "}" : "{\"error\":\"http-" + code + "\"}";
+                } catch (Exception e) {
+                    result = "{\"error\":\"network\"}";
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+                evaluate("(function(){try{window.ciroLatestResult&&window.ciroLatestResult(" + result + ");}catch(e){}})()");
+            }).start();
         }
 
         @JavascriptInterface

@@ -37,6 +37,25 @@ const accounts=createAccountService();
 app.use("/api/account",accounts.router);
 const shares=createShareRouters();
 app.use("/api/share",shares.publicRouter); // GET only: read-only links work without signing in
+// Latest app release for in-app updates: one cached GitHub lookup shared by every user of this server,
+// so phones behind a shared IP don't hit GitHub's per-IP API limit. Public: release info is public anyway.
+let latestRelease = { at: 0, data: null };
+app.get("/api/app/latest", async (_req, res) => {
+  if (Date.now() - latestRelease.at > 15 * 60 * 1000 || !latestRelease.data) {
+    try {
+      const token = process.env.CIRO_GITHUB_RELEASES_TOKEN;
+      const r = await fetch("https://api.github.com/repos/kllcoco/frontend-UI/releases/latest", { signal: AbortSignal.timeout(10000),
+        headers: { Accept: "application/vnd.github+json", "User-Agent": "ciro-server", ...(token ? { Authorization: "Bearer " + token } : {}) } });
+      if (r.ok) {
+        const j = await r.json();
+        latestRelease = { at: Date.now(), data: { tag_name: j.tag_name, html_url: j.html_url,
+          assets: (j.assets || []).map((a) => ({ name: a.name, browser_download_url: a.browser_download_url, size: a.size })) } };
+      } else latestRelease.at = Date.now() - 14 * 60 * 1000; // retry in a minute
+    } catch { latestRelease.at = Date.now() - 14 * 60 * 1000; }
+  }
+  if (!latestRelease.data) return res.status(503).json({ error: "release lookup unavailable" });
+  res.set("Cache-Control", "no-store").json(latestRelease.data);
+});
 app.use("/api",accounts.guard);
 app.use("/api/share",shares.privateRouter);
 const workbench = createWorkbenchRouter({notify:accounts.notify});
