@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
@@ -98,6 +99,15 @@ final class PetOverlay {
             params.x = Math.max(s.left, Math.min(params.x, s.right - w));
     }
     private Rect screen() {
+        // Resources DisplayMetrics can exclude the status/navigation bars. Overlay positions
+        // are absolute: use full physical display bounds for true edge alignment.
+        if (wm != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                return wm.getMaximumWindowMetrics().getBounds();
+            Point size = new Point();
+            wm.getDefaultDisplay().getRealSize(size);
+            return new Rect(0, 0, size.x, size.y);
+        }
         DisplayMetrics m = activity.getResources().getDisplayMetrics();
         return new Rect(0, 0, m.widthPixels, m.heightPixels);
     }
