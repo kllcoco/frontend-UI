@@ -138,10 +138,14 @@ test("Android app on the latest version: no banner; About → Check for updates 
   await expect(page.getByText("已是最新版本")).toBeVisible();
 });
 
-test("announcements entry is always findable; without owner rights it explains how to publish", async ({ page }) => {
+test("everyone has a read-only announcements page; regular users never see a publish editor", async ({ page }) => {
+  await page.route("**/api/announcements*", (route) => route.fulfill({ json: { editable: false, announcements: [
+    { id: "a1", title: "专业版限时 8 折", body: "本周内订阅", level: "promo", link: null, platforms: null, minVersion: null, maxVersion: null, start: null, end: null, source: "server" }] } }));
   await page.goto(ciro.url + "/");
+  await page.getByRole("button", { name: "关闭公告" }).click(); // closed on the home screen…
   await page.keyboard.press("Control+,");
-  await page.locator(".sc-nav").getByRole("button", { name: "公告推送" }).click();
-  await expect(page.getByText("公告推送需要服务器所有者权限")).toBeVisible();
-  await expect(page.getByRole("button", { name: "打开 announcements.json" })).toBeVisible();
+  await page.locator(".sc-nav").getByRole("button", { name: "公告" }).click();
+  await expect(page.locator(".ann-list")).toContainText("专业版限时 8 折"); // …still listed here
+  await expect(page.getByRole("button", { name: "发布公告" })).toHaveCount(0);
+  await expect(page.getByText("服务器所有者")).toHaveCount(0);
 });

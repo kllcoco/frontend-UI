@@ -59,7 +59,7 @@ test("owner pushes an announcement that shows on every installed app's home scre
   expect((await page.request.post(ciro.url + "/api/account/login", { data: ACCOUNT })).status()).toBe(200);
   await page.goto(ciro.url + "/");
   await page.keyboard.press("Control+,");
-  await page.locator(".sc-nav").getByRole("button", { name: "公告推送" }).click();
+  await page.locator(".sc-nav").getByRole("button", { name: "公告" }).click();
   await page.getByLabel("标题").fill("专业版限时 8 折");
   await page.getByLabel("内容").fill("本周内订阅专业版立减 20%");
   await page.getByLabel("按钮文字").fill("立即查看");

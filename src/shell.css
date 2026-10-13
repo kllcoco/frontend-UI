@@ -1472,3 +1472,7 @@ html.ciro-quick,html.ciro-quick body{background:var(--cx-bg)}
 .ann-item{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--cx-line)}
 .ann-item>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .ann-item small{font-size:12.5px;color:var(--cx-muted)}
+.ann-list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.ann-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 0;color:var(--cx-muted)}
+.ann-empty p{margin:0;font-size:13.5px}
+.ann-when{display:block;margin-top:4px;font-size:12px;color:var(--cx-muted)}

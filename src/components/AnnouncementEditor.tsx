@@ -25,7 +25,7 @@ export default function AnnouncementEditor({ t }: { t: (s: string) => string }) 
     finally { setBusy(false); }
   }
   return <div className="ann-editor">
-    <p className="api-muted">{t("在这里发布的公告（比如新套餐、限时优惠、维护通知）会直接推送到已安装的网页版、桌面版和 Android 版首页，用户不需要更新应用。")}</p>
+    <p className="api-muted">{t("只有你（服务器所有者）能看到这个编辑器。发布的公告（比如新套餐、限时优惠、维护通知）会直接推送到所有用户的网页版、桌面版和 Android 版，用户不需要更新应用。")}</p>
     <div className="ann-form">
       <label>{t("标题")}<input value={form.title} maxLength={80} onChange={(e) => set("title", e.target.value)} placeholder={t("例如：专业版限时 8 折")}/></label>
       <label>{t("内容")}<textarea value={form.body} maxLength={600} rows={3} onChange={(e) => set("body", e.target.value)}/></label>
@@ -47,7 +47,7 @@ export default function AnnouncementEditor({ t }: { t: (s: string) => string }) 
       <button type="button" className="api-run" disabled={busy || !form.title.trim()} onClick={() => void publish()}><Megaphone size={15}/>{t("发布公告")}</button>
       {msg && <p className="api-muted" role="status">{msg}</p>}
     </div>
-    <h4 className="ann-h">{t("已发布")}</h4>
+    <h4 className="ann-h">{t("我发布的")}</h4>
     {!list.length && <p className="api-muted">{t("暂无数据")}</p>}
     {list.map((a) => <div key={a.id} className="ann-item"><div><strong>{a.title}</strong><small>{a.body}</small>
       <small>{[a.platforms?.join(" / "), a.end ? t("截止") + " " + new Date(a.end).toLocaleString() : ""].filter(Boolean).join(" · ")}</small></div>
@@ -55,17 +55,3 @@ export default function AnnouncementEditor({ t }: { t: (s: string) => string }) 
   </div>;
 }
 
-/** Shown when this device can't publish: how to get to the editor, and the central feed for every install. */
-export function AnnouncementHelp({ t, accountsOn }: { t: (s: string) => string; accountsOn: boolean }) {
-  return <div className="ann-editor">
-    <div className="ann-form">
-      <strong>{t("公告推送需要服务器所有者权限")}</strong>
-      <p className="api-muted">{accountsOn
-        ? t("请用服务器所有者账户登录（设置 → 账户与安全），登录后这里会出现发布公告的编辑器。")
-        : t("这台服务器（或桌面版自带的本机服务）没有开启账户，所以没有“所有者”，不能在这里发布。在你的公网服务器上开启账户（一键安装时填写域名即可）并用所有者账户登录网页版，就能在这里发布，推送到连接这台服务器的所有设备。")}</p>
-      <p className="api-muted">{t("想推送给所有安装（包括桌面版）？编辑项目仓库 main 分支里的 announcements.json，所有 Ciro 会在 30 分钟内读取。格式见部署教程“公告推送”。")}</p>
-      <button type="button" className="api-run" onClick={() => window.open("https://github.com/kllcoco/frontend-UI/blob/main/announcements.json", "_blank", "noopener,noreferrer")}>
-        <Megaphone size={15}/>{t("打开 announcements.json")}</button>
-    </div>
-  </div>;
-}
