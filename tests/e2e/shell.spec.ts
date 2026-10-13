@@ -38,11 +38,11 @@ test("profile menu opens settings sections and workspace pages", async ({ page }
   await fresh(page);
   await go(page, "键盘快捷键");
   await expect(page.getByRole("heading", { name: "快捷键", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await page.keyboard.press("Control+,");
   await expect(page.getByRole("heading", { name: "通用设置" })).toBeVisible();
   await page.getByRole("textbox", { name: "你的名字" }).fill("林雨");
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await expect(page.locator(".um-trigger")).toContainText("林雨");
   await expect(page.locator(".cx-greeting")).toContainText("林雨");
   await go(page, "跨设备同步");

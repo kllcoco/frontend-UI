@@ -109,7 +109,7 @@ test("real account authentication, encrypted memories, spending limits and devic
   await page.locator(".sc-nav").getByRole("button",{name:"订阅管理"}).click();
   await expect(page.getByText("尚未连接支付服务").first()).toBeVisible();
   await page.screenshot({path:photoDir+"/35-account-subscription.png",fullPage:true,animations:"disabled"});
-  await page.getByRole("button",{name:"完成"}).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
 
   // Create actual local preview conversation, upload it with the authenticated versioned API.
   await page.getByRole("button",{name:/新对话/}).first().click();

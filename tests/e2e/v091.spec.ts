@@ -61,7 +61,7 @@ test("archive hides chats, the manager restores, exports and bulk-deletes, and J
   await expect(page.locator(".cm-row")).toHaveCount(2);
   await page.locator(".cm-root input[type=file]").setInputFiles(file!);
   await expect(page.locator(".cm-row")).toHaveCount(2);
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await expect(page.locator(".cx-history .cx-row")).toHaveCount(2);
 });
 

@@ -44,13 +44,14 @@ test("sync v2 pulls incrementally, keeps newer edits and propagates deletions",a
     const stale=await ctx.call("/api/account/sync/v2/push",{method:"POST",body:{items:[conv("a",50,"old A")]}});
     assert.equal(stale.json.accepted.length,0);assert.equal(stale.json.rejected[0].data.title,"A");
     // A newer edit and a deletion arrive incrementally.
-    await ctx.call("/api/account/sync/v2/push",{method:"POST",body:{items:[conv("a",200,"A2"),{kind:"conversation",id:"b",mtime:200,deleted:true}]}});
+    await ctx.call("/api/account/sync/v2/push",{method:"POST",body:{items:[conv("a",200,"A2 plaintext-marker-7f3e9c"),{kind:"conversation",id:"b",mtime:200,deleted:true}]}});
     const delta=await ctx.call("/api/account/sync/v2/changes?since="+since);
-    assert.deepEqual(delta.json.items.map(x=>[x.id,x.deleted,x.data?.title??null]),[["a",false,"A2"],["b",true,null]]);
+    assert.deepEqual(delta.json.items.map(x=>[x.id,x.deleted,x.data?.title??null]),[["a",false,"A2 plaintext-marker-7f3e9c"],["b",true,null]]);
     assert.equal(delta.json.count,1);
     // Stored encrypted at rest.
     const raw=readdirSync(ctx.dir).filter(f=>f.startsWith("sync.sqlite")).map(f=>readFileSync(join(ctx.dir,f),"latin1")).join("");
-    assert.ok(!raw.includes("A2"));
+    // A long marker: short strings can appear in ciphertext by chance.
+    assert.ok(!raw.includes("plaintext-marker-7f3e9c"));
     // Bad input is rejected.
     assert.equal((await ctx.call("/api/account/sync/v2/push",{method:"POST",body:{items:[{kind:"secret",id:"x",mtime:1,deleted:false,data:{}}]}})).status,400);
   }finally{await ctx.close();}

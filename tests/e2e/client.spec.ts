@@ -25,6 +25,7 @@ async function setRange(locator: Locator, value: number) {
 async function openSettings(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: /^(设置|Settings)$/ }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+  await page.locator(".sc-nav").getByRole("button", { name: /^(外观与背景|Appearance)/ }).click();
 }
 
 test("default first visit is Chinese with the ivory theme and orbit logo", async ({ page }) => {
@@ -51,7 +52,7 @@ test("appearance panel changes wallpaper and persists settings on reload", async
   await setRange(sliders.nth(1), 7);
   await setRange(sliders.nth(2), 50);
   await page.getByRole("button", { name: "仅欢迎页面" }).click();
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
 
   await expect(page.locator(".wallpaper-image")).toHaveCSS("background-image", /aurora\.svg/);
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -155,7 +156,7 @@ test("English interface is complete, persists across reloads, and returns to Chi
   await expect(page.getByRole("button", { name: "Appearance & background" })).toBeVisible();
   await expect(page.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({ path: imageDir + "/15-settings-english.png", fullPage: true, animations: "disabled" });
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.locator('button[aria-label="Close settings"]:visible').click();
   await expect(page.getByRole("heading", { name: /Let every idea/ })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message Ciro" })).toBeVisible();
   await expect(page.getByText("Client preview: CIRO inference is not connected")).toBeVisible();
@@ -167,7 +168,7 @@ test("English interface is complete, persists across reloads, and returns to Chi
   await page.getByRole("button", { name: "General", exact: true }).click();
   await page.getByRole("button", { name: "简体中文" }).click();
   await expect(page.getByRole("heading", { name: "通用设置" })).toBeVisible();
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await expect(page.getByRole("heading", { name: /让每一个想法/ })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
   await setLanguage(page, "en");
@@ -184,7 +185,7 @@ test("mobile navigation and settings stay inside the viewport", async ({ page })
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "通用设置" })).toBeVisible();
   await page.screenshot({ path: imageDir + "/09-mobile-settings.png", fullPage: true, animations: "disabled" });
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await expect(page.locator(".connection-text")).toBeHidden();
   const mobileStatus = await page.locator(".connection-label").evaluate((element) => element.clientWidth);
   expect(mobileStatus).toBeLessThanOrEqual(32);
@@ -364,12 +365,12 @@ test("billing, apps and skills also appear in settings and slash navigation",asy
   await waitForPreview(page);
   await openSettings(page);
   await page.locator(".sc-nav").getByRole("button",{name:"账单与用量",exact:true}).click();
-  await expect(page.locator(".sc-scroll .com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();
+  await expect(page.locator(".sc-header").getByRole("heading",{name:"账单与用量"})).toBeVisible();
   await page.locator(".sc-nav").getByRole("button",{name:"官方应用",exact:true}).click();
   await expect(page.locator(".sc-scroll .com-app-card")).toHaveCount(8);
   await page.locator(".sc-nav").getByRole("button",{name:"技能中心",exact:true}).click();
   await expect(page.locator(".sc-scroll .com-skill")).toHaveCount(7);
-  await page.getByRole("button",{name:"完成"}).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await page.getByRole("textbox",{name:"向 Ciro 发送消息"}).fill("/billing");
   await page.getByRole("button",{name:"发送消息"}).click();
   await expect(page.locator(".com-page-head").getByRole("heading",{name:"账单与用量"})).toBeVisible();

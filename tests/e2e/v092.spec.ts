@@ -99,7 +99,7 @@ test("remember a message, see it in settings, undo it", async ({ page }) => {
   await page.keyboard.press("Control+,");
   await page.locator(".sc-nav").getByRole("button", { name: "自定义指令", exact: true }).click();
   await expect(page.locator(".mm-item")).toContainText("我喜欢简洁的回答");
-  await page.getByRole("button", { name: "完成" }).click();
+  await page.locator('button[aria-label="关闭设置"]:visible').click();
   await page.locator(".cx-memory-chip").getByRole("button", { name: "撤销" }).click();
   await expect(page.locator(".cx-memory-chip")).toHaveCount(0);
 });

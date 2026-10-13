@@ -109,11 +109,12 @@ for (const size of SIZES) {
     await page.locator(".um-trigger").click(); await check("user menu"); await closeAll(page);
 
     await page.keyboard.press("Control+,");
-    const nav = page.locator(".sc-nav button");
-    const count = await nav.count();
-    for (let i = 0; i < count; i += 1) {
-      const name = (await nav.nth(i).innerText()).trim();
-      await nav.nth(i).click();
+    const back = page.getByRole("button", { name: "返回设置列表" });
+    if (mobile) { await back.click(); await check("settings list"); }
+    const names = (await page.locator(".sc-nav .sc-nav-item").allInnerTexts()).map((x) => x.trim());
+    for (const name of names) {
+      if (mobile && !(await page.locator(".sc-shell--list").count())) await back.click();
+      await page.locator(".sc-nav").getByRole("button", { name, exact: true }).click();
       await check("settings › " + name);
     }
     await closeAll(page);

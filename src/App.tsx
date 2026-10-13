@@ -167,6 +167,7 @@ export default function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [topMore, setTopMore] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [canvasId, setCanvasId] = useState<string | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -502,8 +503,12 @@ export default function App() {
       if (draft.startsWith("/")) setDraft("");
       return true;
     }
+    if (topMore) { setTopMore(false); return true; }
     if (plusOpen || modelOpen || rowMenuId) { setPlusOpen(false); setModelOpen(false); setRowMenuId(null); return true; }
-    if (settingsSection) { setSettingsSection(null); return true; }
+    if (settingsSection) {
+      if ((window as unknown as { ciroSettingsBack?: () => boolean }).ciroSettingsBack?.()) return true;
+      setSettingsSection(null); return true;
+    }
     if (editingId) { setEditingId(null); return true; }
     if (sidebarOpen) { setSidebarOpen(false); return true; }
     if (studioOpen || current || viewProject || composerMode !== "chat") { createNew(); return true; }
@@ -1613,14 +1618,26 @@ export default function App() {
               title={t("临时对话")} aria-label={t("临时对话")}><Ghost size={16}/><span>{t("临时")}</span></button>}
             {current?.canvas?.length && !canvasId ? <button className="cx-share" onClick={() => setCanvasId(current.canvas!.at(-1)!.id)} title={t("打开画布")}>
               <PanelRight size={15}/><span>{t("画布")} {current.canvas.length}</span></button> : null}
-            {current && !current.temporary && <button className="cx-share" onClick={() => setShareId(current.id)} title={t("分享对话")} aria-label={t("分享对话")}>
+            {current && !current.temporary && <button className="cx-share cx-wide-only" onClick={() => setShareId(current.id)} title={t("分享对话")} aria-label={t("分享对话")}>
               <Share2 size={15}/><span>{t("分享")}</span></button>}
-            {current && <button className="cx-icon" title={t("导出 PDF / 打印") + " (" + MOD + " P)"} aria-label={t("导出 PDF / 打印")}
+            {current && <button className="cx-icon cx-wide-only" title={t("导出 PDF / 打印") + " (" + MOD + " P)"} aria-label={t("导出 PDF / 打印")}
               onClick={() => exportPdfRef.current()}><Printer size={18}/></button>}
-            {current && !current.temporary && <button className="cx-icon" title={t("导出本次对话")}
+            {current && !current.temporary && <button className="cx-icon cx-wide-only" title={t("导出本次对话")}
               onClick={() => { exportMarkdown(current, language); notify("已导出 Markdown"); }}
               aria-label={t("导出本次对话")}><ArrowDownToLine size={18}/></button>}
-            <button className="cx-icon" onClick={() => setSettingsSection("appearance")} title={t("设置")} aria-label={t("设置")}><Settings2 size={18}/></button>
+            {current && <div className="cx-topmore cx-phone-only">
+              <button className="cx-icon" aria-label={t("更多操作")} aria-haspopup="menu" aria-expanded={topMore}
+                onClick={() => setTopMore((v) => !v)}><MoreHorizontal size={19}/></button>
+              {topMore && <><div className="cx-topmore-scrim" onClick={() => setTopMore(false)}/>
+                <div className="cx-topmore-menu" role="menu">
+                  {!current.temporary && <button role="menuitem" onClick={() => { setTopMore(false); setShareId(current.id); }}><Share2 size={16}/>{t("分享对话")}</button>}
+                  <button role="menuitem" onClick={() => { setTopMore(false); exportPdfRef.current(); }}><Printer size={16}/>{t("导出 PDF / 打印")}</button>
+                  {!current.temporary && <button role="menuitem" onClick={() => { setTopMore(false); exportMarkdown(current, language); notify("已导出 Markdown"); }}>
+                    <ArrowDownToLine size={16}/>{t("导出 Markdown")}</button>}
+                  <button role="menuitem" onClick={() => { setTopMore(false); setFindOpen(true); }}><Search size={16}/>{t("在对话中查找")}</button>
+                </div></>}
+            </div>}
+            <button className="cx-icon" onClick={() => setSettingsSection("home")} title={t("设置")} aria-label={t("设置")}><Settings2 size={18}/></button>
           </div>
         </header>
 

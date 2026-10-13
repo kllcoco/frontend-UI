@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor } from "lucide-react";
+import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -12,6 +12,7 @@ import { LANGUAGES, localeTag, translate, systemLanguage } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
 import type { ThemePref } from "./lib/storage";
 import { notifyGranted, requestNotify } from "./lib/notify";
+import { getAccountSession } from "./lib/account-api";
 import { connectServer, disconnectServer, isMobileShell, isRemoteMobile, normalizeServer, savedServer } from "./lib/mobile";
 import WorkbenchCenter from "./WorkbenchCenter";
 import ConversationManager from "./components/ConversationManager";
@@ -57,33 +58,36 @@ type SettingsProps = {
   onImport: (items: Conversation[]) => number;
   onImportProject: (file: File) => Promise<void>;
 };
-const sections: { id: Section; label: string; icon: typeof Palette; group?: string }[] = [
-  { id: "general", label: "通用设置", icon: Settings2, group: "偏好与配置" },
-  { id: "instructions", label: "自定义指令", icon: FileText },
-  { id: "appearance", label: "外观与背景", icon: Palette },
-  { id: "models", label: "模型设置", icon: Sparkles },
-  { id: "chat", label: "对话设置", icon: MessageSquare },
-  { id: "usage", label: "用量统计", icon: Activity },
-  { id: "storage", label: "文件与存储", icon: Database },
-  { id: "shortcuts", label: "快捷键", icon: Keyboard },
-  { id: "security", label: "隐私与安全", icon: ShieldCheck },
-  { id: "about", label: "关于 Ciro", icon: Info },
-  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与连接" },
-  { id: "github", label: "GitHub 连接", icon: GitBranch },
-  { id: "plugins", label: "插件管理", icon: PlugZap },
-  { id: "schedules", label: "定时任务", icon: CalendarClock },
-  { id: "billing", label: "账单与用量", icon: Wallet },
-  { id: "apps", label: "官方应用", icon: LayoutGrid },
-  { id: "skills", label: "技能中心", icon: Sparkles },
-  { id: "account", label: "账户与安全", icon: UserRound, group: "账户" },
-  { id: "team", label: "团队", icon: Users },
-  { id: "subscription", label: "订阅管理", icon: Wallet },
-  { id: "api-keys", label: "API 密钥", icon: GitBranch },
-  { id: "spending", label: "消费限额", icon: Wallet },
-  { id: "notifications", label: "通知中心", icon: CalendarClock },
-  { id: "memory", label: "记忆管理", icon: Database },
-  { id: "sync", label: "跨设备同步", icon: RefreshCcw }
+type SectionInfo = { id: Section; label: string; icon: typeof Palette; group: string; keys?: string; account?: boolean; desktopOnly?: boolean };
+// Grouped so the most used pages come first; `keys` feeds the settings search.
+const sections: SectionInfo[] = [
+  { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
+  { id: "appearance", label: "外观与背景", icon: Palette, group: "常用", keys: "主题 深色 浅色 背景 壁纸 强调色 字体 theme dark" },
+  { id: "chat", label: "对话设置", icon: MessageSquare, group: "常用", keys: "通知 时间 紧凑 追问 标题 字号 notification" },
+  { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 服务器 连接 api model server" },
+  { id: "instructions", label: "自定义指令", icon: FileText, group: "常用", keys: "指令 关于你 回答方式 instructions" },
+  { id: "memory", label: "记忆管理", icon: Database, group: "常用", keys: "记忆 自动记忆 memory" },
+  { id: "usage", label: "用量统计", icon: Activity, group: "数据与同步", keys: "用量 CWU GWU usage" },
+  { id: "storage", label: "文件与存储", icon: Database, group: "数据与同步", keys: "备份 恢复 导出 导入 删除 backup export" },
+  { id: "sync", label: "跨设备同步", icon: RefreshCcw, group: "数据与同步", keys: "同步 sync", account: true },
+  { id: "account", label: "账户与安全", icon: UserRound, group: "账户", keys: "登录 密码 账户 login password" },
+  { id: "api-keys", label: "API 密钥", icon: GitBranch, group: "账户", keys: "api key 密钥", account: true },
+  { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing" },
+  { id: "subscription", label: "订阅管理", icon: Wallet, group: "账户", keys: "订阅 subscription", account: true },
+  { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true },
+  { id: "notifications", label: "通知中心", icon: CalendarClock, group: "账户", keys: "通知 notifications", account: true },
+  { id: "team", label: "团队", icon: Users, group: "账户", keys: "团队 成员 team" },
+  { id: "permissions", label: "代理与沙盒", icon: ShieldCheck, group: "工作台与扩展", keys: "权限 沙盒 审批 sandbox" },
+  { id: "plugins", label: "插件管理", icon: PlugZap, group: "工作台与扩展", keys: "插件 plugin" },
+  { id: "skills", label: "技能中心", icon: Sparkles, group: "工作台与扩展", keys: "技能 skill" },
+  { id: "apps", label: "官方应用", icon: LayoutGrid, group: "工作台与扩展", keys: "应用 app" },
+  { id: "github", label: "GitHub 连接", icon: GitBranch, group: "工作台与扩展", keys: "github 仓库" },
+  { id: "schedules", label: "定时任务", icon: CalendarClock, group: "工作台与扩展", keys: "定时 计划 schedule" },
+  { id: "shortcuts", label: "快捷键", icon: Keyboard, group: "其他", keys: "快捷键 键盘 shortcut", desktopOnly: true },
+  { id: "security", label: "隐私与安全", icon: ShieldCheck, group: "其他", keys: "隐私 安全 privacy" },
+  { id: "about", label: "关于 Ciro", icon: Info, group: "其他", keys: "版本 关于 version about" }
 ];
+const PHONE = "(max-width: 760px)";
 function SettingBlock({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return <section className="sc-section"><div className="sc-section-intro"><h3>{title}</h3>{subtitle && <p>{subtitle}</p>}</div>{children}</section>;
 }
@@ -108,8 +112,40 @@ export default function SettingsCenter({
   onModelChange, onRefreshStatus, conversations, onExportAll, onClearHistory, onBulk, onImport, onImportProject
 }: SettingsProps) {
   const t = (value: string) => translate(language, value);
+  const isPhone = () => typeof window !== "undefined" && window.matchMedia(PHONE).matches;
   const [section, setSection] = useState<Section>(() =>
-    sections.some((item) => item.id === initialSection) ? initialSection as Section : "appearance");
+    sections.some((item) => item.id === initialSection) ? initialSection as Section : "general");
+  // Phones show the list of settings first and open one page at a time; desktops show both side by side.
+  const [listView, setListView] = useState(() => isPhone() && !sections.some((item) => item.id === initialSection));
+  const [query, setQuery] = useState("");
+  const [accountsOn, setAccountsOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getAccountSession().then((s) => { if (alive) setAccountsOn(Boolean(s.enabled)); }, () => { if (alive) setAccountsOn(false); });
+    return () => { alive = false; };
+  }, []);
+  const touchOnly = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  // Without accounts every account page shows the same notice, so only the first one is listed.
+  const visible = sections.filter((item) => !(item.account && accountsOn === false) && !(item.desktopOnly && touchOnly));
+  const q = query.trim().toLowerCase();
+  const matches = q ? visible.filter((item) => (t(item.label) + " " + item.label + " " + (item.keys || "")).toLowerCase().includes(q)) : visible;
+  const openSection = (id: Section) => { setSection(id); setError(null); setListView(false); setQuery(""); };
+  const back = () => { if (isPhone() && !listView) { setListView(true); return true; } return false; };
+  const backRef = useRef(back);
+  backRef.current = back;
+  useEffect(() => {
+    const w = window as unknown as { ciroSettingsBack?: () => boolean };
+    w.ciroSettingsBack = () => backRef.current();
+    return () => { delete w.ciroSettingsBack; };
+  }, []);
+  // Swipe right from the left edge goes back to the list on phones.
+  const edge = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => { const p = e.touches[0]; edge.current = !listView && p.clientX < 32 ? { x: p.clientX, y: p.clientY } : null; };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = edge.current; edge.current = null;
+    const p = e.changedTouches[0];
+    if (start && p.clientX - start.x > 70 && Math.abs(p.clientY - start.y) < 60) back();
+  };
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notifyNote, setNotifyNote] = useState("");
@@ -117,7 +153,7 @@ export default function SettingsCenter({
   const totalMessages = conversations.reduce((sum, chat) => sum + chat.messages.length, 0);
   const wallpaper = backgroundUrl(appearance.preset, customImageUrl);
   useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const onEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !backRef.current()) onClose(); };
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);
   }, [onClose]);
@@ -152,18 +188,28 @@ export default function SettingsCenter({
 
   return <div className="sc-backdrop" role="presentation"
     onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="sc-shell" role="dialog" aria-modal="true" aria-labelledby="sc-title">
+    <section className={listView ? "sc-shell sc-shell--list" : "sc-shell"} role="dialog" aria-modal="true" aria-labelledby="sc-title"
+      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <aside className="sc-nav">
-        <div className="sc-logo"><CiroMark small/><div><strong>CIRO</strong><span>PERSONAL SETTINGS</span></div></div>
-        <nav aria-label={t("设置类别")}>{sections.map(({ id, label, icon: Icon, group }) => <div key={id} className="sc-nav-entry">
-          {group && <div className="sc-nav-label">{t(group)}</div>}
-          <button type="button"
-          className={section === id ? "sc-nav-item sc-nav-item--active" : "sc-nav-item"} aria-current={section === id ? "page" : undefined}
-          onClick={() => { setSection(id); setError(null); }}><Icon size={17}/><span>{t(label)}</span><ChevronRight size={13} className="sc-nav-arrow"/></button></div>)}</nav>
+        <div className="sc-list-head"><h2>{t("设置")}</h2>
+          <button className="sc-close" onClick={onClose} title={t("关闭设置")} aria-label={t("关闭设置")}><X size={20}/></button></div>
+        <div className="sc-logo"><CiroMark small/><div><strong>CIRO</strong><span>{t("设置")}</span></div></div>
+        <label className="sc-search"><Search size={15}/><input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("搜索设置")} aria-label={t("搜索设置")}/></label>
+        <nav aria-label={t("设置类别")}>
+          {matches.map(({ id, label, icon: Icon, group }, i) => <div key={id} className="sc-nav-entry">
+            {!q && group !== matches[i - 1]?.group && <div className="sc-nav-label">{t(group)}</div>}
+            <button type="button"
+              className={!listView && section === id ? "sc-nav-item sc-nav-item--active" : "sc-nav-item"} aria-current={!listView && section === id ? "page" : undefined}
+              onClick={() => openSection(id)}><Icon size={17}/><span>{t(label)}</span><ChevronRight size={15} className="sc-nav-arrow"/></button></div>)}
+          {!matches.length && <p className="sc-nav-empty">{t("没有找到相关设置")}</p>}
+        </nav>
         <div className="sc-nav-foot"><ShieldCheck size={15}/> {t("本地优先 · 由你掌控")}</div>
       </aside>
       <div className="sc-main">
-        <header className="sc-header"><div><span className="sc-kicker">PERSONALIZE YOUR CIRO</span><h2 id="sc-title">{t(heading)}</h2></div>
+        <header className="sc-header">
+          <button className="sc-back" onClick={() => setListView(true)} aria-label={t("返回设置列表")}><ChevronLeft size={22}/></button>
+          <h2 id="sc-title">{t(heading)}</h2>
           <button className="sc-close" onClick={onClose} title={t("关闭设置")} aria-label={t("关闭设置")}><X size={20}/></button></header>
         <div className="sc-scroll"><ViewBoundary t={t} resetKey={section}>
           {(["account","subscription","api-keys","spending","notifications","memory","sync"] as string[]).includes(section) &&
