@@ -27,7 +27,7 @@ import type { SyncItem, SyncKind } from "./lib/sync";
 import type { CompareAnswer } from "./types";
 import { loadPrompts, savePrompts } from "./lib/prompts";
 import type { SavedPrompt } from "./lib/prompts";
-import { accountApi, accountFetch, getAccountSession, invalidateAccountSession, roleOf } from "./lib/account-api";
+import { accountApi, accountFetch, getAccountSession, invalidateAccountSession } from "./lib/account-api";
 import RemoteWork from "./components/RemoteWork";
 import DesktopPet from "./pet/DesktopPet";
 import { localNow, nativeVoice, phoneActions, runPhoneActions, stripPhoneTags } from "./lib/phone";
@@ -82,6 +82,8 @@ import { speechInputSupported, speechOutputSupported, useDictation, useReadAloud
 const PREVIEW: ApiStatus = { configured: false, model: "ciro", models: ["ciro"], mode: "preview" };
 const ACCOUNT_TABS = ["account", "subscription", "api-keys", "spending", "notifications", "memory", "sync"];
 const STUDIO_TABS = ["studio", "thinking", "ide", "knowledge", "research", "media", "compute", "library", "marketplace", "devices"];
+/** Commands customers have; the rest open the operator's tools. */
+const CUSTOMER_COMMANDS = new Set(["/remote", "/account", "/subscription", "/memory", "/sync", "/help"]);
 const SLASH_COMMANDS: [string, string][] = [
   ["/goal", "目标模式：交给代理自主完成"], ["/plan", "计划模式：只规划不执行"], ["/studio", "打开融合工作台"],
   ["/work", "打开协作空间"], ["/remote", "工作模式：远程控制电脑"], ["/plugins", "插件中心"], ["/ide", "代码工作区"], ["/research", "研究工作台"],
@@ -123,7 +125,7 @@ function greeting(language: Language) {
 function exportMarkdown(chat: Conversation, language: Language) {
   const body = ["# " + chat.title, "", translate(language, "导出自 Ciro · ") + new Date().toLocaleString(localeTag(language)), ""];
   chat.messages.forEach((message) => {
-    body.push("## " + (message.role === "user" ? translate(language, "你") : message.preview ? translate(language, "客户端提示（非模型输出）") : "Ciro"));
+    body.push("## " + (message.role === "user" ? translate(language, "你") : message.preview ? translate(language, "提示") : "Ciro"));
     body.push("", message.content, "");
   });
   const blob = new Blob([body.join("\n")], { type: "text/markdown;charset=utf-8" });
@@ -233,9 +235,8 @@ export default function App() {
   const canSpeak = useMemo(speechOutputSupported, []);
   const [session, setSession] = useState<SessionSnapshot | null>(null);
   // Registered members of a hosted server get their own chats, keys, sync and work mode; the shared
-  // workbench, studio and plugins belong to the server owner.
-  const member = roleOf(session) === "user";
-  // Model / server plumbing (connect card, preview notes) is for the operator only: owner account or developer options.
+  // Model / server plumbing and the server-wide tools (workbench, studio, plugins, billing dashboard) are for the
+  // operator only: the signed-in owner account, developer options, or a self-hosted server with setup hints.
   const [dev, setDev] = useState(devMode);
   useEffect(() => {
     const on = (e: Event) => setDev(Boolean((e as CustomEvent<boolean>).detail));
@@ -243,6 +244,25 @@ export default function App() {
     return () => window.removeEventListener("ciro-dev-mode", on);
   }, []);
   const operator = dev || Boolean(status.setupHints) || Boolean(session?.enabled && session.authenticated && session.user?.role === "owner");
+  // Everyone else is a customer: chat, account, memory, sync, work mode — nothing of the server's plumbing.
+  const member = !operator;
+  const operatorRef = useRef(operator);
+  operatorRef.current = operator;
+  /** What a customer sees instead of the operator's "configure CIRO_API_BASE_URL" preview text. */
+  const offlineText = () => operatorRef.current ? previewText(language) : t("暂时连不上 Ciro 服务，请检查网络后重试。");
+  /** Errors in customer words; the operator keeps the raw message for debugging. */
+  const friendlyError = (error: unknown) => {
+    const raw = error instanceof Error ? error.message : String(error || "");
+    if (operatorRef.current) return raw || t("未知错误");
+    if (/402|余额|额度|quota|insufficient|credit|CWU/i.test(raw)) return t("CWU 额度不足，充值后即可继续。");
+    if (/401|403|登录|unauthor/i.test(raw)) return t("登录已过期，请重新登录。");
+    if (/429|rate|频繁/i.test(raw)) return t("请求太频繁，请稍等片刻再试。");
+    return t("连接中断，请重试。");
+  };
+  // ?view=studio links: the tools close again for customers once we know who is here.
+  useEffect(() => {
+    if (!operator && !statusLoading && studioOpen && !["remote", ...ACCOUNT_TABS].includes(studioTab)) setStudioOpen(false);
+  }, [operator, statusLoading, studioOpen, studioTab]);
   const [unread, setUnread] = useState(0);
   const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
   const customUrlRef = useRef<string | null>(null);
@@ -557,7 +577,7 @@ export default function App() {
   useEffect(() => desktop()?.onUpdate?.((info) => {
     if (info.state === "checking") { reportUpdate({ text: "正在检查更新…", busy: true }); return; }
     if (info.state === "latest") { reportUpdate({ text: "已是最新版本" + (info.version ? " v" + info.version : "") }); return; }
-    if (info.state === "error") { if (info.manual) reportUpdate({ text: "暂时连不上更新服务器（GitHub），请稍后再试" }); return; }
+    if (info.state === "error") { if (info.manual) reportUpdate({ text: "暂时无法检查更新，请稍后再试" }); return; }
     if (info.state === "available") reportUpdate({ text: "发现新版本 v" + info.version, action: "download" });
     if (info.state === "ready") reportUpdate({ text: "新版本 v" + (info.version || "") + " 已下载好", action: "install" });
     setUpdateInfo(info);
@@ -743,7 +763,7 @@ export default function App() {
     ));
 
     if (!status.configured) {
-      patchMessage(conversationId, assistantId, { content: previewText(language) });
+      patchMessage(conversationId, assistantId, { content: offlineText() });
       syncVersion(conversationId, assistantId);
       return "";
     }
@@ -796,7 +816,7 @@ export default function App() {
           !conversationsRef.current.find((c) => c.id === conversationId)?.temporary ? localMemoriesForChat() : undefined,
         onTool: (index, name, argsDelta) => {
           const entry = tools[index] ?? (tools[index] = { name: "", args: "" });
-          if (name) { entry.name = name; step(/search/i.test(name) ? t("正在搜索网页…") : t("正在使用工具：") + name, true); }
+          if (name) { entry.name = name; step(/search/i.test(name) ? t("正在搜索网页…") : operatorRef.current ? t("正在使用工具：") + name : t("正在查资料…"), true); }
           entry.args += argsDelta;
           patchMessage(conversationId, assistantId, { tools: tools.filter(Boolean).map((x) => ({ ...x })) });
         },
@@ -828,7 +848,7 @@ export default function App() {
           patchMessage(conversationId, assistantId, { content: answer });
         }
       }
-      if (!answer) throw new Error(t("接口未返回任何文本"));
+      if (!answer) throw new Error(t(operatorRef.current ? "接口未返回任何文本" : "没有收到回答，请重试"));
       applyCanvasReply(conversationId, answer);
       if (preferencesRef.current.autoTitle && history.length === 1 && !opts?.phone) void autoTitle(conversationId, history[0].content, answer);
       const chatNow = conversationsRef.current.find((c) => c.id === conversationId);
@@ -851,10 +871,10 @@ export default function App() {
         if (!answer) patchMessage(conversationId, assistantId, { content: t("生成已停止。") });
         if (mirror) petStream({ id: assistantId, text: clean(answer) || t("生成已停止。"), done: true });
       } else {
-        const message = error instanceof Error ? error.message : t("未知错误");
+        const message = friendlyError(error);
         patchMessage(conversationId, assistantId, {
           content: (answer ? answer + "\n\n---\n\n" : "") + "⚠️ " + t("生成中断：") + message });
-        notify("请求失败，请检查 CIRO 后端");
+        notify(operatorRef.current ? "请求失败，请检查 CIRO 后端" : "发送失败，请稍后重试");
         if (mirror) petStream({ id: assistantId, text: (answer ? clean(answer) + "\n\n" : "") + t("生成中断：") + message, done: true, error: true });
       }
     } finally {
@@ -1041,6 +1061,8 @@ export default function App() {
   }
 
   function openStudio(tab: WorkbenchTab = "goals") {
+    // Customers only ever reach work mode and their own account pages here.
+    if (!operatorRef.current && !["remote", ...ACCOUNT_TABS].includes(tab)) return;
     purgeTemporary();
     setProjectViewId(null);
     setStudioTab(tab);
@@ -1068,6 +1090,8 @@ export default function App() {
     if (!match) return false;
     const command = match[1].toLowerCase();
     const argument = (match[2] || "").trim();
+    // A customer typing "/studio …" just sends the text: those commands are the operator's.
+    if (!operatorRef.current && !CUSTOMER_COMMANDS.has("/" + command)) return false;
     if (command === "goal" || command === "plan") {
       setComposerMode(command === "goal" ? "goal" : "plan");
       setDraft(argument);
@@ -1209,7 +1233,7 @@ export default function App() {
     setActiveId(conversationId);
     activeIdRef.current = conversationId;
     const answer = await generateReply(conversationId, history, chat?.projectId);
-    return answer || previewText(language);
+    return answer || offlineText();
   }
 
   /** "Ciro, …" said to the Android app (wake word, WakeService.java): answered in the 语音助手 chat, phone actions
@@ -1262,7 +1286,7 @@ export default function App() {
       }));
       patchMessage(conversationId, reply.id, { generated, content: data.revisedPrompt ? t("已生成图片。优化后的描述：") + data.revisedPrompt : t("已生成图片。") });
     } catch (error) {
-      patchMessage(conversationId, reply.id, { generated: undefined, content: "⚠️ " + t("图片生成失败：") + (error instanceof Error ? error.message : String(error)) });
+      patchMessage(conversationId, reply.id, { generated: undefined, content: "⚠️ " + t("图片生成失败：") + friendlyError(error) });
     } finally { setBusy(false); setGeneratingId(null); }
   }
   async function downloadImage(id: string, fallback: string) {
@@ -1584,14 +1608,15 @@ export default function App() {
     { id: "new", label: t("开启新对话"), icon: <SquarePen size={16}/>, hint: MOD + " ⇧ O", run: createNew },
     { id: "project", label: t("新建项目"), icon: <FolderPlus size={16}/>, run: () => { setSidebarCollapsed(false); setSidebarOpen(true); setCreatingProject(true); } },
     ...projects.map((p) => ({ id: "project:" + p.id, label: t("项目") + " · " + p.name, icon: <FolderOpen size={16}/>, run: () => openProject(p.id) })),
-    { id: "studio", label: t("融合工作台"), icon: <Layers size={16}/>, run: () => openStudio("studio") },
-    { id: "work", label: t("协作空间"), icon: <Workflow size={16}/>, run: () => openStudio("goals") },
-    { id: "plugins", label: t("插件中心"), icon: <PlugZap size={16}/>, run: () => openStudio("plugins") },
-    { id: "ide", label: t("代码工作区"), icon: <Code2 size={16}/>, run: () => openStudio("ide") },
+    ...(operator ? [
+      { id: "studio", label: t("融合工作台"), icon: <Layers size={16}/>, run: () => openStudio("studio") },
+      { id: "work", label: t("协作空间"), icon: <Workflow size={16}/>, run: () => openStudio("goals") },
+      { id: "plugins", label: t("插件中心"), icon: <PlugZap size={16}/>, run: () => openStudio("plugins") },
+      { id: "ide", label: t("代码工作区"), icon: <Code2 size={16}/>, run: () => openStudio("ide") }] : []),
     { id: "settings", label: t("设置"), icon: <Settings2 size={16}/>, hint: MOD + " ,", run: () => setSettingsSection("general") },
     { id: "shortcuts", label: t("键盘快捷键"), icon: <Keyboard size={16}/>, hint: MOD + " /", run: () => setSettingsSection("shortcuts") },
     { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
-    { id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") },
+    ...(operator || status.team ? [{ id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") }] : []),
     { id: "pet", label: petOn ? t("隐藏桌宠") : t("显示桌宠"), icon: <PawPrint size={16}/>, run: togglePet },
     { id: "voice", label: t("语音对话"), icon: <AudioLines size={16}/>, run: () => setVoiceOpen(true) },
     { id: "find", label: t("在对话中查找"), icon: <Search size={16}/>, hint: MOD + " F", run: () => runCommand("find") },
@@ -1613,7 +1638,7 @@ export default function App() {
     { tab: "skills", label: "技能中心", icon: Blocks }
   ];
   const slashMatches = draft.startsWith("/") && !draft.includes(" ")
-    ? SLASH_COMMANDS.filter(([cmd]) => cmd.startsWith(draft.toLowerCase())) : [];
+    ? SLASH_COMMANDS.filter(([cmd]) => cmd.startsWith(draft.toLowerCase()) && (operator || CUSTOMER_COMMANDS.has(cmd))) : [];
   const thinkingNote = !operator ? "" : !status.configured ? t("预览模式：连接推理服务后生效")
     : status.reasoningModes?.includes("deep") ? t("由 CIRO 原生深度推理执行")
     : status.reasoningEffort ? t("以 reasoning_effort 传给模型服务") : t("当前模型服务未开启思考深度");
@@ -1766,7 +1791,7 @@ export default function App() {
         <UserMenu t={t} collapsed={sidebarCollapsed} name={displayName} email={session?.user?.email || null} plan={plan}
           authenticated={Boolean(session?.authenticated)} accountsEnabled={Boolean(session?.enabled)} unread={unread}
           languagePref={languagePref} onLanguagePref={(pref) => { setLanguagePref(pref); }}
-          themePref={themePref} onThemePref={setThemePref} onAction={onUserMenu} petOn={petOn}/>
+          themePref={themePref} onThemePref={setThemePref} onAction={onUserMenu} petOn={petOn} operator={operator} team={Boolean(status.team)}/>
       </aside>
 
       {studioOpen ? <main className="workspace workspace--studio">
@@ -1823,21 +1848,21 @@ export default function App() {
                 {(status.models.length ? status.models : ["ciro"]).map((item) => (
                   <button key={item} className="cx-model-option" onClick={() => { setModel(item); setModelOpen(false); }}>
                     <CiroMark small/>
-                    <span><strong>{item === "ciro" ? "Ciro" : item}</strong><small>{status.configured ? t("由服务端提供") : t("等待推理接口接入")}</small></span>
+                    <span><strong>{item === "ciro" ? "Ciro" : item}</strong>{operator && <small>{status.configured ? t("由服务端提供") : t("等待推理接口接入")}</small>}</span>
                     {item === model && <Check size={16} className="cx-model-check"/>}
                   </button>
                 ))}
-                <div className="cx-menu-sep"/>
+                {operator && <><div className="cx-menu-sep"/>
                 <button className="cx-model-option cx-model-link" onClick={() => { setModelOpen(false); setSettingsSection("models"); }}>
-                  <Settings2 size={16}/><span><strong>{t("模型与连接设置")}</strong></span></button>
+                  <Settings2 size={16}/><span><strong>{t("模型与连接设置")}</strong></span></button></>}
               </div>}
             </div>
           </div>
           <div className="cx-topbar-right">
-            <button type="button" className={["connection-label", status.configured ? "connection-label--ready" : ""].join(" ")}
+            {operator && <button type="button" className={["connection-label", status.configured ? "connection-label--ready" : ""].join(" ")}
               onClick={() => setSettingsSection("models")} title={readyLabel}>
               <span className="status-dot"/><span className="connection-text">{readyLabel}</span>
-            </button>
+            </button>}
             {(!current || current.temporary) && !viewProject && <button type="button"
               className={temporaryMode || current?.temporary ? "cx-temp cx-temp--on" : "cx-temp"} aria-pressed={temporaryMode}
               disabled={Boolean(current?.temporary)} onClick={() => { setTemporaryMode((v) => !v); notify(temporaryMode ? "已关闭临时对话" : "临时对话：不会保存到历史记录"); }}
@@ -1902,7 +1927,7 @@ export default function App() {
                 const lastAssistant = assistant && index === current.messages.length - 1;
                 const isStreaming = busy && generatingId === current.id && lastAssistant;
                 const thinking = isStreaming && !message.content && !message.compare;
-                const body = message.preview ? previewText(language) : message.content;
+                const body = message.preview ? offlineText() : message.content;
                 const thoughtOpen = openThoughts[message.id] ?? (isStreaming && !message.content);
                 return <article key={message.id} className={["message", assistant ? "message--assistant" : "message--user", message.compare ? "message--compare" : ""].join(" ")}>
                   {assistant && <div className="message-avatar"><CiroMark small/></div>}
@@ -1910,10 +1935,10 @@ export default function App() {
                     {assistant ? <>
                       {(message.webSearch || message.tools?.length) ? <div className="cx-tools">
                         {message.webSearch && <span className="cx-tool-chip"><Globe size={13}/>{t("已启用联网搜索")}</span>}
-                        {message.tools?.map((tool, i) => <details key={i} className="cx-tool-call">
+                        {operator ? message.tools?.map((tool, i) => <details key={i} className="cx-tool-call">
                           <summary><Wrench size={13}/>{t("调用工具")} <code>{tool.name || "…"}</code></summary>
                           {tool.args && <pre>{tool.args.slice(0, 4000)}</pre>}
-                        </details>)}
+                        </details>) : message.tools?.length ? <span className="cx-tool-chip"><Wrench size={13}/>{t(message.tools.some((x) => /search/i.test(x.name)) ? "已查找资料" : "已使用工具")}</span> : null}
                       </div> : null}
                       {(message.reasoning || thinking) && <div className={thinking ? "cx-thought cx-thought--live" : "cx-thought"}>
                         <button type="button" className="cx-thought-head" onClick={() => setOpenThoughts((m) => ({ ...m, [message.id]: !thoughtOpen }))}
@@ -2015,10 +2040,10 @@ export default function App() {
                       </>}
                       {lastAssistant && <button aria-label={t("重新生成")} title={t("重新生成")} onClick={regenerate} disabled={busy}><RotateCcw size={15}/></button>}
                       <button aria-label={t("从这里创建分支")} title={t("从这里创建分支")} onClick={() => organizeChat("branch", current.id, index + 1)}><GitBranch size={15}/></button>
-                      {message.preview && <span className="preview-tag">{t("界面提示 · 非 AI 输出")}</span>}
-                      {message.usage && <span className="cx-usage-tag" title={t("模型服务上报的本次用量")}>
+                      {message.preview && operator && <span className="preview-tag">{t("界面提示 · 非 AI 输出")}</span>}
+                      {message.usage && <span className="cx-usage-tag" title={t(operator ? "模型服务上报的本次用量" : "本次消耗")}>
                         {message.usage.cwu !== undefined && <>{formatUnits(message.usage.cwu, localeTag(language))} CWU</>}
-                        {message.usage.gwu ? <> · {formatUnits(message.usage.gwu, localeTag(language))} GWU</> : null}</span>}
+                        {operator && message.usage.gwu ? <> · {formatUnits(message.usage.gwu, localeTag(language))} GWU</> : null}</span>}
                     </div>}
                     {assistant && message.autoMemories?.length ? <div className="cx-memory-chip cx-memory-chip--auto">
                       <BrainCircuit size={13}/><span>{t("已更新记忆：")}{message.autoMemories.map((m) => m.content).join("；")}</span>
@@ -2102,25 +2127,25 @@ export default function App() {
                     {plusOpen && <div className="cx-plus-menu" role="menu" onClick={(e) => e.stopPropagation()}>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); fileInputRef.current?.click(); }}>
                         <Paperclip size={16}/><span><strong>{t("添加附件")}</strong><small>{t("图片、PDF、文本或代码，最多 5 个")}</small></span></button>
-                      <div className="cx-menu-sep"/>
+                      {operator && <><div className="cx-menu-sep"/>
                       <button role="menuitemradio" aria-checked={composerMode === "goal"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "goal" ? "chat" : "goal"); focusComposer(); }}>
                         <Target size={16}/><span><strong>{t("目标模式")}</strong><small>{t("交给代理自主执行并验证")}</small></span>{composerMode === "goal" && <Check size={15}/>}</button>
                       <button role="menuitemradio" aria-checked={composerMode === "plan"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "plan" ? "chat" : "plan"); focusComposer(); }}>
-                        <ListChecks size={16}/><span><strong>{t("计划模式")}</strong><small>{t("只生成计划，不改动仓库")}</small></span>{composerMode === "plan" && <Check size={15}/>}</button>
+                        <ListChecks size={16}/><span><strong>{t("计划模式")}</strong><small>{t("只生成计划，不改动仓库")}</small></span>{composerMode === "plan" && <Check size={15}/>}</button></>}
                       <div className="cx-menu-sep"/>
-                      <button role="menuitemradio" aria-checked={composerMode === "image"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "image" ? "chat" : "image"); focusComposer(); }}>
-                        <ImagePlus size={16}/><span><strong>{t("生成图片")}</strong><small>{status.images ? t("用文字描述，生成一张图片") : t("需服务端开启 CIRO_IMAGES=on")}</small></span>{composerMode === "image" && <Check size={15}/>}</button>
+                      {(status.images || operator) && <button role="menuitemradio" aria-checked={composerMode === "image"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "image" ? "chat" : "image"); focusComposer(); }}>
+                        <ImagePlus size={16}/><span><strong>{t("生成图片")}</strong><small>{status.images ? t("用文字描述，生成一张图片") : t("需服务端开启 CIRO_IMAGES=on")}</small></span>{composerMode === "image" && <Check size={15}/>}</button>}
                       <button role="menuitem" onClick={() => { setPlusOpen(false); openCanvas("markdown", ""); }}>
                         <PanelRight size={16}/><span><strong>{t("新建画布")}</strong><small>{t("在右侧编辑文档或代码，并让 Ciro 协助修改")}</small></span></button>
-                      <button role="menuitem" onClick={() => {
+                      {(operator || (status.configured && status.models.length >= 2)) && <button role="menuitem" onClick={() => {
                         setPlusOpen(false);
                         if (!status.configured || status.models.length < 2) { notify(!operator ? "模型对比暂未开放" : status.configured ? "对比需要服务端配置多个模型（CIRO_MODELS）" : "连接推理服务后可对比模型"); return; }
                         setComposerMode("chat"); setComparePicker(true); }}>
-                        <Columns2 size={16}/><span><strong>{t("对比模型")}</strong><small>{t("同一个问题同时问 2–3 个模型，并排比较")}</small></span>{compareModels.length >= 2 && <Check size={15}/>}</button>
+                        <Columns2 size={16}/><span><strong>{t("对比模型")}</strong><small>{t("同一个问题同时问 2–3 个模型，并排比较")}</small></span>{compareModels.length >= 2 && <Check size={15}/>}</button>}
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setPromptsOpen(true); }}>
                         <BookMarked size={16}/><span><strong>{t("提示词库")}</strong><small>{t("保存并一键插入常用提示词")}</small></span></button>
                       <button role="menuitem" onClick={() => { setPlusOpen(false); setDraft("/"); focusComposer(); }}>
-                        <Sparkles size={16}/><span><strong>{t("斜杠命令")}</strong><small>{t("快速打开工作台与工具")}</small></span></button>
+                        <Sparkles size={16}/><span><strong>{t("斜杠命令")}</strong><small>{t(operator ? "快速打开工作台与工具" : "快速打开常用功能")}</small></span></button>
                     </div>}
                   </div>
                   {composerMode !== "chat" && <button type="button" className="cx-mode-pill" onClick={(e) => { e.stopPropagation(); setComposerMode("chat"); }}
@@ -2144,7 +2169,7 @@ export default function App() {
                     <div><button type="button" className="cx-btn" onClick={() => { setCompareModels([]); setComparePicker(false); }}>{t("关闭对比")}</button>
                       <button type="button" className="cx-btn cx-btn--primary" disabled={compareModels.length < 2} onClick={() => { setComparePicker(false); focusComposer(); }}>{t("完成")}</button></div>
                   </div>}
-                  {composerMode === "chat" && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
+                  {composerMode === "chat" && (status.webSearch || operator) && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
                     aria-pressed={webSearchOn && Boolean(status.webSearch)} title={t("联网搜索")} aria-label={t("联网搜索")}
                     onClick={(e) => { e.stopPropagation();
                       if (!status.webSearch) { notify(!operator ? "联网搜索暂未开放" : status.configured ? "联网搜索需要服务端开启 CIRO_WEB_SEARCH=on" : "连接推理服务后可使用联网搜索"); return; }

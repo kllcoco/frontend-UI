@@ -30,6 +30,10 @@ type Props = {
   onThemePref: (pref: ThemePref) => void;
   onAction: (action: UserMenuAction) => void;
   petOn?: boolean;
+  /** The server's operator (owner / developer options): sees the server-wide billing dashboard. */
+  operator?: boolean;
+  /** The team service is on. */
+  team?: boolean;
 };
 
 function initials(name: string): string {
@@ -51,7 +55,7 @@ function Row({ icon, label, hint, onClick, children, danger }: {
 
 /** ChatGPT / Claude style profile button pinned to the bottom of the sidebar. */
 export default function UserMenu(props: Props) {
-  const { t, collapsed, name, email, plan, authenticated, accountsEnabled, unread, languagePref, themePref, onAction, petOn } = props;
+  const { t, collapsed, name, email, plan, authenticated, accountsEnabled, unread, languagePref, themePref, onAction, petOn, operator = false, team = false } = props;
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState<"language" | "theme" | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -115,8 +119,9 @@ export default function UserMenu(props: Props) {
       <Row icon={<Bell size={16}/>} label={t("通知中心")} onClick={() => run({ type: "studio", tab: "notifications" })}>
         {unread > 0 && <span className="um-count">{unread > 99 ? "99+" : unread}</span>}
       </Row>
-      <Row icon={<Wallet size={16}/>} label={t("账单与用量")} onClick={() => run({ type: "studio", tab: "billing" })}/>
-      <Row icon={<Users size={16}/>} label={t("团队")} onClick={() => run({ type: "settings", section: "team" })}/>
+      {operator ? <Row icon={<Wallet size={16}/>} label={t("账单与用量")} onClick={() => run({ type: "studio", tab: "billing" })}/>
+        : <Row icon={<Wallet size={16}/>} label={t("订阅与账单")} onClick={() => run({ type: "studio", tab: "subscription" })}/>}
+      {(operator || team) && <Row icon={<Users size={16}/>} label={t("团队")} onClick={() => run({ type: "settings", section: "team" })}/>}
       <Row icon={<Cloud size={16}/>} label={t("跨设备同步")} onClick={() => run({ type: "studio", tab: "sync" })}/>
       <div className="um-sep"/>
       <Row icon={<Keyboard size={16}/>} label={t("键盘快捷键")} hint={mod + " /"} onClick={() => run({ type: "settings", section: "shortcuts" })}/>
