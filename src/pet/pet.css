@@ -67,8 +67,24 @@ html.pet-page #ciro-boot{display:none}
 }
 
 /* Artwork sprites (public/pet/*.webp, 528×492): wider than the drawn chibi, sitting on the bottom edge. */
-.pet-sprite.pet-sprite--art{width:224px;height:209px}
+
 .pet-sprite--art img{filter:drop-shadow(0 4px 6px rgba(0,0,0,.28))}
 .pet-sprite--art.pet-sprite--sleep img{filter:drop-shadow(0 4px 6px rgba(0,0,0,.28)) saturate(.92)}
-.pet-root--inline .pet-sprite.pet-sprite--art{width:160px;height:149px}
-@media (max-width:760px){.pet-root--inline .pet-sprite.pet-sprite--art{width:128px;height:119px}}
+
+
+
+/* Full-body artwork (600×800 portrait). Moods = motion + a sign by her head; the face itself is untouched. */
+.pet-sprite.pet-sprite--art{width:186px;height:248px}
+.pet-root--inline .pet-sprite.pet-sprite--art{width:126px;height:168px}
+@media (max-width:760px){.pet-root--inline .pet-sprite.pet-sprite--art{width:102px;height:136px}}
+.pet-sign{right:14%;top:6%;width:26px;height:26px;animation:pet-sign-in .35s cubic-bezier(.3,1.6,.5,1) both}
+.pet-shy{color:#e0607a;font-size:22px;font-weight:700;line-height:1}
+.pet-think{color:#d9b46a;font:700 24px/1 "DM Sans",sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.pet-drop{animation:pet-sign-in .35s ease both,pet-drip 1.6s ease-in-out .35s infinite}
+@keyframes pet-sign-in{0%{opacity:0;transform:scale(.4)}100%{opacity:1;transform:scale(1)}}
+@keyframes pet-drip{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+/* motion per mood for the artwork */
+.pet-sprite--art.pet-sprite--sleep img{animation:pet-breathe 5.5s ease-in-out infinite;filter:drop-shadow(0 4px 6px rgba(0,0,0,.28)) brightness(.93)}
+.pet-sprite--art.pet-sprite--think img,.pet-sprite--art.pet-sprite--shy img{animation:pet-tilt 2.6s ease-in-out infinite;transform-origin:50% 100%}
+.pet-sprite--art.pet-sprite--sad img{animation:pet-slump 2.8s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes pet-slump{0%,100%{transform:scale(1,1)}50%{transform:scale(1.01,.975)}}

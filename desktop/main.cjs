@@ -170,7 +170,7 @@ ipcMain.on("ciro:quick-continue", (_event, chatId) => {
 /* ── Desktop pet: chibi Ciro on the desktop (transparent, always on top, click-through outside her) ── */
 let petWindow = null;
 let petTimer = null;
-const PET_SIZE = { width: 230, height: 280 };
+const PET_SIZE = { width: 240, height: 340 };
 const petFile = () => path.join(app.getPath("userData"), "pet.json");
 // Off until the user turns it on (tray menu or Settings).
 function petPrefs() {

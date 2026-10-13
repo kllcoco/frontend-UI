@@ -1,7 +1,4 @@
 {
-  "source": "Q 版桌宠 from the Ciro character sheet, upscaled 4x (Real-ESRGAN anime) and cut out",
-  "states": {
-    "idle": "idle.webp", "happy": "happy.webp", "love": "love.webp", "shy": "shy.webp", "angry": "angry.webp",
-    "sad": "sad.webp", "think": "think.webp", "work": "work.webp", "sleep": "sleep.webp", "drag": "drag.webp", "eat": "eat.webp"
-  }
+  "source": "Ciro chibi (full body) from the character art, background removed, otherwise unmodified",
+  "states": { "idle": "idle.webp" }
 }

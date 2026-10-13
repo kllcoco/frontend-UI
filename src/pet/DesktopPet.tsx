@@ -209,6 +209,13 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       {image ? <img src={image} alt="" draggable={false}/> : <Chibi mood={shown} blink={blink} look={look}/>}
       {(shown === "happy" || shown === "love") && <span className="pet-fx pet-heart">♥</span>}
       {shown === "sleep" && <span className="pet-fx pet-zzz">z<i>z</i><b>z</b></span>}
+      {/* With artwork the face is never repainted: moods show as motion plus a small sign by her head. */}
+      {image && shown === "angry" && <svg className="pet-fx pet-sign pet-anger" viewBox="0 0 24 24"><path d="M9 3v5H4M15 3v5h5M9 21v-5H4M15 21v-5h5" stroke="#e0505a" strokeWidth="2.6" fill="none" strokeLinecap="round"/></svg>}
+      {image && shown === "sad" && <svg className="pet-fx pet-sign pet-drop" viewBox="0 0 24 24"><path d="M12 3c3 5 6 8.5 6 12a6 6 0 0 1-12 0c0-3.5 3-7 6-12z" fill="#8fc3ec" stroke="#5d9ccc" strokeWidth="1.2"/></svg>}
+      {image && shown === "shy" && <span className="pet-fx pet-sign pet-shy">♡</span>}
+      {image && shown === "work" && <svg className="pet-fx pet-sign pet-work" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="10" rx="1.5" fill="#e6e8ec" stroke="#9aa6b8"/><path d="M2 18h20l-1.5 2h-17z" fill="#c9ccd2"/></svg>}
+      {image && shown === "eat" && <svg className="pet-fx pet-sign pet-eat" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#e2a85b" stroke="#a8722c"/><circle cx="9" cy="10" r="1.2" fill="#6b3f17"/><circle cx="14" cy="9" r="1.1" fill="#6b3f17"/><circle cx="13" cy="14.5" r="1.2" fill="#6b3f17"/></svg>}
+      {image && shown === "think" && <span className="pet-fx pet-sign pet-think">?</span>}
     </div>
   </div>;
 }
