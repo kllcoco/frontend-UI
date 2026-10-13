@@ -124,7 +124,12 @@ export default function RemoteWork({ t }: { t: (text: string) => string }) {
       // Opened from the phone's own camera app (https://server/remote/connect?…): connect right away.
       const pending = sessionStorage.getItem(PENDING);
       const target = pending ? parseConnect(window.location.origin + "/remote/connect" + pending) : null;
-      if (target && list) void connectWith({ device: target.device, nonce: target.nonce });
+      if (target && list) {
+        // The QR nonce is single-use. React StrictMode and parent renders can rerun this effect;
+        // take the pending link before the async request to avoid consuming it twice.
+        sessionStorage.removeItem(PENDING);
+        void connectWith({ device: target.device, nonce: target.nonce });
+      }
     });
     const timer = window.setInterval(() => { void refreshLocal(); void refreshDevices(); }, 8000);
     return () => window.clearInterval(timer);

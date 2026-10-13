@@ -6,7 +6,9 @@ test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true
 for (const mode of ["html", "offline"])
 test("every view renders without a server · " + mode, async ({ page }) => {
   test.setTimeout(180000);
-  // Operator views (developer options on): customers never see most of these pages.
+  // With the API offline, the app cannot verify operator status and correctly hides
+  // privileged navigation from ordinary visitors. Enable local developer options
+  // only in this test to exercise all screens without weakening production guards.
   await page.addInitScript(() => localStorage.setItem("ciro.dev.v1", "on"));
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 160)));

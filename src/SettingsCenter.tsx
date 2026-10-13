@@ -88,7 +88,7 @@ const sections: SectionInfo[] = [
   { id: "sync", label: "跨设备同步", icon: RefreshCcw, group: "数据与同步", keys: "同步 sync", account: true },
   { id: "cwu", label: "CWU 额度", icon: Wallet, group: "账户", keys: "CWU 额度 余额 充值 购买 balance credits top up", account: true },
   { id: "account", label: "账户与安全", icon: UserRound, group: "账户", keys: "登录 密码 账户 login password" },
-  { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用", account: true, operator: true },
+  { id: "api-keys", label: "API 控制台", icon: Code2, group: "账户", keys: "api key 密钥 接口 文档 调用", account: true },
   { id: "billing", label: "账单与用量", icon: Wallet, group: "账户", keys: "账单 billing", ownerTools: true },
   { id: "subscription", label: "订阅管理", icon: Wallet, group: "账户", keys: "订阅 subscription", account: true, ownerTools: true },
   { id: "spending", label: "消费限额", icon: Wallet, group: "账户", keys: "限额 预算 limit", account: true, ownerTools: true },
