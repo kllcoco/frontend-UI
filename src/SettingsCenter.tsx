@@ -146,6 +146,15 @@ export default function SettingsCenter({
   const versionTaps = useRef<number[]>([]);
   const [wakeOn, setWakeOn] = useState(() => { try { return Boolean(nativeVoice()?.wakeOn?.()); } catch { return false; } });
   const [wakeNote, setWakeNote] = useState("");
+  const [wakeWords, setWakeWords] = useState(() => { try { return nativeVoice()?.wakeWords?.() || ""; } catch { return ""; } });
+  const [wakeSaved, setWakeSaved] = useState(false);
+  const [heard, setHeard] = useState("");
+  // While voice wake is on: what the phone just heard, so a wake word it keeps mishearing can be added as is.
+  useEffect(() => {
+    if (!wakeOn) return;
+    const timer = window.setInterval(() => { try { setHeard(nativeVoice()?.lastHeard?.() || ""); } catch { /* not Android */ } }, 1000);
+    return () => window.clearInterval(timer);
+  }, [wakeOn]);
   const [petSize, setPetSizeState] = useState(() => Math.round(petScale() * 100));
   // Android: "display over other apps" permission (checked again when you come back from the system settings).
   const [floatOn, setFloatOn] = useState(() => { try { return nativePet()?.floating?.() !== false; } catch { return true; } });
@@ -289,6 +298,20 @@ export default function SettingsCenter({
                   if (r === "asking") (window as unknown as { ciroWakeResult?: (s: string) => void }).ciroWakeResult = done; else done(r);
                 }}/></SettingRow>
                 : <p className="sc-help-text">{t("语音唤醒目前只在 Ciro 的 Android 应用里可用。电脑和网页上可以用输入框旁的语音对话按钮和她说话。")}</p>}
+              {nativeVoice()?.setWakeWords && <SettingRow title={t("自定义唤醒词")} description={t("除了“Ciro”，喊这些词也能叫醒她。每行一个（或用逗号隔开），最多 10 个；例如：小西、Ciro酱、西罗。")}>
+                <span className="sc-wake-words">
+                  <textarea className="sc-text-input" rows={3} value={wakeWords} maxLength={200} aria-label={t("自定义唤醒词")}
+                    placeholder={t("小西\nCiro酱")} onChange={(e) => { setWakeWords(e.target.value); setWakeSaved(false); }}/>
+                  <button type="button" className="sc-action-secondary" onClick={() => { nativeVoice()?.setWakeWords?.(wakeWords); setWakeSaved(true); }}>
+                    {wakeSaved ? t("已保存") : t("保存")}</button>
+                </span></SettingRow>}
+              {wakeOn && <SettingRow title={t("刚听到")} description={heard ? "“" + heard + "”" : t("对着手机喊一声试试。叫不醒时，把这里显示的词加进自定义唤醒词。")}>
+                {heard ? <button type="button" className="sc-action-secondary" onClick={() => {
+                  const w = heard.replace(/[，。！？,.!?\s].*$/, "").slice(0, 8);
+                  if (!w) return;
+                  const next = (wakeWords.trim() ? wakeWords.trim() + "\n" : "") + w;
+                  setWakeWords(next); nativeVoice()?.setWakeWords?.(next); setWakeSaved(true);
+                }}>{t("加为唤醒词")}</button> : <span/>}</SettingRow>}
               <SettingRow title={t("可以这样说")} description={t("“Ciro，明早七点半叫我起床”“Ciro，打开微信”“Ciro，导航去公司”“Ciro，每天早上 8 点给我讲讲新闻”。")}><span/></SettingRow>
             </SettingBlock>
           </>}
@@ -580,6 +603,10 @@ export default function SettingsCenter({
               {accountsOn === true && <div className="sc-security-line"><UserRound size={19}/><div><strong>{t("账户保护")}</strong><p>{t("同步数据与记忆加密保存，只有你登录后才能看到。")}</p></div></div>}
               {accountsOn === false && operator && <div className="sc-security-line"><Code2 size={19}/><div><strong>{t("这台服务器没有开启账户")}</strong><p>{t("能打开这个网址的人都可以使用它和它的模型额度。只在自己电脑或内网使用没问题；放到公网请开启账户并使用 HTTPS（见部署教程）。")}</p></div></div>}
               <div className="sc-security-line"><ShieldCheck size={19}/><div><strong>{t("工作模式只碰你允许的文件夹")}</strong><p>{t("远程控制电脑时，只能访问你在电脑上手动添加的文件夹；写入文件和运行命令默认需要你在手机上逐次批准。")}</p></div></div>
+            </SettingBlock>
+            <SettingBlock title={t("数据使用")}>
+              <SettingRow title={t("使用我的数据改进模型")} description={t("开启后，你和 Ciro 模型的对话可能会被用来训练和改进 Ciro 的模型。默认关闭；关闭时你的对话不会用于训练。临时对话和你自己接入的模型（我的模型）的对话始终不会被使用。随时可以关闭，关闭后的新对话不再被使用。")}>
+                <Toggle checked={preferences.improveModel} title={t("使用我的数据改进模型")} onChange={(v) => updatePreference("improveModel", v)}/></SettingRow>
             </SettingBlock>
           </>}
 

@@ -175,3 +175,17 @@ html.pet-page #ciro-boot{display:none}
 @keyframes pet-peekside-l{0%,50%,100%{translate:0 0;rotate:0deg}62%,80%{translate:14% 0;rotate:-4deg}}
 .pet-root--edge.pet-root--peek .pet-sprite,.pet-root--edge .pet-sprite:hover{animation-play-state:paused}
 @media (prefers-reduced-motion:reduce){.pet-root--edge .pet-sprite{animation:none}}
+
+/* Android floating pet: the window is her size plus the room for a bubble / answer / menu (PetOverlay.fit), so they
+   sit right above her (below her when she hangs from the top) instead of at the far end of a big window. */
+.pet-root--floating .pet-sprite{margin-left:var(--pet-shift, 0px)}
+.pet-root--floating .pet-say{top:auto;bottom:calc(var(--pet-base-h) + 2px);margin-left:var(--pet-shift, 0px)}
+.pet-root--floating .pet-reply{left:50%;right:auto;top:auto;bottom:var(--pet-base-h);width:236px;margin-left:calc(-118px + var(--pet-shift, 0px));max-height:240px}
+.pet-root--floating .pet-menu{top:auto;bottom:var(--pet-base-h);max-height:none;max-width:none;margin-left:var(--pet-shift, 0px)}
+.pet-root--floating.pet-root--edge-top .pet-say,.pet-root--floating.pet-root--edge-top .pet-reply,
+.pet-root--floating.pet-root--edge-top .pet-menu{top:var(--pet-base-h);bottom:auto}
+.pet-root--floating.pet-root--edge-left .pet-sprite,.pet-root--floating.pet-root--edge-right .pet-sprite{bottom:calc(var(--pet-base-h) * .08);margin-left:0}
+.pet-root--floating.pet-root--edge-right .pet-reply{left:auto;right:4px;margin-left:0}
+.pet-root--floating.pet-root--edge-left .pet-reply{left:4px;margin-left:0}
+.pet-root--floating.pet-root--edge-right .pet-menu{left:auto;right:4px;transform:none;animation:none}
+.pet-root--floating.pet-root--edge-left .pet-menu{left:4px;transform:none;animation:none}

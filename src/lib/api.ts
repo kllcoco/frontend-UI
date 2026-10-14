@@ -50,6 +50,10 @@ type StreamOptions = {
   /** Timed tasks: the model may set / cancel them with <task> tags (lib/tasks.ts). */
   tasks?: { now: string; list: { id: string; title: string; when: string; repeat: string }[] };
   reasoning?:ReasoningRequest;
+  /** The thinking-depth stop, for your own models (the server's get `reasoning`). */
+  depth?: import("./custom-models").Depth;
+  /** The user lets Ciro use this conversation to improve its models (never your own API models). */
+  improve?: boolean;
   project?:{name:string;instructions:string;files:{name:string;content:string}[]};
   signal: AbortSignal;
   onDelta: (text: string) => void;
@@ -134,7 +138,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
   if (isCustomModel(options.model)) {
     const custom = customById(options.model);
     if (!custom) throw new Error("这个自定义模型已被删除，请在模型菜单里重新选择。");
-    return streamCustom(custom, { messages: options.messages, signal: options.signal, instructions: options.instructions,
+    return streamCustom(custom, { messages: options.messages, signal: options.signal, instructions: options.instructions, depth: options.depth,
       system: [options.pet ? CUSTOM_PET_PROMPT : "", options.tasks ? taskPrompt(options.tasks.now, options.tasks.list) : ""].filter(Boolean).join("\n\n") || undefined,
       onDelta: options.onDelta, onReasoning: options.onReasoning });
   }
@@ -151,7 +155,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
   }
 }
 
-async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet, phone, tasks }: StreamOptions): Promise<void> {
+async function streamChatInner({ messages, model, instructions, reasoning, project, signal, onDelta, onReasoning, onTool, webSearch, memories, onUsage, onSources, pet, phone, tasks, improve }: StreamOptions): Promise<void> {
   const response = await accountFetch("/api/chat", {
     method: "POST",
     signal,
@@ -165,6 +169,7 @@ async function streamChatInner({ messages, model, instructions, reasoning, proje
       ...(webSearch?{webSearch:true}:{}),
       ...(memories?.length?{memories}:{}),
       ...(pet?{pet:true}:{}),
+      ...(improve?{improve:true}:{}),
       ...(phone?{phone}:{}),
       ...(tasks?{tasks}:{})
     })

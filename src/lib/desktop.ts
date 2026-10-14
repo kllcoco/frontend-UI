@@ -42,6 +42,9 @@ export type PetBridge = {
   onQuiet?: (handler: (on: boolean) => void) => () => void;
   onScale?: (handler: (scale: number) => void) => () => void;
   expand?: (on: boolean) => void;
+  /** Android floating pet: room (px) for a bubble / answer / menu next to her; 0, 0 = just her. */
+  fit?: (w: number, h: number) => void;
+  onShift?: (h: (dx: number) => void) => () => void;
   /** Walk sideways by dx px (kept on screen); done: last step, remember the place. */
   move?: (dx: number, done?: boolean) => void;
   stream?: (s: { id: string; text: string; done?: boolean; error?: boolean; title?: string }) => void;

@@ -65,7 +65,11 @@ function toOpenAI(messages: Msg[], instructions?: CustomInstructions, system?: s
   return out;
 }
 
-type StreamOpts = { messages: Msg[]; signal: AbortSignal; instructions?: CustomInstructions; system?: string; onDelta: (text: string) => void; onReasoning?: (text: string) => void };
+/** Models that answered 400 to reasoning_effort (asked without it from then on). */
+const noEffort = new Set<string>();
+/** The composer's thinking-depth stop: instant · light · balanced · deep · max. */
+export type Depth = "instant" | "light" | "balanced" | "deep" | "max";
+type StreamOpts = { messages: Msg[]; signal: AbortSignal; instructions?: CustomInstructions; system?: string; depth?: Depth; onDelta: (text: string) => void; onReasoning?: (text: string) => void };
 
 /** Claude through the official SDK (direct browser access, the user's own key). */
 async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void> {
@@ -78,20 +82,41 @@ async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void>
       .map((x) => ({ type: "image" as const, source: { type: "base64" as const, media_type: x![1] as "image/png", data: x![2] } }));
     return { role: m.role as "user" | "assistant", content: images.length ? [...images, { type: "text" as const, text: m.content || " " }] : (m.content || " ") };
   });
-  // Adaptive thinking on the models that take it (Claude 4.6 and later); older ones run without.
+  // Adaptive thinking on the models that take it (Claude 4.6 and later), its depth set by output_config.effort;
+  // older models that think (3.7, 4.0–4.5) get a thinking budget per depth; Claude 3 runs without.
   const adaptive = /claude-(opus|sonnet|fable|mythos)-(4-[6-9]|[5-9])|claude-haiku-[5-9]/.test(model.model);
-  try {
-    // Output caps differ by model: 64K on current ones; older models reject a max_tokens above their own limit.
-    const maxTokens = adaptive ? 64000 : /claude-3-(opus|sonnet|haiku)/.test(model.model) ? 4096 : 8192;
-    const stream = client.messages.stream({ model: model.model, max_tokens: maxTokens, messages, ...(system ? { system } : {}),
-      ...(adaptive ? { thinking: { type: "adaptive", display: "summarized" } as never } : {}) }, { signal: opts.signal });
+  const legacyThinking = !adaptive && /claude-(3-7|(opus|sonnet|haiku)-4)/.test(model.model);
+  const depth = opts.depth || "balanced";
+  const fifthGen = /claude-(opus|fable|mythos)-[5-9]/.test(model.model);
+  const effort = ({ instant: "low", light: "low", balanced: "medium", deep: "high", max: fifthGen ? "max" : "high" } as const)[depth];
+  const budget = ({ instant: 0, light: 2048, balanced: 6000, deep: 12000, max: 24000 } as const)[depth];
+  // Output caps differ by model: 64K on current ones; older models reject a max_tokens above their own limit.
+  const baseMax = adaptive ? 64000 : /claude-3-(opus|sonnet|haiku)/.test(model.model) ? 4096 : 8192;
+  const tuned = (plain: boolean) => plain ? {}
+    : adaptive ? { output_config: { effort } }
+    : legacyThinking && budget ? { thinking: { type: "enabled", budget_tokens: budget } } : {};
+  let streamed = false;
+  const run = async (plain: boolean) => {
+    const extra = tuned(plain) as Record<string, unknown>;
+    const stream = client.messages.stream({ model: model.model, messages, ...(system ? { system } : {}),
+      max_tokens: extra.thinking ? baseMax + budget : baseMax,
+      ...(adaptive ? { thinking: { type: "adaptive", display: "summarized" } as never } : {}), ...extra } as never, { signal: opts.signal });
     for await (const event of stream) {
       if (event.type !== "content_block_delta") continue;
+      streamed = true;
       if (event.delta.type === "text_delta") opts.onDelta(event.delta.text);
       else if (event.delta.type === "thinking_delta") opts.onReasoning?.(event.delta.thinking);
     }
     const final = await stream.finalMessage();
     if (final.stop_reason === "refusal") opts.onDelta("\n\n（Claude 拒绝回答了这个请求。）");
+  };
+  try {
+    try { await run(false); }
+    catch (e) {
+      // A model or gateway that does not take the depth setting: ask again without it.
+      if (!streamed && !opts.signal.aborted && e instanceof Anthropic.BadRequestError && Object.keys(tuned(false)).length) await run(true);
+      else throw e;
+    }
   } catch (e) {
     if (opts.signal.aborted) throw e;
     if (e instanceof Anthropic.AuthenticationError) throw new Error("「" + model.name + "」的 API Key 不正确。");
@@ -123,11 +148,21 @@ export function namesFromError(text: string): string[] {
 /** Streams a reply from the provider (Chat Completions SSE, or a JSON body if it ignores stream). */
 export async function streamCustom(model: CustomModel, opts: StreamOpts): Promise<void> {
   if (model.api === "anthropic") return streamClaude(model, opts);
+  // Thinking depth as the standard reasoning_effort (OpenAI o-series / GPT-5, Gemini, Grok, DeepSeek, OpenRouter…).
+  // Services that do not know it answer 400: then the same request goes again without it.
+  const effort = ({ instant: "", light: "low", balanced: "", deep: "high", max: "high" } as const)[opts.depth || "balanced"];
+  const send = (withEffort: boolean) => fetch(model.baseUrl + "/chat/completions", { method: "POST", signal: opts.signal,
+    headers: { "Content-Type": "application/json", ...(model.apiKey ? { Authorization: "Bearer " + model.apiKey } : {}) },
+    body: JSON.stringify({ model: model.model, messages: toOpenAI(opts.messages, opts.instructions, opts.system), stream: true,
+      ...(withEffort && effort ? { reasoning_effort: effort } : {}) }) });
   let res: Response;
   try {
-    res = await fetch(model.baseUrl + "/chat/completions", { method: "POST", signal: opts.signal,
-      headers: { "Content-Type": "application/json", ...(model.apiKey ? { Authorization: "Bearer " + model.apiKey } : {}) },
-      body: JSON.stringify({ model: model.model, messages: toOpenAI(opts.messages, opts.instructions, opts.system), stream: true }) });
+    const key = model.baseUrl + " " + model.model;
+    res = await send(!noEffort.has(key));
+    if (effort && !noEffort.has(key) && (res.status === 400 || res.status === 422)) {
+      res = await send(false);
+      if (res.ok) noEffort.add(key); // remembered for this session: no second request every time
+    }
   } catch (e) {
     if (opts.signal.aborted) throw e;
     throw new Error("连不上「" + model.name + "」：请检查接口地址和网络（有些服务不允许从应用直接访问）。");

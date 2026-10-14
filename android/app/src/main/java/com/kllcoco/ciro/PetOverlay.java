@@ -46,6 +46,11 @@ final class PetOverlay {
     private WindowManager.LayoutParams params;
     private boolean ready = false;
     private boolean expanded = false;
+    // Room the page asks for above her (or below, hanging from the top) for a bubble, an answer or her menu, in dp;
+    // the window is exactly her size plus that, so nothing else on the home screen is covered.
+    private float extraW = 0, extraH = 0;
+    // How far her sprite sits from the middle of a widened window (it could not be centred on her near a screen side).
+    private int shiftPx = 0;
     // Fixed window origin for one drag gesture; pointer deltas are totals, not per-frame ticks.
     private boolean dragging = false;
     private int dragStartX, dragStartY;
@@ -91,10 +96,11 @@ final class PetOverlay {
     private int[] sizeFor(String edge) {
         float s = scale(), sw = 102 * s, sh = 136 * s;
         float w, h;
-        if (expanded) { w = Math.max(280, sw + 38); h = sh + 250; }
+        if (expanded && extraH <= 0) { w = Math.max(280, sw + 38); h = sh + 250; }
         else if ("left".equals(edge) || "right".equals(edge)) { w = sw * 0.8f + 8; h = sh + 16; }
         else if ("top".equals(edge) || "bottom".equals(edge)) { w = sw + 16; h = sh * 0.5f + 8; }
         else { w = sw + 16; h = sh + 16; }
+        if (extraH > 0) { w = Math.max(w, extraW); h += extraH; }
         return new int[] { Math.round(w * density()), Math.round(h * density()) };
     }
     private String currentEdge() { return prefs().getString("edge", ""); }
@@ -228,6 +234,7 @@ final class PetOverlay {
         view = null;
         ready = false;
         expanded = false;
+        extraW = 0; extraH = 0; shiftPx = 0;
         dragging = false;
         queue.clear();
     }
@@ -251,7 +258,41 @@ final class PetOverlay {
         params.y = Math.max(gutterTop() - Math.round(40 * density()), Math.min(params.y, s.bottom - h - gutterBottom()));
     }
     private void apply() { if (view != null) try { wm.updateViewLayout(view, params); } catch (Exception ignored) { /* removed meanwhile */ } }
-    private void save() { prefs().edit().putInt("x", params.x).putInt("y", params.y + (expanded ? Math.round(170 * density()) : 0)).apply(); }
+    private void save() {
+        // Her own spot (not the widened window's): the window's base size around her sprite.
+        String edge = currentEdge();
+        float ew = extraW, eh = extraH; boolean ex = expanded;
+        extraW = 0; extraH = 0; expanded = false;
+        int[] base = sizeFor(edge);
+        extraW = ew; extraH = eh; expanded = ex;
+        int x = "left".equals(edge) ? params.x : "right".equals(edge) ? params.x + params.width - base[0] : params.x + params.width / 2 + shiftPx - base[0] / 2;
+        int y = "top".equals(edge) ? params.y : params.y + params.height - base[1];
+        prefs().edit().putInt("x", x).putInt("y", y).apply();
+    }
+
+    /** Resizes the window to her size plus the room asked for, keeping her exactly where she is on screen. */
+    private void refit(float w, float h) {
+        String edge = currentEdge();
+        int oldW = params.width, oldH = params.height;
+        int spriteCenter = params.x + oldW / 2 + shiftPx;
+        extraW = w; extraH = h;
+        int[] size = sizeFor(edge);
+        params.width = size[0]; params.height = size[1];
+        if (!"top".equals(edge)) params.y += oldH - params.height;
+        if ("left".equals(edge)) shiftPx = 0;
+        else if ("right".equals(edge)) { params.x += oldW - params.width; shiftPx = 0; }
+        else {
+            Rect s = screen();
+            int x = spriteCenter - params.width / 2;
+            // Widened near a screen side: the window stays on screen and her sprite moves off its middle instead.
+            if (params.width > size[0] || h > 0) x = Math.max(s.left, Math.min(x, s.right - params.width));
+            params.x = x;
+            shiftPx = spriteCenter - (x + params.width / 2);
+        }
+        if (h <= 0) shiftPx = 0;
+        send("shift", String.valueOf(Math.round(shiftPx / density())));
+        apply();
+    }
 
     /** The app's own web files (index.html, /assets, /pet …) served to the overlay page. */
     private WebResourceResponse asset(Uri url) {
@@ -301,6 +342,7 @@ final class PetOverlay {
             main.post(() -> {
                 if (view == null) return;
                 // Picked up from an edge: her whole body shows again while she is carried.
+                if (extraH > 0) refit(0, 0);
                 if (!currentEdge().isEmpty() && !expanded) { fitSize(""); apply(); }
                 dragStartX = params.x;
                 dragStartY = params.y;
@@ -338,6 +380,7 @@ final class PetOverlay {
         @JavascriptInterface public void edge(String what) {
             main.post(() -> {
                 if (view == null) return;
+                if (extraH > 0) { refit(0, 0); }
                 Rect s = screen();
                 if ("auto".equals(what)) {
                     String edge = params.x + params.width / 2 < s.centerX() ? "left" : "right";
@@ -357,6 +400,23 @@ final class PetOverlay {
             });
         }
         @JavascriptInterface public void resize(double value) { main.post(() -> applyScale((float) value, false)); }
+        /** Room for a bubble / answer / menu (dp; 0, 0 = just her). */
+        @JavascriptInterface public void fit(double w, double h) {
+            if (!Double.isFinite(w) || !Double.isFinite(h)) return;
+            main.post(() -> {
+                if (view == null || dragging) return;
+                float nw = (float) Math.max(0, Math.min(w, 340)), nh = (float) Math.max(0, Math.min(h, 400));
+                if (nh <= 0) nw = 0;
+                // Never above the status bar: an answer near the top of the screen gets what room there is.
+                if (nh > 0 && !"top".equals(currentEdge())) {
+                    int baseH = params.height - Math.round(extraH * density());
+                    float room = (params.y + params.height - baseH - dimen("status_bar_height")) / density();
+                    nh = Math.max(40, Math.min(nh, room));
+                }
+                if (Math.abs(nw - extraW) < 2 && Math.abs(nh - extraH) < 2) return;
+                refit(nw, nh);
+            });
+        }
         @JavascriptInterface public void expand(boolean on) {
             main.post(() -> {
                 if (view == null || on == expanded) return;

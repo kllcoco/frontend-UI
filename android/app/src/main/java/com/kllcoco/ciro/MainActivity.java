@@ -46,6 +46,10 @@ public class MainActivity extends BridgeActivity {
     private static final String EXTRA_CHAT = "ciro_chat";
     private static final int REQ_NOTIFY = 7301;
     private static final int REQ_MIC = 7302;
+    private static final int REQ_LISTEN = 7303;
+    // Composer / voice mode speech input (window.CiroListen): the WebView has no working speech recognition.
+    private android.speech.SpeechRecognizer listener;
+    private String listenLang = null;
     private volatile boolean wakeAfterPermission = false;
     // The running activity, for the wake service (voice commands go to the web app) — never keeps it alive.
     private static java.lang.ref.WeakReference<MainActivity> current = new java.lang.ref.WeakReference<>(null);
@@ -71,6 +75,7 @@ public class MainActivity extends BridgeActivity {
             view.addJavascriptInterface(new UpdateBridge(), "CiroUpdate");
             view.addJavascriptInterface(new PetBridge(), "CiroPet");
             view.addJavascriptInterface(new VoiceBridge(), "CiroVoice");
+            view.addJavascriptInterface(new ListenBridge(), "CiroListen");
             view.addJavascriptInterface(new PhoneBridge(), "CiroPhone");
         }
         current = new java.lang.ref.WeakReference<>(this);
@@ -138,8 +143,94 @@ public class MainActivity extends BridgeActivity {
             evaluate("(function(){try{window.ciroWakeResult&&window.ciroWakeResult(" + JSONObject.quote(status) + ");}catch(e){}})()");
             return;
         }
+        if (requestCode == REQ_LISTEN) {
+            boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+            String lang = listenLang;
+            listenLang = null;
+            if (ok && lang != null) startListening(lang);
+            else { listenEvent("error", "not-allowed"); listenEvent("end", ""); }
+            return;
+        }
         if (requestCode != REQ_NOTIFY) return;
         evaluate("(function(){try{window.ciroNotifyResult&&window.ciroNotifyResult('" + notifyStatus() + "');}catch(e){}})()");
+    }
+
+    private void listenEvent(String type, String data) {
+        evaluate("(function(){try{window.ciroListenEvent&&window.ciroListenEvent(" + JSONObject.quote(type) + "," + JSONObject.quote(data) + ");}catch(e){}})()");
+    }
+
+    private final Runnable resumeWake = () -> WakeService.paused = false;
+
+    /** One utterance with the phone's speech recogniser; partial / final text, errors and the end go to the web app. */
+    private void startListening(String lang) {
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        ui.removeCallbacks(resumeWake);
+        WakeService.paused = true; // the wake listener lets go of the microphone meanwhile
+        if (!android.speech.SpeechRecognizer.isRecognitionAvailable(this)) { listenEvent("error", "service-not-allowed"); listenEvent("end", ""); return; }
+        if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } }
+        listener = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+        listener.setRecognitionListener(new android.speech.RecognitionListener() {
+            boolean ended = false;
+            private void end() { if (ended) return; ended = true; listenEvent("end", ""); ui.postDelayed(resumeWake, 1500); }
+            @Override public void onReadyForSpeech(Bundle b) { listenEvent("start", ""); }
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float db) {}
+            @Override public void onBufferReceived(byte[] b) {}
+            @Override public void onEndOfSpeech() {}
+            @Override public void onEvent(int t, Bundle b) {}
+            @Override public void onPartialResults(Bundle b) {
+                ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                if (r != null && !r.isEmpty() && !r.get(0).isEmpty()) listenEvent("partial", r.get(0));
+            }
+            @Override public void onResults(Bundle b) {
+                ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                listenEvent("final", r == null || r.isEmpty() ? "" : r.get(0));
+                end();
+            }
+            @Override public void onError(int e) {
+                String code = e == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? "not-allowed"
+                    : e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT ? "no-speech"
+                    : e == android.speech.SpeechRecognizer.ERROR_AUDIO ? "audio-capture"
+                    : e == android.speech.SpeechRecognizer.ERROR_CLIENT ? "aborted"
+                    : e == 12 || e == 13 ? "language-not-supported" : "network";
+                listenEvent("error", code);
+                end();
+            }
+        });
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, lang == null || lang.isEmpty() ? java.util.Locale.getDefault().toLanguageTag() : lang)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        try { listener.startListening(i); }
+        catch (Exception e) { listenEvent("error", "audio-capture"); listenEvent("end", ""); ui.postDelayed(resumeWake, 1500); }
+    }
+
+    /** window.CiroListen: speech input for the composer, hold-to-talk and voice mode (asks for the microphone first). */
+    private class ListenBridge {
+        @JavascriptInterface public boolean available() { return android.speech.SpeechRecognizer.isRecognitionAvailable(MainActivity.this); }
+        @JavascriptInterface public void start(String lang) {
+            runOnUiThread(() -> {
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    listenLang = lang == null ? "" : lang;
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.RECORD_AUDIO }, REQ_LISTEN);
+                    return;
+                }
+                startListening(lang);
+            });
+        }
+        @JavascriptInterface public void stop() { runOnUiThread(() -> { if (listener != null) listener.stopListening(); }); }
+        @JavascriptInterface public void abort() {
+            runOnUiThread(() -> {
+                if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } listener = null; }
+                listenEvent("end", "");
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(resumeWake, 1500);
+            });
+        }
+        @JavascriptInterface public boolean micAllowed() {
+            return ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        }
     }
 
     private void evaluate(String js) {
@@ -427,8 +518,12 @@ public class MainActivity extends BridgeActivity {
     private class VoiceBridge {
         @JavascriptInterface public void speak(String text) { Speaker.say(text); }
         @JavascriptInterface public void stopSpeaking() { Speaker.stop(); }
+        @JavascriptInterface public boolean speaking() { return Speaker.speaking(); }
         @JavascriptInterface public boolean available() { return WakeService.available(MainActivity.this); }
         @JavascriptInterface public boolean wakeOn() { return WakeService.running; }
+        @JavascriptInterface public String wakeWords() { return getSharedPreferences("ciro_pet", MODE_PRIVATE).getString("wake_words", ""); }
+        @JavascriptInterface public void setWakeWords(String raw) { WakeService.setWords(MainActivity.this, raw); }
+        @JavascriptInterface public String lastHeard() { return WakeService.lastHeard; }
         /** "ok", "asking" (microphone permission dialog shown; answer via window.ciroWakeResult), "unavailable", "no-permission" */
         @JavascriptInterface public String setWake(boolean on) {
             if (!on) { WakeService.stop(MainActivity.this); return "ok"; }

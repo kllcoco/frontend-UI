@@ -1,4 +1,5 @@
 import { localeTag } from "./i18n";
+import { nativeListenAvailable } from "./native-speech";
 import { useEffect, useRef, useState } from "react";
 import type { Language } from "./i18n";
 
@@ -16,8 +17,9 @@ function recognitionCtor(): RecognitionCtor | null {
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 // Electron and Android WebView expose the API but cannot reach the browser vendor's speech service.
-export const speechInputSupported = () => typeof window !== "undefined" && recognitionCtor() !== null &&
-  !(window as unknown as { ciroDesktop?: unknown }).ciroDesktop && !/CiroMobile\//.test(navigator.userAgent);
+// The Android app uses the phone's own recogniser instead (native-speech.ts).
+export const speechInputSupported = () => typeof window !== "undefined" && (nativeListenAvailable() || (recognitionCtor() !== null &&
+  !(window as unknown as { ciroDesktop?: unknown }).ciroDesktop && !/CiroMobile\//.test(navigator.userAgent)));
 export const speechOutputSupported = () => typeof window !== "undefined" && "speechSynthesis" in window;
 
 /** Dictation into the composer. `onText` receives finalized phrases. */

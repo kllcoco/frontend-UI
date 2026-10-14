@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **当前版本 v0.10.8**：原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **当前版本 v0.10.9**：思考深度作用于自己接入的模型、自定义语音唤醒词、Android 语音输入、原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 上线官方服务（让客户直接注册使用）
 
@@ -44,6 +44,17 @@ CIRO_SEARCH_TOKEN=自定令牌
 - 也可用 `deploy/ciro-search.service`（systemd）或 `deploy/Dockerfile` 部署，详见 CIRO Search 的 README。
 - 未配置 CIRO Search 时，Ciro 自动用 DuckDuckGo / 维基百科；`CIRO_WEBSEARCH=off` 可完全关闭服务器代搜。
 
+## 训练数据（用户自愿）
+
+用户在 设置 → 隐私与安全 里打开“使用我的数据改进模型”后（默认关闭），服务器才会保留他与 Ciro 模型的对话：
+
+```
+CIRO_TRAINING_DIR=/var/lib/ciro/training   # 每天一个 JSONL 文件；不设置则什么都不保存
+CIRO_TRAINING_SALT=自定随机串              # 用户 ID 只以加盐哈希写入
+```
+
+临时对话、用户自己接入的模型（我的模型）始终不会被保存。无论是否开启，上游模型服务都会收到 `X-Ciro-Training: opt-in / opt-out` 请求头，方便原生模型服务自行遵守。
+
 ## 安装与运行
 
 | 方式 | 说明 |
@@ -58,7 +69,7 @@ CIRO_SEARCH_TOKEN=自定令牌
 
 常用脚本：`npm test`（单元）· `npm run test:e2e`（浏览器）· `npm run desktop`（本地运行桌面版）· `npm run dist:linux|dist:win|dist:mac`（打包）· `npx cap sync android && cd android && ./gradlew assembleRelease`（Android）。
 
-在 Actions 中运行 `release.yml`（输入版本标签，如 `v0.10.8`）：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
+在 Actions 中运行 `release.yml`（输入版本标签，如 `v0.10.9`）：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
 
 ### 安装包签名
 

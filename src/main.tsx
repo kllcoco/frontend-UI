@@ -5,6 +5,8 @@ import App from "./App";
 import SharedView from "./components/SharedView";
 import ViewBoundary from "./components/ViewBoundary";
 import "./lib/desktop";
+import { installNativeSpeech } from "./lib/native-speech";
+installNativeSpeech();
 import QuickAsk from "./components/QuickAsk";
 import DesktopPet from "./pet/DesktopPet";
 import "./pet/pet.css";

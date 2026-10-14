@@ -6,7 +6,7 @@ type Host = {
   moveBy: (dx: number, dy: number) => void;
   beginDrag: () => void; dragTo: (dx: number, dy: number) => void; dragEnd: () => void;
   action: (name: string) => void;
-  resize: (scale: number) => void; expand: (on: boolean) => void; edge: (what: string) => void;
+  resize: (scale: number) => void; expand: (on: boolean) => void; edge: (what: string) => void; fit?: (w: number, h: number) => void;
 };
 type Handler = (data: never) => void;
 
@@ -42,6 +42,8 @@ export function androidPetBridge(): PetBridge | undefined {
     onSignal: on("signal"),
     resize: (scale) => host.resize(scale),
     expand: (open) => host.expand(open),
+    fit: host.fit ? (w, h) => host.fit!(w, h) : undefined,
+    onShift: on("shift"),
     move: (dx, done) => { host.moveBy(dx, 0); if (done) host.dragEnd(); },
     toEdge: () => host.edge("auto"),
     unedge: () => host.edge("none"),

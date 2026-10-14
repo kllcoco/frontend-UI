@@ -64,6 +64,12 @@ test("Ciro writes lasting preferences to memory by itself, and the user can undo
   await page.keyboard.press("Enter");
   await expect(page.locator(".message--assistant")).toHaveCount(2);
   await expect(page.locator(".cx-memory-chip--auto")).toHaveCount(1);
+  // Nothing about the app itself, even when the model suggests it.
+  await page.getByRole("textbox", { name: "向 Ciro 发送消息" }).fill("我的桌宠今天挂在墙上睡觉了");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".message--assistant")).toHaveCount(3);
+  await page.waitForTimeout(500);
+  await expect(page.locator(".cx-memory-chip--auto")).toHaveCount(1);
   await chip.getByRole("button", { name: "撤销" }).click();
   await expect(chip).toHaveCount(0);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.memories.v1") || "[]").length)).toBe(0);

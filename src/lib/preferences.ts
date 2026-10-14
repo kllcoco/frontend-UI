@@ -16,6 +16,8 @@ export type ChatPreferences = {
   memoryEnabled: boolean;
   /** Let Ciro summarize conversations and save lasting facts/preferences to memory by itself. */
   autoMemory: boolean;
+  /** 使用我的数据改进模型: off unless the user turns it on. */
+  improveModel: boolean;
 };
 export type Accent = "gold" | "jade" | "blue" | "violet" | "amber" | "rose" | "graphite";
 export type FontFamily = "sans" | "system" | "serif";
@@ -35,7 +37,8 @@ export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   accent: "gold",
   fontFamily: "sans",
   memoryEnabled: true,
-  autoMemory: true
+  autoMemory: true,
+  improveModel: false
 };
 
 export function loadChatPreferences(): ChatPreferences {
@@ -57,7 +60,8 @@ export function loadChatPreferences(): ChatPreferences {
       accentChosen: value.accentChosen === true,
       fontFamily: ["sans", "system", "serif"].includes(value.fontFamily || "") ? value.fontFamily as FontFamily : "sans",
       memoryEnabled: typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : true,
-      autoMemory: typeof value.autoMemory === "boolean" ? value.autoMemory : true
+      autoMemory: typeof value.autoMemory === "boolean" ? value.autoMemory : true,
+      improveModel: value.improveModel === true
     };
   } catch {
     return { ...DEFAULT_CHAT_PREFERENCES };

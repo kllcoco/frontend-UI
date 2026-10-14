@@ -35,7 +35,7 @@ final class Speaker {
 
     static synchronized void say(String text) {
         if (text == null || text.trim().isEmpty()) return;
-        String t = text.length() > 600 ? text.substring(0, 600) : text;
+        String t = text.length() > 3500 ? text.substring(0, 3500) : text;
         if (tts == null || !ready) { pending = t; return; }
         speaking = true;
         // Refused (no engine / bad state): no progress callbacks will come, so never leave the wake listener waiting.

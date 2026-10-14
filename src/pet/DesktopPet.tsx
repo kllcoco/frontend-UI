@@ -103,7 +103,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const replyBox = useRef<HTMLDivElement>(null);
   const replyHover = useRef(false);
   const replyTimer = useRef(0);
-  const closeReply = () => { window.clearTimeout(replyTimer.current); setReply(null); if (!inline) bridge?.expand?.(false); };
+  const closeReply = () => { window.clearTimeout(replyTimer.current); setReply(null); if (!inline && !FLOATING) bridge?.expand?.(false); };
   // Pinch: the first finger is on her, the second may land anywhere on the screen.
   const pinch = useRef<{ start: number; from: number } | null>(null);
   const touchingPet = useRef(false);
@@ -189,7 +189,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     stopWalk();
     if (!r || typeof r.text !== "string") return;
     lastActive.current = Date.now();
-    if (!replyRef.current && !inline) bridge?.expand?.(true);
+    if (!replyRef.current && !inline && !FLOATING) bridge?.expand?.(true);
     window.clearTimeout(replyTimer.current);
     r = { ...r, text: bubbleText(r.text).slice(-4000) };
     setReply(r);
@@ -344,7 +344,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   useEffect(() => {
     if (menu) bridge?.setIgnore(false);
     // Room for the menu in her small window (desktop pet window, Android floating pet); the bubble keeps it open.
-    if (!inline) { if (menu) bridge?.expand?.(true); else if (!replyRef.current) bridge?.expand?.(false); }
+    if (!inline && !FLOATING) { if (menu) bridge?.expand?.(true); else if (!replyRef.current) bridge?.expand?.(false); }
     if (!menu) return;
     const close = (e: Event) => { if (!(e.target as HTMLElement | null)?.closest?.(".pet-menu, .pet-sprite")) setMenu(false); };
     document.addEventListener("pointerdown", close, true);
@@ -352,11 +352,32 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   }, [menu]);
   // Android floating pet: her window is just her size (it would block taps on the home screen otherwise), so it
   // grows only while she says something and shrinks back afterwards.
+  // Android floating pet: her window is just her size (it would block taps on the home screen otherwise) plus exactly
+  // the room her bubble, answer or menu takes, right next to her; it shrinks back as soon as they close.
+  const [shift, setShift] = useState(0);
+  useEffect(() => bridge?.onShift?.((dx) => setShift(Number(dx) || 0)), []);
   useEffect(() => {
     if (!FLOATING) return;
-    if (say) bridge?.expand?.(true);
-    else if (!replyRef.current && !menu) bridge?.expand?.(false);
-  }, [say]);
+    const root = rootRef.current;
+    if (!root) return;
+    const sel = ".pet-menu, .pet-reply, .pet-say";
+    const fit = () => {
+      let w = 0, h = 0;
+      root.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+        const text = el.querySelector<HTMLElement>(".pet-reply-text");
+        // An answer's natural height (up to its cap), not what the window happens to allow right now.
+        const natural = text ? Math.min(240, el.offsetHeight - text.clientHeight + text.scrollHeight) : el.offsetHeight;
+        w = Math.max(w, el.offsetWidth); h = Math.max(h, natural);
+      });
+      if (bridge?.fit) bridge.fit(h ? Math.ceil(w) + 12 : 0, h ? Math.ceil(h) + 10 : 0);
+      else if (h) bridge?.expand?.(true); else bridge?.expand?.(false);
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(fit);
+    root.querySelectorAll(sel + ", .pet-reply-text").forEach((el) => ro.observe(el));
+    return () => ro.disconnect();
+  }, [say, menu, Boolean(reply), reply?.text, edge, scale]);
   /** Opens the menu where she is, whatever she is doing (hiding at an edge, asleep…). */
   const openMenu = () => { menuPress.current = true; const d = drag.current; drag.current = null;
     if (d?.moving) { if (!inline) bridge?.drag("end"); } setMenu((v) => !v); };
@@ -568,7 +589,8 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
 
   return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "") + (settled ? "" : " pet-root--settling") + (menu ? " pet-root--menu" : "")}
     onMouseLeave={() => hover(false)}
-    style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale }}>
+    style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale,
+      ...(FLOATING ? { ["--pet-base-h" as string]: (edge === "top" || edge === "bottom" ? 68 * scale + 8 : 136 * scale + 16) + "px", ["--pet-shift" as string]: shift + "px" } : {}) }}>
     {reply && <div className={"pet-reply" + (reply.error ? " pet-reply--error" : "")} role="log" aria-live="polite" aria-label={t("Ciro 的回答")}
       onMouseEnter={() => { replyHover.current = true; hover(true); }} onMouseLeave={() => { replyHover.current = false; hover(false); }}>
       <div ref={replyBox} className="pet-reply-text">{reply.text || "…"}{!reply.done && <i className="pet-caret"/>}</div>

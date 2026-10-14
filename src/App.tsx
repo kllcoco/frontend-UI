@@ -850,7 +850,7 @@ export default function App() {
       await streamChat({
         model,
         instructions,
-        reasoning: reasoningRequest(thinkingLevel, status),
+        reasoning: reasoningRequest(thinkingLevel, status), depth: THINKING_LEVELS[thinkingLevel]?.id, improve: preferencesRef.current.improveModel && !conversationsRef.current.find((c) => c.id === conversationId)?.temporary,
         project: projectContext(projects.find((p) => p.id === projectId)),
         messages: await Promise.all(history.map(async (m, i) => ({ ...m, content: modelContent(m) + (i === history.length - 1 && m.role === "user" ? webContext : ""), ...(m.images?.length
           ? { imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : {}) }))),
@@ -983,8 +983,8 @@ export default function App() {
     let raw = "";
     try {
       raw = await quickAsk((language === "en"
-        ? "You are Ciro's memory assistant. From the user's message below, extract lasting facts about the USER worth remembering for future chats: background, long-term preferences, ongoing projects, standing instructions. Skip one-off questions, task content and anything sensitive (passwords, IDs, card numbers, health, exact addresses). Do not repeat what is already remembered. Reply ONLY with a JSON array of at most 2 short third-person strings (e.g. \"Prefers concise answers\"), or [] if nothing qualifies.\n\nAlready remembered:\n"
-        : "你是 Ciro 的记忆助手。阅读下面这条用户消息，提取值得在以后对话中长期记住的、关于用户本人的稳定信息：身份背景、长期偏好、正在进行的项目、希望以后一直遵守的要求。不要记录一次性的问题或任务内容，也不要记录任何敏感信息（密码、证件号、银行卡、健康状况、详细住址）。不要重复已记住的内容。只输出 JSON 字符串数组，最多 2 条，每条不超过 40 字，用第三人称（如“用户喜欢简洁的回答”）；没有值得记住的就输出 []。\n\n已记住：\n")
+        ? "You are Ciro's memory assistant. Be very selective: most messages contain NOTHING worth remembering, and then you reply []. Save a fact only if it is about the USER as a person, will still be true months from now, and would clearly change how future, unrelated answers should be written: their profession or field, long-term goals or ongoing projects, stable preferences about answers (language, length, style), standing rules they want followed. NEVER save: anything about Ciro or this app (its pet, settings, features, bugs, models, voice wake, what is on their screen or desktop), their device or setup, feedback or complaints, the task or question itself, temporary moods or plans, things already remembered, or anything sensitive (passwords, IDs, card numbers, health, exact addresses). Reply ONLY with a JSON array of at most 1 short third-person string (e.g. \"Is a backend engineer working in Go\"), or [].\n\nAlready remembered:\n"
+        : "你是 Ciro 的记忆助手。要非常挑剔：绝大多数消息里没有值得记住的东西，这时只输出 []。只有同时满足这三点才记：①是关于用户这个人本身的；②几个月后依然成立；③会明显改变以后无关话题的回答方式。例如：职业或专业领域、长期目标或正在做的项目、对回答的稳定偏好（语言、长度、风格）、希望一直遵守的要求。绝不要记：任何关于 Ciro 或这个应用的事（桌宠、设置、功能、bug、模型、语音唤醒、屏幕或桌面上有什么）、用户的设备和环境、反馈或抱怨、这次的问题或任务本身、临时的情绪和安排、已记住的内容，以及任何敏感信息（密码、证件号、银行卡、健康状况、详细住址）。只输出 JSON 字符串数组，最多 1 条，不超过 30 字，用第三人称（如“用户是做 Go 后端开发的”）；没有就输出 []。\n\n已记住：\n")
         + (known.slice(0, 40).map((k) => "- " + k).join("\n") || "（无）") + "\n\n" + (language === "en" ? "User message:\n" : "用户消息：\n") + text.slice(0, 2000),
         "memory", conversationId);
     } catch { return; }
@@ -992,7 +992,9 @@ export default function App() {
     try { const parsed = JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1)); if (Array.isArray(parsed)) items = parsed.map(String); } catch { return; }
     const norm = (x: string) => x.replace(/[\s，。,.!！"“”]/g, "").toLowerCase();
     const seen = new Set(known.map(norm));
-    items = items.map((x) => x.trim().slice(0, 120)).filter((x) => x.length >= 4 && !seen.has(norm(x))).slice(0, 2);
+    // Never facts about Ciro / this app / the device, whatever the model says.
+    const aboutApp = /桌宠|宠物|ciro|西罗|客户端|语音唤醒|壁纸|桌面上|屏幕上|截图|\bpet\b|wallpaper|desktop pet|on (the|their) screen/i;
+    items = items.map((x) => x.trim().slice(0, 120)).filter((x) => x.length >= 4 && !seen.has(norm(x)) && !aboutApp.test(x)).slice(0, 1);
     const saved: { id: string; content: string }[] = [];
     for (const item of items) { try { const m = await addMemory(item); saved.push({ id: m.id, content: m.content }); } catch { break; } }
     if (saved.length) patchMessage(conversationId, messageId, { autoMemories: saved });
@@ -1258,7 +1260,7 @@ export default function App() {
         const started = Date.now();
         let text = "";
         try {
-          await streamChat({ model: m, instructions, reasoning: reasoningRequest(thinkingLevel, status),
+          await streamChat({ model: m, instructions, reasoning: reasoningRequest(thinkingLevel, status), depth: THINKING_LEVELS[thinkingLevel]?.id,
             project: projectContext(projects.find((p) => p.id === projectId)), messages: prepared, signal: controller.signal,
             usageKind: "chat", chatId: conversationId, onUsage: (usage) => patchCompare(i, { usage }),
             onDelta: (delta) => { text += delta; patchCompare(i, { content: text }); } });
@@ -1780,7 +1782,8 @@ export default function App() {
   ];
   const slashMatches = draft.startsWith("/") && !draft.includes(" ")
     ? SLASH_COMMANDS.filter(([cmd]) => cmd.startsWith(draft.toLowerCase()) && (!member || CUSTOMER_COMMANDS.has(cmd))) : [];
-  const thinkingNote = !operator ? "" : !status.configured ? t("预览模式：连接推理服务后生效")
+  const thinkingNote = model.startsWith("custom:") ? t("也作用于你接入的模型：以思考强度或思考预算传给它（不支持的模型会自动忽略）")
+    : !operator ? "" : !status.configured ? t("预览模式：连接推理服务后生效")
     : status.reasoningModes?.includes("deep") ? t("由 CIRO 原生深度推理执行")
     : status.reasoningEffort ? t("以 reasoning_effort 传给模型服务") : t("当前模型服务未开启思考深度");
 

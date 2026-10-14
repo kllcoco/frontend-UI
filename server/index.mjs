@@ -17,6 +17,7 @@ import {createRemoteRouter} from "./remote.mjs";
 import {createRemoteAgent} from "./remote-agent.mjs";
 import {createApiGateway} from "./api-gateway.mjs";
 import {createAnnouncements} from "./announcements.mjs";
+import { createTrainingLog, replyFromSse } from "./training-data.mjs";
 import {createWebSearch} from "./websearch.mjs";
 
 // The account service (one owner, optional registered users) is intended to sit behind a loopback-only
@@ -152,7 +153,11 @@ app.use("/api/remote", createRemoteRouter({
 app.use("/api/remote/local", createRemoteAgent({ dir: process.env.CIRO_WORKSPACE_DATA_DIR || ".ciro-runtime", version: appVersion,
   localAllowed: () => process.env.CIRO_ACCOUNTS_ENABLED !== "true" || process.env.CIRO_REMOTE_AGENT === "on" }).router);
 
+const trainingLog = createTrainingLog(process.env);
 app.post("/api/chat", async (req, res) => {
+  // Training data only from users who turned it on themselves (Settings → 隐私与安全); off by default.
+  const optIn = req.body?.improve === true;
+  let transcript = "";
   if (!configured) {
     return res.status(503).json({ error: "CIRO 推理接口尚未配置；当前仅支持界面预览。" });
   }
@@ -194,6 +199,7 @@ app.post("/api/chat", async (req, res) => {
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
+        "X-Ciro-Training": optIn ? "opt-in" : "opt-out",
         ...(apiKey ? { Authorization: "Bearer " + apiKey } : {})
       },
       body: JSON.stringify(payload)
@@ -220,6 +226,7 @@ app.post("/api/chat", async (req, res) => {
         res.write(chunk);
         // usage arrives in the last events: keep a short tail to read the CWU from
         meteredTail = (meteredTail + Buffer.from(chunk).toString("utf8")).slice(-8192);
+        if (optIn && trainingLog.enabled && transcript.length < 400_000) transcript += Buffer.from(chunk).toString("utf8");
       }
     } else {
       // Graceful fallback for OpenAI-compatible servers that return JSON despite stream=true.
@@ -240,6 +247,7 @@ app.post("/api/chat", async (req, res) => {
       const annotations = responseJson?.choices?.[0]?.message?.annotations;
       res.write("data: " + JSON.stringify({ choices: [{ delta: { content, ...(Array.isArray(annotations) ? { annotations } : {}) } }], ...metering }) + "\n\n");
       meteredTail = JSON.stringify({ usage: responseJson.usage ?? responseJson.ciro_usage ?? null });
+      if (optIn) transcript = "data: " + JSON.stringify({ choices: [{ delta: { content } }] }) + "\n";
       res.write("data: [DONE]\n\n");
     }
     if (!res.writableEnded) res.end();
@@ -252,6 +260,8 @@ app.post("/api/chat", async (req, res) => {
       res.end();
     }
   } finally {
+    if (optIn && trainingLog.enabled && transcript && !controller.signal.aborted)
+      void trainingLog.record({ user: req.principal?.id, model: req.body?.model, messages: req.body?.messages, reply: replyFromSse(transcript) });
     // Charged once, also for what was generated before an interruption.
     try { accounts.cwu?.charge(payer, usedCwu(meteredTail)); } catch (e) { console.error("[ciro] CWU charge failed:", e.message); }
   }

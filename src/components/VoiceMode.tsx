@@ -4,6 +4,7 @@ import CiroMark from "./CiroMark";
 import { accountFetch } from "../lib/account-api";
 import { localeTag } from "../lib/i18n";
 import type { Language } from "../lib/i18n";
+import { nativeListenAvailable } from "../lib/native-speech";
 
 type Phase = "idle" | "listening" | "thinking" | "speaking" | "error";
 type Props = {
@@ -21,6 +22,7 @@ type Recognition = { lang: string; continuous: boolean; interimResults: boolean;
 function browserRecognition(): (new () => Recognition) | null {
   const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
   // Electron and Android WebView expose the constructor but cannot reach Google's speech service.
+  if (nativeListenAvailable()) return w.SpeechRecognition || null; // Android app: the phone's recogniser (native-speech.ts)
   if ((window as unknown as { ciroDesktop?: unknown }).ciroDesktop || /CiroMobile\//.test(navigator.userAgent)) return null;
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
@@ -117,6 +119,22 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
         URL.revokeObjectURL(url);
         return;
       }
+    }
+    // Android app: the phone's text-to-speech (the WebView has none that works).
+    const phone = (window as unknown as { CiroVoice?: { speak?: (t: string) => void; stopSpeaking?: () => void; speaking?: () => boolean } }).CiroVoice;
+    if (phone?.speak && phone.speaking) {
+      phone.speak(plain);
+      await new Promise<void>((resolve) => {
+        let started = false;
+        const began = Date.now();
+        const timer = window.setInterval(() => {
+          const now = Boolean(phone.speaking?.());
+          if (now) started = true;
+          if ((started && !now) || (!started && Date.now() - began > 4000) || Date.now() - began > 180_000) { window.clearInterval(timer); resolve(); }
+        }, 250);
+        stopRef.current = () => { window.clearInterval(timer); phone.stopSpeaking?.(); resolve(); };
+      });
+      return;
     }
     if (!("speechSynthesis" in window)) return;
     await new Promise<void>((resolve) => {

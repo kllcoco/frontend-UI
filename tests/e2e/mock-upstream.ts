@@ -36,7 +36,7 @@ export function startMockModel(port: number): Promise<Server> {
       }
       const memory = /记忆助手|memory assistant/i.test(last);
       const cite = /注明出处/.test(last) ? /附件：(\S+)/.exec(last)?.[1] : undefined;
-      const base = cite ? "付款期限是 30 天［" + cite + " 第 2 页］，违约金为合同金额的 5%［" + cite + " 第 3 页］。" : memory ? (/我喜欢简洁/.test(last) ? '["用户喜欢简洁的回答"]' : "[]") : /JSON|标题|title/i.test(last) ? (/JSON/.test(last) ? '["追问一","追问二"]' : "测试标题") : "来自 " + model + " 的回答：" + last.slice(0, 40) + (last.includes("附件：") ? "（已收到附件）" : "");
+      const base = cite ? "付款期限是 30 天［" + cite + " 第 2 页］，违约金为合同金额的 5%［" + cite + " 第 3 页］。" : memory ? (/我喜欢简洁/.test(last) ? '["用户喜欢简洁的回答"]' : /桌宠/.test(last) ? '["用户桌面上有个桌宠"]' : "[]") : /JSON|标题|title/i.test(last) ? (/JSON/.test(last) ? '["追问一","追问二"]' : "测试标题") : "来自 " + model + " 的回答：" + last.slice(0, 40) + (last.includes("附件：") ? "（已收到附件）" : "");
       // Pet on: the model steers the pet with a tag at the end of its reply.
       const petOn = all.some((m) => m.content.includes("desktop pet"));
       const plain = petOn && !memory && !/JSON|标题|title/i.test(last) ? base + ' <pet mood="love">我一直在这里</pet>' : base;
