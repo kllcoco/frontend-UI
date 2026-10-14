@@ -343,7 +343,7 @@ export default function App() {
   sessionRef.current = session;
   const plan = session?.enabled
     ? (session.authenticated ? (cwu !== null ? new Intl.NumberFormat(localeTag(language), { maximumFractionDigits: 0 }).format(cwu) + " CWU" : t("Ciro 账户")) : t("未登录"))
-    : operator ? t("本地模式") : t("未登录");
+    : t("未登录");
 
   async function refreshStatus() {
     setStatusLoading(true);

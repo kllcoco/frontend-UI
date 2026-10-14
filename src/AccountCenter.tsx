@@ -187,7 +187,7 @@ export default function AccountCenter({language,section}:Props){
     {notice&&<div className="acc-alert acc-success" role="status"><CheckCircle2 size={16}/>{notice}</div>}
     {loading&&<div className="acc-empty"><Activity size={23}/>{t("正在处理…")}</div>}
     {!loading&&session&&!session.enabled&&<div className="acc-card acc-unavailable"><LockKeyhole size={31}/>
-      <h3>{t("暂时无法登录")}</h3><p>{t("登录后可在多台设备间同步。请稍后再试。")}</p></div>}
+      <h3>{t("暂时无法注册或登录")}</h3><p>{t("当前连接的服务器没有开启账户。请使用 Ciro 官方服务，或让服务器管理员开启注册。")}</p></div>}
     {!loading&&session?.enabled&&!auth&&<div className="acc-card acc-login">
       <LogIn size={26}/><h3>{t(session.bootstrapAvailable?"初始化管理员账户":registering?"注册 Ciro 账户":"登录 Ciro")}</h3>
       <p>{t(session.bootstrapAvailable?"使用服务端配置的一次性初始化口令。":registering?"注册后，你的对话、密钥和同步数据只属于你自己。":"需要先登录才能管理此页面。")}</p>
@@ -329,7 +329,7 @@ export default function AccountCenter({language,section}:Props){
         }}/></label>
       <p className="acc-muted">{t("对话、项目、提示词和设置会加密保存到 Ciro 云端，并在登录同一账户的设备间自动同步；两台设备改了同一个对话时，以最后修改的为准。")}</p>
       <div className="acc-state"><span>{t("同步状态")}</span>
-        <strong>{t(({off:"已关闭",local:"本地模式",unauthenticated:"未登录",syncing:"正在同步…",ready:"已同步",error:"同步失败"} as const)[syncSignal.status])}</strong>
+        <strong>{t(({off:"已关闭",local:"仅保存在此设备",unauthenticated:"未登录",syncing:"正在同步…",ready:"已同步",error:"同步失败"} as const)[syncSignal.status])}</strong>
         <small>{syncSignal.status==="error"?t("请检查网络后重试。"):syncSignal.lastSyncedAt?t("上次同步：")+new Date(syncSignal.lastSyncedAt).toLocaleString(localeTag(language)):""}</small></div>
       <div className="acc-sync-grid"><div><small>{t("本地对话")}</small><strong>{loadConversations().length}</strong></div>
         <div><small>{t("云端条目")}</small><strong>{syncSignal.cloudCount??"—"}</strong></div>
