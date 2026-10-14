@@ -2,14 +2,15 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **v0.9.1**：全新界面与个人菜单、项目、思考深度滑杆、⌘K 搜索、图片/PDF 附件、公式与代码高亮、分享链接、提示词库，以及桌面（自动更新）与 Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **当前版本 v0.10.6**：黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 安装与运行
 
 | 方式 | 说明 |
 | --- | --- |
-| 桌面客户端 | 从 Releases 下载对应平台安装包；首次运行后在“文件 → 编辑模型连接配置 (.env)”填写 `CIRO_API_BASE_URL` 等并重启 |
-| Android | 安装 `Android-Ciro-*.apk`；“设置 → 模型设置 → 连接 Ciro 服务器”填写服务器地址 |
+| 桌面客户端 | 从 Releases 下载对应平台安装包（`Windows-` / `Mac-` / `Linux-` 开头），注册或登录后即可使用；自建服务器时在“文件 → 编辑模型连接配置 (.env)”填写 `CIRO_API_BASE_URL` 等并重启 |
+| Android | 安装 `Android-Ciro-*.apk`，注册或登录后即可使用 |
+| 一键服务器 | 发布页最下面的 `Server-oneclick-Windows.bat` / `-macOS.command` / `-Linux.sh`，双击即可把这台设备变成局域网服务器 |
 | 一键部署 | `sudo bash install.sh`（Release 附件 `Server-install.sh`，自动安装 Docker、配置 HTTPS 与账户，`install.sh upgrade` 升级） |
 | Docker | `docker run -d --name ciro -p 8787:8787 --env-file .env -v ciro-data:/data ghcr.io/kllcoco/ciro-client:latest`（详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
 | npm | `npm i -g @kllcoco/ciro-client` → `ciro-client init` → `ciro-client`（需先配置 GitHub Packages 令牌，详见 [服务器部署教程](docs/INSTALL_SERVER.md)） |
@@ -17,7 +18,7 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 
 常用脚本：`npm test`（单元）· `npm run test:e2e`（浏览器）· `npm run desktop`（本地运行桌面版）· `npm run dist:linux|dist:win|dist:mac`（打包）· `npx cap sync android && cd android && ./gradlew assembleRelease`（Android）。
 
-推送 `v*` 标签会触发 `.github/workflows/release.yml`：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
+在 Actions 中运行 `release.yml`（输入版本标签，如 `v0.10.6`）：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
 
 ### 安装包签名
 
@@ -39,14 +40,30 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 
 ## 功能清单
 
-- 🌙 Ciro 绿色月亮 + 星芒 SVG 品牌 Logo、浏览器图标、统一主界面样式
-- 🏞️ **默认纯白背景**，另附五套离线场景：青绿月夜、北境极光、远山晨雾、城市夜色、纯色极简
-- 🎨 **背景 DIY**：上传 JPG/PNG/WebP/AVIF（最大 8 MB）、亮度/模糊/暗色遮罩滑块、背景应用范围（欢迎页或全客户端）、恢复默认、自定义背景删除
-- 🗂️ 双栏设置中心：通用、外观与背景、模型、对话、文件与存储、快捷键、隐私与安全、关于
-- 💬 发送/停止生成/重新生成、Markdown/GFM、复制回答、历史搜索/新建/重命名/删除/导出
-- 🧠 模型列表只由实际服务端配置提供，**不得把占位项当真实已接入模型**
-- 📁 文本或代码附件，每次最多 3 个，每个不超过 80 KB（作为消息内容发送，不是真正文件服务器）
-- 🔒 默认本地监听；服务器代理保管密钥；聊天记录 localStorage、背景图片 IndexedDB；支持深浅色主题、**简体中文/English 即时切换（默认中文）**、发送快捷键、字号/密度、时间显示
+**对话**
+- 流式回答、思考深度五档、可折叠的思考过程、Markdown / 公式 / 代码高亮、代码运行（Python / JS / HTML）
+- 图片、PDF、Office 与代码附件；文档问答会标注页码出处；联网搜索结果显示来源卡片
+- 项目、提示词库、记忆（可自动记住）、分享链接与分享图片、模型对比、⌘K 搜索对话
+- 语音对话与按住说话；临时对话；跨设备同步与完整备份
+
+**模型**
+- 默认使用 Ciro 官方服务（按 CWU 计费，额度在手机、电脑、网页和官网之间互通）
+- 设置 → 模型设置 → 我的模型：用 API 接入 Claude、GPT、Gemini、Grok、Mistral、DeepSeek、通义千问、Kimi、智谱、OpenRouter、Ollama 等；可自动获取模型列表，Key 只保存在本机，不消耗 CWU
+
+**桌宠**
+- Q 版 Ciro 分层立绘：自由活动、散步、十几种待机动作；拖到屏幕边缘只露出头
+- 回答实时显示在她的气泡里；工作模式、后台回答、定时任务和更新进度由她告诉你；“更少对话”模式
+- 桌面版常驻桌面；Android 切到后台时浮在手机桌面上（可在设置里关闭），大小与 App 内一致
+
+**助手能力**
+- 对话里直接设定时任务（“每天 8 点给我讲讲新闻”“半小时后提醒我喝水”），到点自动完成并由桌宠汇报
+- Android 语音唤醒：喊“Ciro”即可设闹钟、打开应用、导航、打电话 / 发短信（由你确认）等
+- 工作模式：手机扫码控制家里或公司的电脑，在允许的文件夹里运行命令和 AI 任务
+- 融合工作台、协作空间、研究工作台、知识与文件、插件中心、官方应用与技能中心
+
+**账户与界面**
+- 邮箱或手机号 + 短信验证码注册；CWU 余额、充值与明细；API 控制台
+- 黑金主题（浅色 / 深色）、六套预设背景与自定义背景，任何背景下文字都清晰可读；简体中文 / English
 
 ## 快速开始
 
