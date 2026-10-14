@@ -4,6 +4,23 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 
 > **当前版本 v0.10.6**：多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
+## 上线官方服务（让客户直接注册使用）
+
+客户下载 Ciro 后应直接连到你的官方服务器，注册账户、购买 CWU 即可使用。需要做两件事：
+
+1. **官方服务器开启账户与注册**：在服务器的 `.env` 中设置（用 `install.sh` 一键部署时已自动配置）
+
+   ```
+   CIRO_ACCOUNTS_ENABLED=true
+   CIRO_REGISTRATION=open
+   ```
+
+   修改后重启服务。按需再配置 CWU 计费（`CIRO_CWU_BILLING=on` 等）、短信验证码（`CIRO_SMS_PROVIDER`）和联网搜索（`CIRO_SEARCH_URL`，见 `.env.example`）。
+
+2. **把官方服务器地址写进安装包**：GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables** → 新建 `CIRO_OFFICIAL_SERVER`，值为官方服务器网址（例如 `https://ciro.example.com`）。之后发布的 Android 安装包会自动连接它，桌面版对话窗口也直接使用它（桌宠和工作模式仍在本机运行）。
+
+未完成这两步时，客户端连接的是没有开启账户的服务器，“注册 / 登录”页会提示“当前连接的服务器没有开启账户”。
+
 ## 安装与运行
 
 | 方式 | 说明 |
