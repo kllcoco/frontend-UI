@@ -28,3 +28,21 @@ test("falls back to Wikipedia, caches, rate limits and can be turned off", async
   assert.equal(s.allow("u"), false);
   assert.equal(createWebSearch({ CIRO_WEBSEARCH: "off" }).enabled(), false);
 });
+
+test("CIRO Search first: own index + public sources merged, top pages read in full, token sent", async () => {
+  const seen = [];
+  const fetchFn = async (url, init) => {
+    seen.push([String(url), init?.headers?.Authorization]);
+    const path = new URL(String(url)).pathname;
+    if (path === "/v1/search") return Response.json({ results: [{ url: "https://a.example/1", title: "Own", snippet: "own index" }] });
+    if (path === "/v1/source-search") return Response.json({ results: [{ url: "https://zh.wikipedia.org/wiki/X", title: "维基", snippet: "公开源" }, { url: "https://a.example/1", title: "dup" }] });
+    if (path === "/v1/read") return Response.json({ markdown: "完整的网页正文，比摘要长得多。".repeat(5) });
+    throw new Error("unexpected " + url);
+  };
+  const s = createWebSearch({ CIRO_SEARCH_URL: "http://127.0.0.1:8789/", CIRO_SEARCH_TOKEN: "tok" }, fetchFn);
+  const r = await s.search("测试");
+  assert.deepEqual(r.map((x) => x.url), ["https://a.example/1", "https://zh.wikipedia.org/wiki/X"]);
+  assert.match(r[0].snippet, /完整的网页正文/);
+  assert.ok(seen.every(([, auth]) => auth === "Bearer tok"));
+  assert.ok(!seen.some(([u]) => u.includes("duckduckgo")), "no fallback when CIRO Search answers");
+});
