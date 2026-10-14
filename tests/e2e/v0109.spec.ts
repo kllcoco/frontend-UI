@@ -191,3 +191,26 @@ test("Android: a reply the floating pet shows is not shown again by the app's pe
   await expect(page.locator(".user-bubble")).toHaveText("第一问");
   await expect(page.locator(".pet-reply")).toHaveCount(0);
 });
+
+test("Android: one pet — the app's pet takes the floating pet's place and gives hers back", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__placed = [];
+    w.CiroPet = { floating: () => true, overlayAllowed: () => true, setEnabled: () => {}, stream: () => {}, progress: () => {}, signal: () => {}, command: () => {}, setScale: () => {},
+      place: () => JSON.stringify({ right: 200, bottom: 320, edge: "" }),
+      setPlace: (r: number, b: number, e: string) => (w.__placed as unknown[]).push([r, b, e]) };
+    localStorage.setItem("ciro.pet.v1", "on");
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(ciro.url + "/");
+  const root = page.locator(".pet-root--inline");
+  await expect(root).toBeVisible();
+  const box = (await root.boundingBox())!;
+  // sprite centre 200 px from the right, 320 px above the bottom — where the floating pet was
+  expect(Math.abs(390 - (box.x + box.width / 2) - 200)).toBeLessThan(3);
+  expect(Math.abs(844 - (box.y + box.height) - 320)).toBeLessThan(3);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __placed: number[][] }).__placed.length)).toBeGreaterThan(0);
+  const last = await page.evaluate(() => (window as unknown as { __placed: number[][] }).__placed.at(-1)!);
+  expect(Math.round(last[0])).toBe(200);
+  expect(Math.round(last[1])).toBe(320);
+});

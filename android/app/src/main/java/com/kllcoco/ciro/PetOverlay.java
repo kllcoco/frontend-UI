@@ -141,6 +141,7 @@ final class PetOverlay {
     private Rect screen() {
         // Resources DisplayMetrics can exclude the status/navigation bars. Overlay positions
         // are absolute: use full physical display bounds for true edge alignment.
+        WindowManager wm = this.wm != null ? this.wm : (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
         if (wm != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
                 return wm.getMaximumWindowMetrics().getBounds();
@@ -215,6 +216,33 @@ final class PetOverlay {
         apply();
         save();
         if (tellPage) send("scale", String.valueOf(v));
+    }
+
+    /** One pet, one place: where she is, in the app pet's terms — her sprite's centre measured from the right
+     *  screen edge and the gap below her, in dp — plus the edge she hides at. "" before she has a place. */
+    String place() {
+        SharedPreferences p = prefs();
+        if (!p.contains("x")) return "";
+        Rect s = screen();
+        float d = density();
+        String edge = currentEdge();
+        int[] base = baseSize(edge);
+        float right = (s.right - (p.getInt("x", 0) + base[0] / 2f)) / d, bottom = (s.bottom - (p.getInt("y", 0) + base[1])) / d;
+        try { return new JSONObject().put("right", right).put("bottom", bottom).put("edge", edge).toString(); } catch (Exception e) { return ""; }
+    }
+    /** The app's pet moved: the floating one appears in the same place next time. */
+    void setPlace(double right, double bottom, String edge) {
+        if (!Double.isFinite(right) || !Double.isFinite(bottom)) return;
+        String e = edge != null && edge.matches("left|right|top|bottom") ? edge : "";
+        Rect s = screen();
+        float d = density();
+        float ew = extraW, eh = extraH;
+        int[] base;
+        extraW = 0; extraH = 0;
+        base = sizeFor(e);
+        extraW = ew; extraH = eh;
+        int x = Math.round(s.right - (float) right * d - base[0] / 2f), y = Math.round(s.bottom - (float) bottom * d - base[1]);
+        prefs().edit().putString("edge", e).putInt("x", x).putInt("y", y).apply();
     }
 
     /** Settings → 桌宠 → 更少对话 */

@@ -90,6 +90,38 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   });
   const edgeRef = useRef(edge);
   edgeRef.current = edge;
+  // Android: one pet, one place. The app's pet and the floating one on the home screen share where she is (and
+  // whether she hides at an edge): back in the app she is where you left her outside, and the other way round.
+  useEffect(() => {
+    if (!inline) return;
+    const pull = () => {
+      try {
+        const raw = nativePet()?.place?.();
+        if (!raw) return;
+        const p = JSON.parse(raw) as { right?: number; bottom?: number; edge?: string };
+        const box = rootRef.current?.getBoundingClientRect();
+        const w = box?.width || 150, h = box?.height || 200;
+        if (Number.isFinite(p.right) && Number.isFinite(p.bottom)) {
+          const next = keepIn({ x: Math.round(p.right! - w / 2), y: Math.round(p.bottom!) }, w, h);
+          if (next.x !== posRef.current.x || next.y !== posRef.current.y) { setPos(next); store(INLINE_POS, JSON.stringify(next)); }
+        }
+        const e = p.edge === "left" || p.edge === "right" || p.edge === "top" || p.edge === "bottom" ? p.edge : null;
+        if (e !== edgeRef.current) { setEdge(e); store(INLINE_EDGE, e || ""); }
+      } catch { /* not the Android app */ }
+    };
+    pull();
+    const onVisible = () => { if (document.visibilityState === "visible") pull(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  useEffect(() => {
+    if (!inline) return;
+    const id = window.setTimeout(() => {
+      const w = rootRef.current?.getBoundingClientRect().width || 150;
+      try { nativePet()?.setPlace?.(pos.x + w / 2, pos.y, edge || ""); } catch { /* not the Android app */ }
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [pos.x, pos.y, edge]);
   const [peeking, setPeeking] = useState(false);
   // Strolling along the bottom of the screen (or the app) now and then; she faces where she is going.
   const [walking, setWalking] = useState(false);

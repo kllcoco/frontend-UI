@@ -696,6 +696,8 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface public boolean overlayAllowed() { return petOverlay.allowed(); }
         @JavascriptInterface public void requestOverlay() { runOnUiThread(petOverlay::requestPermission); }
         @JavascriptInterface public void resetPlace() { petOverlay.resetPlace(); }
+        @JavascriptInterface public String place() { return petOverlay.place(); }
+        @JavascriptInterface public void setPlace(double right, double bottom, String edge) { petOverlay.setPlace(right, bottom, edge); }
         @JavascriptInterface public void setQuiet(boolean on) { petOverlay.setQuiet(on); }
         @JavascriptInterface public void setScale(double v) { runOnUiThread(() -> petOverlay.applyScale((float) v, true)); }
         @JavascriptInterface public void command(String json) { forward("command", json); }
