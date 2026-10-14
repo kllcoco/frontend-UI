@@ -34,6 +34,7 @@ test("CIRO Search first: own index + public sources merged, top pages read in fu
   const fetchFn = async (url, init) => {
     seen.push([String(url), init?.headers?.Authorization]);
     const path = new URL(String(url)).pathname;
+    if (path === "/v1/web-search") return new Response("not found", { status: 404 }); // an older CIRO Search
     if (path === "/v1/search") return Response.json({ results: [{ url: "https://a.example/1", title: "Own", snippet: "own index" }] });
     if (path === "/v1/source-search") return Response.json({ results: [{ url: "https://zh.wikipedia.org/wiki/X", title: "维基", snippet: "公开源" }, { url: "https://a.example/1", title: "dup" }] });
     if (path === "/v1/read") return Response.json({ markdown: "完整的网页正文，比摘要长得多。".repeat(5) });
@@ -45,4 +46,19 @@ test("CIRO Search first: own index + public sources merged, top pages read in fu
   assert.match(r[0].snippet, /完整的网页正文/);
   assert.ok(seen.every(([, auth]) => auth === "Bearer tok"));
   assert.ok(!seen.some(([u]) => u.includes("duckduckgo")), "no fallback when CIRO Search answers");
+});
+
+test("CIRO Search 0.15: one /v1/web-search call, page content used, news category for news questions", async () => {
+  const bodies = [];
+  const fetchFn = async (url, init) => {
+    bodies.push([new URL(String(url)).pathname, JSON.parse(init.body)]);
+    return Response.json({ results: [{ url: "https://news.example/a", title: "头条", snippet: "短", content: "正文".repeat(50), published_at: "2026-10-14" }], providers: [] });
+  };
+  const r = await createWebSearch({ CIRO_SEARCH_URL: "http://127.0.0.1:8789" }, fetchFn).search("今天的新闻");
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0][0], "/v1/web-search");
+  assert.equal(bodies[0][1].category, "news");
+  assert.equal(bodies[0][1].read, 2);
+  assert.match(r[0].snippet, /^正文/);
+  assert.equal(r[0].published, "2026-10-14");
 });

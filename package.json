@@ -1,6 +1,6 @@
 {
   "name": "ciro-client",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "private": true,
   "type": "module",
   "description": "Ciro conversational client",

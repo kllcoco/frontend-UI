@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **当前版本 v0.10.6**：多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **当前版本 v0.10.7**：原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 上线官方服务（让客户直接注册使用）
 
@@ -15,11 +15,34 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
    CIRO_REGISTRATION=open
    ```
 
-   修改后重启服务。按需再配置 CWU 计费（`CIRO_CWU_BILLING=on` 等）、短信验证码（`CIRO_SMS_PROVIDER`）和联网搜索（`CIRO_SEARCH_URL`，见 `.env.example`）。
+   修改后重启服务。按需再配置 CWU 计费（`CIRO_CWU_BILLING=on` 等）、短信验证码（`CIRO_SMS_PROVIDER`）和联网搜索（见下方“联网搜索（CIRO Search）”）。
 
 2. **把官方服务器地址写进安装包**：GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables** → 新建 `CIRO_OFFICIAL_SERVER`，值为官方服务器网址（例如 `https://ciro.example.com`）。之后发布的 Android 安装包会自动连接它，桌面版对话窗口也直接使用它（桌宠和工作模式仍在本机运行）。
 
 未完成这两步时，客户端连接的是没有开启账户的服务器，“注册 / 登录”页会提示“当前连接的服务器没有开启账户”。
+
+## 联网搜索（CIRO Search）
+
+输入框旁的“联网”按钮对所有模型可用：Ciro 服务器替用户搜索，结果交给当前模型回答并显示来源卡片。推荐在 Ciro 服务器同一台机器上运行原生 [CIRO Search](https://github.com/kllcoco/Search)（0.15+，分支 `claude/search-for-ciro`）：
+
+```bash
+# CIRO Search（Python 3.11+，无需安装依赖；端口不要用 8787，那是 Ciro 服务器的）
+CIRO_SEARCH_PORT=8789 CIRO_SEARCH_TOKEN=自定令牌 CIRO_SEARCH_ENABLE_REMOTE_SOURCES=1 \
+CIRO_SEARCH_AUTO_REFRESH=1 python -m ciro_search serve
+```
+
+Ciro 服务器 `.env`：
+
+```
+CIRO_SEARCH_URL=http://127.0.0.1:8789
+CIRO_SEARCH_TOKEN=自定令牌
+```
+
+- 一次请求同时查自建索引、网页搜索、维基百科和内置的 6000+ 常用网站目录，排名前两条的网页正文一起交给模型。
+- 网页搜索默认用 DuckDuckGo（免 Key）；也可接自建 SearXNG（`CIRO_SEARCH_SEARXNG_URL`），或填 `CIRO_SEARCH_BRAVE_KEY` / `CIRO_SEARCH_BING_KEY`。
+- `CIRO_SEARCH_AUTO_REFRESH=1` 让它定时从目录里的网站抓取最新内容（新闻 / 科技每 30 分钟，其余每天）。
+- 也可用 `deploy/ciro-search.service`（systemd）或 `deploy/Dockerfile` 部署，详见 CIRO Search 的 README。
+- 未配置 CIRO Search 时，Ciro 自动用 DuckDuckGo / 维基百科；`CIRO_WEBSEARCH=off` 可完全关闭服务器代搜。
 
 ## 安装与运行
 
@@ -35,7 +58,7 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 
 常用脚本：`npm test`（单元）· `npm run test:e2e`（浏览器）· `npm run desktop`（本地运行桌面版）· `npm run dist:linux|dist:win|dist:mac`（打包）· `npx cap sync android && cd android && ./gradlew assembleRelease`（Android）。
 
-在 Actions 中运行 `release.yml`（输入版本标签，如 `v0.10.6`）：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
+在 Actions 中运行 `release.yml`（输入版本标签，如 `v0.10.7`）：运行全部测试，构建三大桌面平台安装包与 Android APK，发布 Release，并推送 Docker 镜像与 npm 包。Android 正式签名可通过仓库 Secrets 提供：`CIRO_ANDROID_KEYSTORE_BASE64`、`CIRO_ANDROID_KEYSTORE_PASSWORD`、`CIRO_ANDROID_KEY_ALIAS`、`CIRO_ANDROID_KEY_PASSWORD`（未提供时使用调试签名）。
 
 ### 安装包签名
 

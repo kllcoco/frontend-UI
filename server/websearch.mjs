@@ -43,6 +43,16 @@ export function createWebSearch(env, fetchFn = fetch) {
   /** CIRO Search: its own index plus its public sources (Wikipedia, Crossref …), the top pages read in full. */
   async function ciro(q, signal) {
     if (!/^https?:\/\//.test(ciroUrl)) return [];
+    // CIRO Search 0.15+: one call — own index, web search, Wikipedia, its site directory; top pages read in full.
+    const combined = await ciroPost("/v1/web-search", { query: q, limit: 6, language: "auto",
+      category: /新闻|今天|今日|最新|刚刚|news|today|latest|breaking/i.test(q) ? "news" : "web", read: 2, max_chars: 1500 }, signal).catch(() => null);
+    if (combined && Array.isArray(combined.results)) {
+      return combined.results.filter((r) => r && typeof r.url === "string" && /^https?:\/\//.test(r.url)).slice(0, 6).map((r) => ({
+        url: r.url, title: strip(r.title || r.url).slice(0, 160),
+        snippet: strip(r.content || r.snippet || "").slice(0, r.content ? 1500 : 400),
+        ...(r.published_at ? { published: String(r.published_at).slice(0, 40) } : {}) }));
+    }
+    // Older CIRO Search: separate calls.
     const [own, pub] = await Promise.all([
       ciroPost("/v1/search", { query: q, limit: 6 }, signal).catch(() => null),
       ciroPost("/v1/source-search", { query: q, limit: 5 }, signal).catch(() => null)]);
