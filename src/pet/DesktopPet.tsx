@@ -355,7 +355,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   // Android floating pet: her window is just her size (it would block taps on the home screen otherwise) plus exactly
   // the room her bubble, answer or menu takes, right next to her; it shrinks back as soon as they close.
   const [shift, setShift] = useState(0);
+  const [below, setBelow] = useState(false);
   useEffect(() => bridge?.onShift?.((dx) => setShift(Number(dx) || 0)), []);
+  useEffect(() => bridge?.onBelow?.((v) => setBelow(Boolean(v))), []);
   useEffect(() => {
     if (!FLOATING) return;
     const root = rootRef.current;
@@ -587,7 +589,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     else onAsk?.();
   };
 
-  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "") + (settled ? "" : " pet-root--settling") + (menu ? " pet-root--menu" : "")}
+  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "") + (settled ? "" : " pet-root--settling") + (menu ? " pet-root--menu" : "") + (FLOATING && below ? " pet-root--below" : "")}
     onMouseLeave={() => hover(false)}
     style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale,
       ...(FLOATING ? { ["--pet-base-h" as string]: (edge === "top" || edge === "bottom" ? 68 * scale + 8 : 136 * scale + 16) + "px", ["--pet-shift" as string]: shift + "px" } : {}) }}>

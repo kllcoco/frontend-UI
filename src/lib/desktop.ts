@@ -45,6 +45,8 @@ export type PetBridge = {
   /** Android floating pet: room (px) for a bubble / answer / menu next to her; 0, 0 = just her. */
   fit?: (w: number, h: number) => void;
   onShift?: (h: (dx: number) => void) => () => void;
+  /** Android floating pet: bubble / menu open below her (no room above). */
+  onBelow?: (h: (below: boolean) => void) => () => void;
   /** Walk sideways by dx px (kept on screen); done: last step, remember the place. */
   move?: (dx: number, done?: boolean) => void;
   stream?: (s: { id: string; text: string; done?: boolean; error?: boolean; title?: string }) => void;

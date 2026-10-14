@@ -44,6 +44,7 @@ export function androidPetBridge(): PetBridge | undefined {
     expand: (open) => host.expand(open),
     fit: host.fit ? (w, h) => host.fit!(w, h) : undefined,
     onShift: on("shift"),
+    onBelow: on("below"),
     move: (dx, done) => { host.moveBy(dx, 0); if (done) host.dragEnd(); },
     toEdge: () => host.edge("auto"),
     unedge: () => host.edge("none"),

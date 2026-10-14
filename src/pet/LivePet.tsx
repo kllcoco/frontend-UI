@@ -74,8 +74,11 @@ void main() {
 // from the closed-eye artwork) painted in, and its alpha marks the eye areas; the shader cross-fades to it.
 const FRAG = `precision mediump float; uniform sampler2D img, closed, smile; uniform float glow, blink, hasClosed, smiling, hasSmile; varying vec2 uv; varying vec2 pos; varying float vLayer;
 const vec2 SIZE = vec2(${W}.0, ${H}.0);
+// Textures are uploaded premultiplied, so filtering never blends in the black of transparent pixels (that read
+// as a dark halo around her, most visibly while she moves); the colour maths below wants straight colour.
+vec4 straight(vec4 t) { return t.a > 0.0 ? vec4(t.rgb / t.a, t.a) : t; }
 void main() {
-  vec4 c = texture2D(img, pos / SIZE); if (c.a < 0.004) discard;
+  vec4 c = straight(texture2D(img, pos / SIZE)); if (c.a < 0.004) discard;
   // (the layer number comes through a varying: a uniform shared by both shaders would need equal precision)
   if (vLayer > 0.5) {   // arm layers: only the circle's glow
     float gg = vLayer > 1.5 ? glow * exp(-dot((pos - vec2(450.0, 335.0)) / 42.0, (pos - vec2(450.0, 335.0)) / 42.0)) : 0.0;
@@ -84,12 +87,12 @@ void main() {
     return;
   }
   if (hasClosed > 0.5 && blink > 0.01) {
-    vec4 e = texture2D(closed, pos / SIZE);
+    vec4 e = straight(texture2D(closed, pos / SIZE));
     c.rgb = mix(c.rgb, e.rgb, blink * e.a);
   }
   // her smile (from the same closed-eye artwork), faded in when she is happy
   if (hasSmile > 0.5 && smiling > 0.01) {
-    vec4 sm = texture2D(smile, pos / SIZE);
+    vec4 sm = straight(texture2D(smile, pos / SIZE));
     c.rgb = mix(c.rgb, sm.rgb, smiling * sm.a);
   }
   // the magic circle glows (warm gold) when she uses it
@@ -214,7 +217,7 @@ export default function LivePet({ src, mood, look, action, walking = false }: {
       im.onload = () => {
         gl.activeTexture(gl.TEXTURE0 + unit);
         const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);

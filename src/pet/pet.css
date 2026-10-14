@@ -179,9 +179,9 @@ html.pet-page #ciro-boot{display:none}
 /* Android floating pet: the window is her size plus the room for a bubble / answer / menu (PetOverlay.fit), so they
    sit right above her (below her when she hangs from the top) instead of at the far end of a big window. */
 .pet-root--floating .pet-sprite{margin-left:var(--pet-shift, 0px)}
-.pet-root--floating .pet-say{top:auto;bottom:calc(var(--pet-base-h) + 2px);margin-left:var(--pet-shift, 0px)}
-.pet-root--floating .pet-reply{left:50%;right:auto;top:auto;bottom:var(--pet-base-h);width:236px;margin-left:calc(-118px + var(--pet-shift, 0px));max-height:240px}
-.pet-root--floating .pet-menu{top:auto;bottom:var(--pet-base-h);max-height:none;max-width:none;margin-left:var(--pet-shift, 0px)}
+.pet-root--floating .pet-say{top:auto;bottom:calc(var(--pet-base-h) + 2px)}
+.pet-root--floating .pet-reply{left:50%;right:auto;top:auto;bottom:var(--pet-base-h);width:236px;margin-left:-118px;max-height:240px}
+.pet-root--floating .pet-menu{top:auto;bottom:var(--pet-base-h);max-height:none;max-width:none}
 .pet-root--floating.pet-root--edge-top .pet-say,.pet-root--floating.pet-root--edge-top .pet-reply,
 .pet-root--floating.pet-root--edge-top .pet-menu{top:var(--pet-base-h);bottom:auto}
 .pet-root--floating.pet-root--edge-left .pet-sprite,.pet-root--floating.pet-root--edge-right .pet-sprite{bottom:calc(var(--pet-base-h) * .08);margin-left:0}
@@ -189,3 +189,12 @@ html.pet-page #ciro-boot{display:none}
 .pet-root--floating.pet-root--edge-left .pet-reply{left:4px;margin-left:0}
 .pet-root--floating.pet-root--edge-right .pet-menu{left:auto;right:4px;transform:none;animation:none}
 .pet-root--floating.pet-root--edge-left .pet-menu{left:4px;transform:none;animation:none}
+/* No dark shadows over the home screen: they read as a black halo around the bubble and menu. */
+.pet-root--floating .pet-say,.pet-root--floating .pet-reply,.pet-root--floating .pet-menu{box-shadow:none}
+.pet-root--floating .pet-say::after{display:none}
+/* Not enough room above her (near the top of the screen): bubble, answer and menu open below her instead. */
+.pet-root--floating.pet-root--below .pet-sprite{bottom:calc(100% - var(--pet-base-h) + 4px)}
+.pet-root--floating.pet-root--below.pet-root--edge-left .pet-sprite,.pet-root--floating.pet-root--below.pet-root--edge-right .pet-sprite{bottom:calc(100% - var(--pet-base-h) * .92)}
+.pet-root--floating.pet-root--below.pet-root--edge-bottom .pet-sprite{bottom:calc(100% - var(--pet-base-h))}
+.pet-root--floating.pet-root--below .pet-say,.pet-root--floating.pet-root--below .pet-reply,
+.pet-root--floating.pet-root--below .pet-menu{top:calc(var(--pet-base-h) + 2px);bottom:auto}

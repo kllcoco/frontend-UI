@@ -51,6 +51,8 @@ final class PetOverlay {
     private float extraW = 0, extraH = 0;
     // How far her sprite sits from the middle of a widened window (it could not be centred on her near a screen side).
     private int shiftPx = 0;
+    // The room is below her (not enough above, near the top of the screen).
+    private boolean below = false;
     // Fixed window origin for one drag gesture; pointer deltas are totals, not per-frame ticks.
     private boolean dragging = false;
     private int dragStartX, dragStartY;
@@ -234,7 +236,7 @@ final class PetOverlay {
         view = null;
         ready = false;
         expanded = false;
-        extraW = 0; extraH = 0; shiftPx = 0;
+        extraW = 0; extraH = 0; shiftPx = 0; below = false;
         dragging = false;
         queue.clear();
     }
@@ -266,30 +268,56 @@ final class PetOverlay {
         int[] base = sizeFor(edge);
         extraW = ew; extraH = eh; expanded = ex;
         int x = "left".equals(edge) ? params.x : "right".equals(edge) ? params.x + params.width - base[0] : params.x + params.width / 2 + shiftPx - base[0] / 2;
-        int y = "top".equals(edge) ? params.y : params.y + params.height - base[1];
+        int y = "top".equals(edge) || below ? params.y : params.y + params.height - base[1];
         prefs().edit().putInt("x", x).putInt("y", y).apply();
     }
 
-    /** Resizes the window to her size plus the room asked for, keeping her exactly where she is on screen. */
+    /** Her own size at an edge, without any room for a bubble. */
+    private int[] baseSize(String edge) {
+        float ew = extraW, eh = extraH; boolean ex = expanded;
+        extraW = 0; extraH = 0; expanded = false;
+        int[] base = sizeFor(edge);
+        extraW = ew; extraH = eh; expanded = ex;
+        return base;
+    }
+
+    /** Resizes the window to her size plus the room asked for — above her, or below her when there is more room
+     *  there — keeping her exactly where she is on screen. */
     private void refit(float w, float h) {
         String edge = currentEdge();
-        int oldW = params.width, oldH = params.height;
+        boolean top = "top".equals(edge);
+        int[] base = baseSize(edge);
+        int oldW = params.width;
         int spriteCenter = params.x + oldW / 2 + shiftPx;
-        extraW = w; extraH = h;
+        int baseTop = top || below ? params.y : params.y + params.height - base[1];
+        boolean nowBelow = false;
+        if (h > 0) {
+            Rect s = screen();
+            float above = (baseTop - s.top - dimen("status_bar_height")) / density();
+            float under = (s.bottom - dimen("navigation_bar_height") - baseTop - base[1]) / density();
+            if (top) h = Math.min(h, Math.max(40, under));
+            else {
+                nowBelow = above < h && under > above;
+                h = Math.max(40, Math.min(h, nowBelow ? under : above));
+            }
+        }
+        below = nowBelow;
+        extraW = h > 0 ? w : 0; extraH = h > 0 ? h : 0;
         int[] size = sizeFor(edge);
         params.width = size[0]; params.height = size[1];
-        if (!"top".equals(edge)) params.y += oldH - params.height;
+        params.y = top || below ? baseTop : baseTop + base[1] - params.height;
         if ("left".equals(edge)) shiftPx = 0;
         else if ("right".equals(edge)) { params.x += oldW - params.width; shiftPx = 0; }
         else {
             Rect s = screen();
             int x = spriteCenter - params.width / 2;
             // Widened near a screen side: the window stays on screen and her sprite moves off its middle instead.
-            if (params.width > size[0] || h > 0) x = Math.max(s.left, Math.min(x, s.right - params.width));
+            if (h > 0) x = Math.max(s.left, Math.min(x, s.right - params.width));
             params.x = x;
             shiftPx = spriteCenter - (x + params.width / 2);
         }
         if (h <= 0) shiftPx = 0;
+        send("below", below ? "true" : "false");
         send("shift", String.valueOf(Math.round(shiftPx / density())));
         apply();
     }
@@ -407,12 +435,6 @@ final class PetOverlay {
                 if (view == null || dragging) return;
                 float nw = (float) Math.max(0, Math.min(w, 340)), nh = (float) Math.max(0, Math.min(h, 400));
                 if (nh <= 0) nw = 0;
-                // Never above the status bar: an answer near the top of the screen gets what room there is.
-                if (nh > 0 && !"top".equals(currentEdge())) {
-                    int baseH = params.height - Math.round(extraH * density());
-                    float room = (params.y + params.height - baseH - dimen("status_bar_height")) / density();
-                    nh = Math.max(40, Math.min(nh, room));
-                }
                 if (Math.abs(nw - extraW) < 2 && Math.abs(nh - extraH) < 2) return;
                 refit(nw, nh);
             });

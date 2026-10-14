@@ -5,7 +5,7 @@ export const PHONE_ACTIONS = ["alarm", "timer", "alarms", "open_app", "call", "s
 export type PhoneAction = { action: typeof PHONE_ACTIONS[number] } & Record<string, unknown>;
 
 type Native = { run?: (json: string) => string };
-type Voice = { speak?: (text: string) => void; setWake?: (on: boolean) => string; wakeOn?: () => boolean; wakeWords?: () => string; setWakeWords?: (raw: string) => void; lastHeard?: () => string; available?: () => boolean; stopSpeaking?: () => void };
+type Voice = { speak?: (text: string) => void; setWake?: (on: boolean) => string; wakeOn?: () => boolean; wakeWords?: () => string; setWakeWords?: (raw: string) => void; lastHeard?: () => string; wakeStatus?: () => string; available?: () => boolean; stopSpeaking?: () => void };
 const nativePhone = (): Native | undefined => (window as unknown as { CiroPhone?: Native }).CiroPhone;
 export const nativeVoice = (): Voice | undefined => (window as unknown as { CiroVoice?: Voice }).CiroVoice;
 export const phoneAvailable = () => Boolean(nativePhone()?.run);

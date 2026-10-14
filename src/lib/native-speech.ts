@@ -27,6 +27,7 @@ class NativeRecognition {
   abort() { this.stopped = true; native()?.abort(); }
   /** From the native side. */
   event(type: string, data: string) {
+    if (type === "progress") { window.dispatchEvent(new CustomEvent("ciro-voice-progress", { detail: Number(data) || 0 })); return; }
     if (type === "start") this.onstart?.();
     else if (type === "partial") {
       if (this.interimResults) this.emit([...this.finals.map(fin), { isFinal: false, 0: { transcript: data }, length: 1 }], this.finals.length);
@@ -49,6 +50,16 @@ class NativeRecognition {
   private emit(results: Result[], resultIndex: number) { this.onresult?.({ resultIndex, results }); }
 }
 const fin = (t: string): Result => ({ isFinal: true, 0: { transcript: t }, length: 1 });
+
+/** A speech error code in plain words. */
+export function speechErrorText(code: string): string {
+  if (code === "not-allowed" || code === "mic-denied" || code === "service-not-allowed") return "需要麦克风权限才能语音输入（可在系统设置 → 应用 → Ciro → 权限里打开）";
+  if (code === "no-speech") return "没听到声音，请再说一次";
+  if (code === "audio-capture") return "麦克风打不开，可能正被其他应用占用";
+  if (code.startsWith("model:")) return "离线语音模型下载失败，请联网后再试" + (code.length > 6 ? "（" + code.slice(6, 60) + "）" : "");
+  if (code === "network") return "语音识别需要联网，请检查网络";
+  return "语音识别失败：" + code;
+}
 
 /** Installs the stand-in once, in the Android app only. */
 export function installNativeSpeech() {

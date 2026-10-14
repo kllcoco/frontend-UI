@@ -149,10 +149,11 @@ export default function SettingsCenter({
   const [wakeWords, setWakeWords] = useState(() => { try { return nativeVoice()?.wakeWords?.() || ""; } catch { return ""; } });
   const [wakeSaved, setWakeSaved] = useState(false);
   const [heard, setHeard] = useState("");
+  const [wakeState, setWakeState] = useState("");
   // While voice wake is on: what the phone just heard, so a wake word it keeps mishearing can be added as is.
   useEffect(() => {
     if (!wakeOn) return;
-    const timer = window.setInterval(() => { try { setHeard(nativeVoice()?.lastHeard?.() || ""); } catch { /* not Android */ } }, 1000);
+    const timer = window.setInterval(() => { try { setHeard(nativeVoice()?.lastHeard?.() || ""); setWakeState(nativeVoice()?.wakeStatus?.() || ""); } catch { /* not Android */ } }, 1000);
     return () => window.clearInterval(timer);
   }, [wakeOn]);
   const [petSize, setPetSizeState] = useState(() => Math.round(petScale() * 100));
@@ -305,6 +306,7 @@ export default function SettingsCenter({
                   <button type="button" className="sc-action-secondary" onClick={() => { nativeVoice()?.setWakeWords?.(wakeWords); setWakeSaved(true); }}>
                     {wakeSaved ? t("已保存") : t("保存")}</button>
                 </span></SettingRow>}
+              {wakeOn && wakeState && <p className="sc-help-text" role="status">{wakeState}</p>}
               {wakeOn && <SettingRow title={t("刚听到")} description={heard ? "“" + heard + "”" : t("对着手机喊一声试试。叫不醒时，把这里显示的词加进自定义唤醒词。")}>
                 {heard ? <button type="button" className="sc-action-secondary" onClick={() => {
                   const w = heard.replace(/[，。！？,.!?\s].*$/, "").slice(0, 8);

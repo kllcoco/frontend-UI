@@ -71,6 +71,7 @@ import AndroidUpdate from "./components/AndroidUpdate";
 import { reportUpdate } from "./lib/update-result";
 import ShareImage from "./components/ShareImage";
 import { useHoldToTalk } from "./lib/hold-to-talk";
+import { speechErrorText } from "./lib/native-speech";
 import SourceCards from "./components/SourceCards";
 import { findCitations } from "./lib/office";
 import type { Citation } from "./lib/office";
@@ -316,7 +317,19 @@ export default function App() {
   const dictation = useDictation(language, (text) => {
     setDraft((before) => (before && !/\s$/.test(before) ? before + (language === "en" ? " " : "") : before) + text.trim());
     focusComposer();
-  }, (code) => notify(code === "not-allowed" ? "麦克风权限被拒绝" : "语音输入不可用"));
+  }, (code) => { if (code !== "no-speech") notify(speechErrorText(code)); });
+  // Android without a system speech service: the offline model is downloaded the first time (about 42 MB).
+  useEffect(() => {
+    let last = -10;
+    const on = (e: Event) => {
+      const pct = (e as CustomEvent<number>).detail;
+      if (pct !== 0 && pct < 100 && pct - last < 10) return;
+      last = pct;
+      notify(pct >= 100 ? "离线语音已就绪" : "正在下载离线语音模型 " + pct + "%（约 42MB，只需一次）");
+    };
+    window.addEventListener("ciro-voice-progress", on);
+    return () => window.removeEventListener("ciro-voice-progress", on);
+  }, []);
   const readAloud = useReadAloud(language);
   const sorted = useMemo(() => [...conversations].sort((a, b) => b.updatedAt - a.updatedAt), [conversations]);
   const projectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
@@ -568,7 +581,7 @@ export default function App() {
     if (command === "open-work") openStudioRef.current("remote");
     else if (command === "new-chat") createNew();
     else if (command === "search") setPaletteOpen(true);
-    else if (command === "settings") setSettingsSection("general");
+    else if (command === "settings") setSettingsSection("home");
     else if (command === "shortcuts") setSettingsSection("shortcuts");
     else if (command === "about") setSettingsSection("about");
     else if (command === "toggle-sidebar") toggleSidebar();
@@ -653,7 +666,7 @@ export default function App() {
   sendRef.current = (text: string) => sendMessage(text);
   const hold = useHoldToTalk({ language, browserStt: canDictate, serverStt: Boolean(status.stt),
     onText: (text) => sendRef.current(text), onTap: () => setVoiceOpen(true),
-    onError: (code) => notify(code === "mic-denied" ? "需要麦克风权限才能语音输入" : code === "not-allowed" ? "需要麦克风权限才能语音输入" : "语音识别失败：" + code) });
+    onError: (code) => notify(speechErrorText(code)) });
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
   // The pet (or her floating window on Android) asks to show the work that waits for a decision.
   useEffect(() => {
@@ -1734,7 +1747,7 @@ export default function App() {
     }
   }
   function onUserMenu(action: UserMenuAction) {
-    if (action.type === "settings") setSettingsSection(action.section || "general");
+    if (action.type === "settings") setSettingsSection(action.section || "home");
     else if (action.type === "studio") openStudio(action.tab as WorkbenchTab);
     else if (action.type === "logout") void logout();
     else if (action.type === "download") openExternal(RELEASES_URL);
@@ -1756,7 +1769,7 @@ export default function App() {
       { id: "work", label: t("协作空间"), icon: <Workflow size={16}/>, run: () => openStudio("goals") },
       { id: "plugins", label: t("插件中心"), icon: <PlugZap size={16}/>, run: () => openStudio("plugins") },
       { id: "ide", label: t("代码工作区"), icon: <Code2 size={16}/>, run: () => openStudio("ide") }] : []),
-    { id: "settings", label: t("设置"), icon: <Settings2 size={16}/>, hint: MOD + " ,", run: () => setSettingsSection("general") },
+    { id: "settings", label: t("设置"), icon: <Settings2 size={16}/>, hint: MOD + " ,", run: () => setSettingsSection("home") },
     { id: "shortcuts", label: t("键盘快捷键"), icon: <Keyboard size={16}/>, hint: MOD + " /", run: () => setSettingsSection("shortcuts") },
     { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
     ...(!member || status.team ? [{ id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") }] : []),

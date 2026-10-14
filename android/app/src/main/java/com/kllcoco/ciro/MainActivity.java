@@ -161,12 +161,55 @@ public class MainActivity extends BridgeActivity {
 
     private final Runnable resumeWake = () -> WakeService.paused = false;
 
+    // The system speech service failed here once (missing, blocked, no network to it): offline from then on.
+    private static boolean systemSpeechBroken = false;
+    private org.vosk.android.SpeechService localListen;
+    private int listenSession = 0;
+
+    private void stopLocalListen(boolean cancel) {
+        if (localListen == null) return;
+        org.vosk.android.SpeechService s = localListen;
+        localListen = null;
+        try { if (cancel) s.cancel(); else s.stop(); s.shutdown(); } catch (Exception ignored) { /* gone */ }
+    }
+
+    /** One utterance with the offline recogniser (LocalAsr); downloads its model the first time. */
+    private void startLocalListening() {
+        final int session = ++listenSession;
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        final boolean[] ended = { false };
+        final Runnable end = () -> { if (ended[0]) return; ended[0] = true; listenLocalEnd = null; stopLocalListen(true); listenEvent("end", ""); ui.postDelayed(resumeWake, 1500); };
+        if (!LocalAsr.installed(this)) listenEvent("progress", "0");
+        LocalAsr.ensure(this, (pct) -> { if (session == listenSession) listenEvent("progress", String.valueOf(pct)); }, new LocalAsr.Ready() {
+            @Override public void ok(org.vosk.Model m) {
+                if (session != listenSession) { end.run(); return; }
+                try {
+                    localListen = LocalAsr.listen(m, new org.vosk.android.RecognitionListener() {
+                        @Override public void onPartialResult(String h) { String t = LocalAsr.text(h); if (!t.isEmpty()) listenEvent("partial", t); }
+                        @Override public void onResult(String h) { String t = LocalAsr.text(h); if (!t.isEmpty()) { listenEvent("final", t); end.run(); } }
+                        @Override public void onFinalResult(String h) { String t = LocalAsr.text(h); if (!t.isEmpty()) listenEvent("final", t); end.run(); }
+                        @Override public void onError(Exception e) { listenEvent("error", "audio-capture"); end.run(); }
+                        @Override public void onTimeout() { listenEvent("error", "no-speech"); end.run(); }
+                    }, 15_000);
+                    listenEvent("start", "");
+                } catch (Exception e) { listenEvent("error", "audio-capture"); end.run(); }
+            }
+            @Override public void fail(String why) { listenEvent("error", "model:" + (why == null ? "" : why)); end.run(); }
+        });
+        listenLocalEnd = end;
+    }
+    private Runnable listenLocalEnd;
+
     /** One utterance with the phone's speech recogniser; partial / final text, errors and the end go to the web app. */
     private void startListening(String lang) {
         android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
         ui.removeCallbacks(resumeWake);
         WakeService.paused = true; // the wake listener lets go of the microphone meanwhile
-        if (!android.speech.SpeechRecognizer.isRecognitionAvailable(this)) { listenEvent("error", "service-not-allowed"); listenEvent("end", ""); return; }
+        stopLocalListen(true);
+        listenLocalEnd = null;
+        // No system speech service (most phones sold in China) or it failed before: the offline recogniser.
+        if (systemSpeechBroken || !android.speech.SpeechRecognizer.isRecognitionAvailable(this)) { startLocalListening(); return; }
+        final boolean[] heardAny = { false };
         if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } }
         listener = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
         listener.setRecognitionListener(new android.speech.RecognitionListener() {
@@ -179,6 +222,7 @@ public class MainActivity extends BridgeActivity {
             @Override public void onEndOfSpeech() {}
             @Override public void onEvent(int t, Bundle b) {}
             @Override public void onPartialResults(Bundle b) {
+                heardAny[0] = true;
                 ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
                 if (r != null && !r.isEmpty() && !r.get(0).isEmpty()) listenEvent("partial", r.get(0));
             }
@@ -188,6 +232,15 @@ public class MainActivity extends BridgeActivity {
                 end();
             }
             @Override public void onError(int e) {
+                // The system service itself fails (not just silence or a denied microphone): offline instead.
+                if (!heardAny[0] && !ended && e != android.speech.SpeechRecognizer.ERROR_NO_MATCH && e != android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                        && e != android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS && e != android.speech.SpeechRecognizer.ERROR_CLIENT) {
+                    systemSpeechBroken = true;
+                    ended = true;
+                    if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } listener = null; }
+                    startLocalListening();
+                    return;
+                }
                 String code = e == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? "not-allowed"
                     : e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT ? "no-speech"
                     : e == android.speech.SpeechRecognizer.ERROR_AUDIO ? "audio-capture"
@@ -209,7 +262,8 @@ public class MainActivity extends BridgeActivity {
 
     /** window.CiroListen: speech input for the composer, hold-to-talk and voice mode (asks for the microphone first). */
     private class ListenBridge {
-        @JavascriptInterface public boolean available() { return android.speech.SpeechRecognizer.isRecognitionAvailable(MainActivity.this); }
+        // Always: without a system speech service the offline recogniser is used.
+        @JavascriptInterface public boolean available() { return true; }
         @JavascriptInterface public void start(String lang) {
             runOnUiThread(() -> {
                 if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -220,10 +274,15 @@ public class MainActivity extends BridgeActivity {
                 startListening(lang);
             });
         }
-        @JavascriptInterface public void stop() { runOnUiThread(() -> { if (listener != null) listener.stopListening(); }); }
+        @JavascriptInterface public void stop() { runOnUiThread(() -> {
+            if (localListen != null) { try { localListen.stop(); } catch (Exception ignored) { /* gone */ } return; } // its final result ends it
+            if (listener != null) listener.stopListening();
+        }); }
         @JavascriptInterface public void abort() {
             runOnUiThread(() -> {
+                listenSession++;
                 if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } listener = null; }
+                if (listenLocalEnd != null) { Runnable e = listenLocalEnd; listenLocalEnd = null; e.run(); return; }
                 listenEvent("end", "");
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(resumeWake, 1500);
             });
@@ -524,6 +583,7 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface public String wakeWords() { return getSharedPreferences("ciro_pet", MODE_PRIVATE).getString("wake_words", ""); }
         @JavascriptInterface public void setWakeWords(String raw) { WakeService.setWords(MainActivity.this, raw); }
         @JavascriptInterface public String lastHeard() { return WakeService.lastHeard; }
+        @JavascriptInterface public String wakeStatus() { return WakeService.status; }
         /** "ok", "asking" (microphone permission dialog shown; answer via window.ciroWakeResult), "unavailable", "no-permission" */
         @JavascriptInterface public String setWake(boolean on) {
             if (!on) { WakeService.stop(MainActivity.this); return "ok"; }

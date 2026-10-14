@@ -87,7 +87,7 @@ export default function UserMenu(props: Props) {
         <span className="um-identity-copy"><strong>{name}</strong><small>{email || t("未登录 · 注册后额度和记录多端互通")}</small></span>
       </div>
       <div className="um-sep"/>
-      <Row icon={<Settings2 size={16}/>} label={t("设置")} hint={mod + " ,"} onClick={() => run({ type: "settings", section: "general" })}/>
+      <Row icon={<Settings2 size={16}/>} label={t("设置")} hint={mod + " ,"} onClick={() => run({ type: "settings", section: "home" })}/>
       <Row icon={<Sparkles size={16}/>} label={t("个性化")} onClick={() => run({ type: "settings", section: "instructions" })}/>
       <Row icon={<PawPrint size={16}/>} label={t("桌宠")} onClick={() => run({ type: "pet" })}>
         <span className="um-item-value">{petOn ? t("已开启") : t("已关闭")}</span></Row>

@@ -173,3 +173,13 @@ test("own models: no empty or repeated turns, text-only retry for models without
   await page.keyboard.press("Enter");
   await expect(page.getByText(/upstream overloaded/)).toBeVisible();
 });
+
+test("on a phone, settings opens on the list of settings, not inside 通用设置", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(ciro.url + "/");
+  await page.keyboard.press("Control+,");
+  await expect(page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true })).toBeVisible();
+  await expect(page.locator(".sc-nav").getByRole("button", { name: "通用设置", exact: true })).toBeVisible();
+  await page.locator(".sc-nav").getByRole("button", { name: "隐私与安全", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "使用我的数据改进模型" })).toBeVisible();
+});

@@ -267,8 +267,14 @@ jobs:
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with: { path: out, name: server-portable }
+      - name: Offline voice model (Android voice input / wake on phones without a speech service)
+        continue-on-error: true
+        run: |
+          mkdir -p model-dl
+          curl -fsSL --retry 3 -o model-dl/Android-voice-model-cn.zip https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
       - name: Checksums
         run: |
+          [ -s model-dl/Android-voice-model-cn.zip ] && mv model-dl/Android-voice-model-cn.zip out/ || true
           cd out
           rm -rf ui-screenshots
           # artifacts can keep sub-folders (e.g. release/); publish every file flat

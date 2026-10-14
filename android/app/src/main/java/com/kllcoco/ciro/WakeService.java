@@ -45,6 +45,13 @@ public class WakeService extends Service {
     private boolean offline = false; // the phone's offline model first only after the online one keeps failing
     private int netErrors = 0;
     private long noteAt = 0;
+    /** What the listener is doing, for Settings ("正在下载离线语音模型 37%"…). */
+    static volatile String status = "";
+    // Offline recogniser instead of the system one (none on the phone, or it keeps failing).
+    private boolean local = false;
+    private org.vosk.android.SpeechService localSvc;
+    private int hardErrors = 0;
+    private boolean everHeard = false;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private SpeechRecognizer recognizer;
@@ -56,7 +63,7 @@ public class WakeService extends Service {
 
     static String start(Context ctx) {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return "no-permission";
-        if (!available(ctx)) return "unavailable";
+        // No system speech service (most phones sold in China): the offline recogniser (LocalAsr) takes over.
         ContextCompat.startForegroundService(ctx, new Intent(ctx, WakeService.class));
         ctx.getSharedPreferences("ciro_pet", MODE_PRIVATE).edit().putBoolean("wake", true).apply();
         return "ok";
@@ -93,7 +100,8 @@ public class WakeService extends Service {
         running = true;
         custom = words(this);
         Speaker.init(this);
-        main.post(this::listen);
+        local = !available(this) || getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean("wake_local", false);
+        main.post(local ? this::listenLocal : this::listen);
         return START_NOT_STICKY;
     }
 
@@ -101,6 +109,8 @@ public class WakeService extends Service {
     public void onDestroy() {
         running = false;
         main.removeCallbacksAndMessages(null);
+        stopLocal();
+        status = "";
         if (recognizer != null) { try { recognizer.destroy(); } catch (Exception ignored) { /* gone */ } recognizer = null; }
         super.onDestroy();
     }
@@ -118,7 +128,7 @@ public class WakeService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Ciro 在听")
-            .setContentText(lastHeard.isEmpty() ? "喊一声“" + wakeName() + "”，然后说你要做什么" : "刚听到：" + lastHeard)
+            .setContentText(!status.isEmpty() ? status : lastHeard.isEmpty() ? "喊一声“" + wakeName() + "”，然后说你要做什么" : "刚听到：" + lastHeard)
             .setOngoing(true)
             .setContentIntent(open)
             .addAction(0, "关闭语音唤醒", stop)
@@ -133,7 +143,7 @@ public class WakeService extends Service {
     }
 
     private void listen() {
-        if (!running) return;
+        if (!running || local) return;
         if (paused) {
             if (listening && recognizer != null) { try { recognizer.cancel(); } catch (Exception ignored) { /* gone */ } listening = false; }
             main.postDelayed(this::listen, 500); return;
@@ -163,6 +173,66 @@ public class WakeService extends Service {
             main.postDelayed(this, 300);
         }
     };
+
+    // ---- Offline recogniser (Vosk): one continuous session, each sentence arrives as onResult. ----
+    private void listenLocal() {
+        if (!running) return;
+        if (paused || Speaker.speaking()) { stopLocal(); main.postDelayed(this::listenLocal, 500); return; }
+        if (localSvc != null) return;
+        if (!LocalAsr.installed(this)) setStatus("正在下载离线语音模型（约 42MB，只需一次）…");
+        LocalAsr.ensure(this, (pct) -> setStatus("正在下载离线语音模型 " + pct + "%（只需一次）"), new LocalAsr.Ready() {
+            @Override public void ok(org.vosk.Model m) {
+                if (!running || localSvc != null) return;
+                if (paused || Speaker.speaking()) { main.postDelayed(WakeService.this::listenLocal, 500); return; }
+                try {
+                    localSvc = LocalAsr.listen(m, new LocalListener(), 0);
+                    setStatus("");
+                    main.removeCallbacks(watchLocal); main.postDelayed(watchLocal, 400);
+                } catch (Exception e) { localSvc = null; setStatus("麦克风打不开：" + e.getMessage()); main.postDelayed(WakeService.this::listenLocal, 5000); }
+            }
+            @Override public void fail(String why) { setStatus(why == null ? "离线语音模型加载失败" : why); main.postDelayed(WakeService.this::listenLocal, 60_000); }
+        });
+    }
+    // While listening offline: let go of the microphone when the app takes speech input or she talks.
+    private final Runnable watchLocal = new Runnable() {
+        @Override public void run() {
+            if (!running || localSvc == null) return;
+            if (paused || Speaker.speaking()) { stopLocal(); main.postDelayed(WakeService.this::listenLocal, 500); return; }
+            main.postDelayed(this, 400);
+        }
+    };
+    private void stopLocal() {
+        main.removeCallbacks(watchLocal);
+        if (localSvc == null) return;
+        try { localSvc.stop(); localSvc.shutdown(); } catch (Exception ignored) { /* gone */ }
+        localSvc = null;
+    }
+    private void setStatus(String text) {
+        status = text;
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        try { if (nm != null) nm.notify(NOTE_ID, notification()); } catch (Exception ignored) { /* not allowed */ }
+    }
+    /** The system recogniser does not work on this phone: from now on the offline one. */
+    private void switchToLocal() {
+        local = true;
+        getSharedPreferences("ciro_pet", MODE_PRIVATE).edit().putBoolean("wake_local", true).apply();
+        if (recognizer != null) { try { recognizer.destroy(); } catch (Exception ignored) { /* gone */ } recognizer = null; }
+        listening = false;
+        main.post(this::listenLocal);
+    }
+    private final class LocalListener implements org.vosk.android.RecognitionListener {
+        @Override public void onPartialResult(String hypothesis) {}
+        @Override public void onResult(String hypothesis) {
+            String text = LocalAsr.text(hypothesis);
+            if (text.isEmpty()) return;
+            ArrayList<String> list = new ArrayList<>();
+            list.add(text);
+            heard(list);
+        }
+        @Override public void onFinalResult(String hypothesis) {}
+        @Override public void onError(Exception e) { stopLocal(); main.postDelayed(WakeService.this::listenLocal, 3000); }
+        @Override public void onTimeout() { stopLocal(); main.postDelayed(WakeService.this::listenLocal, 300); }
+    }
 
     private void again(long delay) { listening = false; main.postDelayed(this::listen, delay); }
 
@@ -236,6 +306,7 @@ public class WakeService extends Service {
         @Override public void onPartialResults(Bundle partialResults) {}
         @Override public void onEvent(int eventType, Bundle params) {}
         @Override public void onResults(Bundle results) {
+            everHeard = true; hardErrors = 0;
             heard(results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION));
             again(250);
         }
@@ -251,6 +322,8 @@ public class WakeService extends Service {
             }
             // No speech / no match are normal between sentences; back off on repeated real errors.
             boolean quiet = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
+            // A system service that never works here (missing, blocked, no network to Google): the offline one.
+            if (!quiet && error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY && !everHeard && ++hardErrors >= 3) { switchToLocal(); return; }
             errors = quiet ? 0 : errors + 1;
             again(quiet ? 300 : Math.min(30_000, 1000L * errors * errors));
         }
