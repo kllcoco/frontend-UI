@@ -122,7 +122,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const menuPress = useRef(false);
   // Shows where she already is on the first frame (no slide in from the middle when the floating pet reappears).
   const [settled, setSettled] = useState(false);
-  useEffect(() => { const id = window.setTimeout(() => setSettled(true), 700); return () => window.clearTimeout(id); }, []);
+  // The Android floating pet stays invisible until her picture and spot are ready, then fades in where she is (no flash
+  // of the drawing, no slide from the middle while the edge pose and queued news are applied).
+  const artReady = useRef(false);
+  useEffect(() => { const id = window.setTimeout(() => setSettled(true), FLOATING ? 1200 : 700); return () => window.clearTimeout(id); }, []);
   const [art, setArt] = useState<Art | null>(null);
   const moodTimer = useRef(0), sayTimer = useRef(0), progressTimer = useRef(0);
   const lastActive = useRef(Date.now());
@@ -229,7 +232,15 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       const data = await r.json() as { states?: Record<string, string> };
       const states: Art = {};
       for (const [k, v] of Object.entries(data.states || {})) if (/^[\w.-]+\.(png|webp|gif)$/i.test(v)) states[k as Mood] = "/pet/" + v;
-      if (states.idle) setArt(states);
+      if (states.idle) {
+        setArt(states);
+        if (FLOATING && !artReady.current) {
+          artReady.current = true;
+          const img = new Image();
+          img.onload = img.onerror = () => window.setTimeout(() => setSettled(true), 250);
+          img.src = states.idle;
+        }
+      }
     }).catch(() => {});
     // Blinking.
     let blinkTimer = 0;

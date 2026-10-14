@@ -61,6 +61,8 @@ html.pet-page #ciro-boot{display:none}
 .pet-root--edge-top .pet-menu{top:auto;bottom:6px}
 /* First frame where she already is: no slide in from the middle when the floating pet reappears. */
 .pet-root--settling .pet-sprite{transition:none!important}
+.pet-root--floating{transition:opacity .22s ease-out}
+.pet-root--floating.pet-root--settling{opacity:0}
 .pet-menu button:hover,.pet-menu button:focus-visible{background:rgba(217,180,106,.18);color:#fbe9c0;outline:none}
 @media (prefers-reduced-motion:reduce){.pet-root *{animation:none!important}}
 
