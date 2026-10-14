@@ -38,15 +38,18 @@ export function saveConversations(conversations: Conversation[]): boolean {
   }
 }
 
+/** The open chat survives a reload of the page (sessionStorage), not a new start of the app: that opens on a clean
+ *  home page. */
 export function loadActiveId(): string | null {
-  try { return localStorage.getItem(ACTIVE_KEY); }
+  try { return sessionStorage.getItem(ACTIVE_KEY); }
   catch { return null; }
 }
 
 export function saveActiveId(id: string | null): void {
   try {
-    if (id) localStorage.setItem(ACTIVE_KEY, id);
-    else localStorage.removeItem(ACTIVE_KEY);
+    localStorage.removeItem(ACTIVE_KEY); // older versions kept it across starts
+    if (id) sessionStorage.setItem(ACTIVE_KEY, id);
+    else sessionStorage.removeItem(ACTIVE_KEY);
   } catch { /* Storage can be unavailable in private browsing. */ }
 }
 

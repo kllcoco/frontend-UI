@@ -182,8 +182,8 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const chat = params.get("chat");
     if (chat) { params.delete("chat"); window.history.replaceState(null, "", window.location.pathname + (params.toString() ? "?" + params : "")); return chat; }
-    // Every start opens on a clean home page, not on the last chat (it is one tap away in the list).
-    return null;
+    // A new start opens on a clean home page; a reload keeps the chat that was open (see loadActiveId).
+    return loadActiveId();
   });
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
