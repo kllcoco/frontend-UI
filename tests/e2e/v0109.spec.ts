@@ -165,3 +165,29 @@ test("on a phone, settings opens on the list of settings, not inside 通用设�
   await page.locator(".sc-nav").getByRole("button", { name: "隐私与安全", exact: true }).click();
   await expect(page.getByRole("switch", { name: "使用我的数据改进模型" })).toBeVisible();
 });
+
+test("Android: a reply the floating pet shows is not shown again by the app's pet; 打开 goes to that chat", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__hidden = false;
+    Object.defineProperty(document, "visibilityState", { get: () => (w.__hidden ? "hidden" : "visible") });
+    w.CiroPet = { floating: () => true, overlayAllowed: () => true, setEnabled: () => {}, stream: () => {}, progress: () => {}, signal: () => {}, command: () => {}, setScale: () => {} };
+    localStorage.setItem("ciro.pet.v1", "on");
+  });
+  await page.goto(ciro.url + "/");
+  await page.locator("textarea").first().fill("第一问");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".message--assistant")).toHaveCount(1);
+  const replyId = await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.chats.v1") || "[]")[0]?.messages?.[1]?.id || "");
+  await page.getByRole("button", { name: "新对话", exact: true }).first().click();
+  // Ciro goes to the background; a reply streams: only the floating pet shows it.
+  await page.evaluate(() => { (window as unknown as { __hidden: boolean }).__hidden = true;
+    window.dispatchEvent(new CustomEvent("ciro-pet-stream", { detail: { id: "x1", text: "后台的回答", done: true } })); });
+  await page.waitForTimeout(300);
+  await expect(page.locator(".pet-reply")).toHaveCount(0);
+  // 打开 on the floating pet: the app comes back on that chat.
+  await page.evaluate((id) => { (window as unknown as { __hidden: boolean }).__hidden = false;
+    window.dispatchEvent(new CustomEvent("ciro-open-reply", { detail: id })); }, replyId);
+  await expect(page.locator(".user-bubble")).toHaveText("第一问");
+  await expect(page.locator(".pet-reply")).toHaveCount(0);
+});

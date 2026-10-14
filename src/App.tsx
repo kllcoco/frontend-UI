@@ -673,6 +673,17 @@ export default function App() {
     onText: (text) => sendRef.current(text), onTap: () => notify("按住说话，松开发送，上滑取消"),
     onError: (code) => notify(speechErrorText(code)) });
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
+  // "打开" on the floating pet's reply (Android): straight to the chat that reply belongs to.
+  useEffect(() => {
+    const open = (e: Event) => {
+      const id = String((e as CustomEvent<string>).detail || "");
+      const chat = conversationsRef.current.find((c) => c.messages.some((m) => m.id === id));
+      if (!chat) return;
+      setActiveId(chat.id); setSettingsSection(null); setStudioOpen(false); setProjectViewId(null);
+    };
+    window.addEventListener("ciro-open-reply", open);
+    return () => window.removeEventListener("ciro-open-reply", open);
+  }, []);
   // The pet (or her floating window on Android) asks to show the work that waits for a decision.
   useEffect(() => {
     const open = () => openStudioRef.current("remote");

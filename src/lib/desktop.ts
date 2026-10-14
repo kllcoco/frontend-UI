@@ -29,7 +29,7 @@ export type PetBridge = {
   setIgnore: (ignore: boolean) => void;
   /** dx / dy: pointer movement since the drag started, in CSS px (used by the Android overlay; the desktop polls the cursor). */
   drag: (phase: "start" | "move" | "end", dx?: number, dy?: number) => void;
-  action: (action: "open" | "quick" | "hide" | "work") => void;
+  action: (action: "open" | "quick" | "hide" | "work" | `open-reply:${string}`) => void;
   signal: (signal: PetSignal) => void;
   visible: () => boolean;
   toggle: (on: boolean) => void;

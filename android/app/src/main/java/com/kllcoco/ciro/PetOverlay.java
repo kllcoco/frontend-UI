@@ -459,6 +459,10 @@ final class PetOverlay {
                     bringAppToFront("(function(){try{localStorage.setItem('ciro.pet.v1','off');window.dispatchEvent(new CustomEvent('ciro-pet-toggle',{detail:false}));}catch(e){}})()");
                 } else if ("work".equals(name)) {
                     bringAppToFront("(function(){try{window.dispatchEvent(new Event('ciro-open-work'));}catch(e){}})()");
+                } else if (name != null && name.startsWith("open-reply:")) {
+                    // "打开" on her reply bubble: that chat opens in the app, and the app's pet does not show it again.
+                    String id = name.substring(11).replaceAll("[^A-Za-z0-9_-]", "");
+                    bringAppToFront("(function(){try{window.dispatchEvent(new CustomEvent('ciro-open-reply',{detail:'" + id + "'}));}catch(e){}})()");
                 } else if ("quick".equals(name)) {
                     bringAppToFront("(function(){try{var t=document.querySelector('textarea');t&&t.focus();}catch(e){}})()");
                 } else bringAppToFront(null);

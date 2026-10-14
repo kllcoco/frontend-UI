@@ -7,7 +7,7 @@ import type { Mood } from "./Chibi";
 import { desktop } from "../lib/desktop";
 import { androidPetBridge } from "./android-bridge";
 import { loadLanguage, translate } from "../lib/i18n";
-import { bubbleText, nativePet, PET_MOODS, petQuiet, setPetEnabled } from "../lib/pet";
+import { bubbleText, floatingPetOutside, nativePet, PET_MOODS, petQuiet, setPetEnabled } from "../lib/pet";
 import type { PetCommand, PetEdge, PetProgress, PetStream } from "../lib/pet";
 
 /* Ciro pet. Desktop app: its own transparent always-on-top window (?pet=1). Web / Android: `inline`,
@@ -282,9 +282,16 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       const r = (e as CustomEvent<PetStream>).detail;
       if (!inline || !r) return;
       if (r.onScreen && !replyRef.current) return;
+      // Ciro in the background on Android: the floating pet shows this reply — the one in the app must not keep a
+      // second copy that has to be closed again after "打开".
+      if (document.visibilityState === "hidden" && floatingPetOutside()) return;
       streamed(r);
     };
+    // "打开" on the floating pet's reply: the app opens that chat, and no bubble is left here to close.
+    const onOpenedReply = () => { if (inline) closeReply(); };
+    window.addEventListener("ciro-open-reply", onOpenedReply);
     window.addEventListener("ciro-pet-stream", onWindowStream);
+    const offOpened = () => window.removeEventListener("ciro-open-reply", onOpenedReply);
     const offStream = bridge?.onStream?.(streamed);
     window.addEventListener("ciro-pet-progress", onWindowProgress);
     const offProgress = bridge?.onProgress?.(progressed);
@@ -309,7 +316,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     return () => {
       window.clearTimeout(blinkTimer); window.clearTimeout(lifeTimer); window.clearTimeout(walkTimer.current); walkingRef.current = false; window.clearTimeout(progressTimer.current); offCursor?.(); offSignal?.(); offCommand?.();
       window.removeEventListener("ciro-pet", onWindowCommand); window.removeEventListener("ciro-pet-progress", onWindowProgress); offProgress?.(); offEdge?.();
-      window.removeEventListener("ciro-pet-stream", onWindowStream); offStream?.(); window.clearTimeout(replyTimer.current); window.removeEventListener("ciro-pet-signal", onWindowSignal);
+      window.removeEventListener("ciro-pet-stream", onWindowStream); offOpened(); offStream?.(); window.clearTimeout(replyTimer.current); window.removeEventListener("ciro-pet-signal", onWindowSignal);
       window.removeEventListener("mousemove", onMove);
     };
   }, []);
@@ -598,7 +605,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
       <div ref={replyBox} className="pet-reply-text">{reply.text || "…"}{!reply.done && <i className="pet-caret"/>}</div>
       <div className="pet-reply-bar">
         {reply.done ? <span>{t(reply.error ? "出错了" : "回答完成")}</span> : <span className="pet-reply-live">{t("正在回答…")}</span>}
-        <button type="button" onClick={() => { closeReply(); if (inline) onAsk?.(); else bridge?.action("open"); }}>{t(inline ? "去看看" : "打开")}</button>
+        <button type="button" onClick={() => { const id = reply.id; closeReply(); if (inline) onAsk?.(); else bridge?.action(id && FLOATING ? `open-reply:${id}` as const : "open"); }}>{t(inline ? "去看看" : "打开")}</button>
         <button type="button" aria-label={t("关闭")} onClick={closeReply}>×</button>
       </div>
     </div>}

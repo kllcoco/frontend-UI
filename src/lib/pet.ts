@@ -9,6 +9,10 @@ type NativePet = { setEnabled?: (on: boolean) => void; command?: (json: string) 
   stream?: (json: string) => void; signal?: (signal: string) => void; overlayAllowed?: () => boolean; setFloating?: (on: boolean) => void; floating?: () => boolean; requestOverlay?: () => void; resetPlace?: () => void;
   setScale?: (v: number) => void; setQuiet?: (on: boolean) => void };
 export const nativePet = (): NativePet | undefined => (window as unknown as { CiroPet?: NativePet }).CiroPet;
+/** Android: her floating twin shows over other apps (turned on and allowed) — it takes the replies while Ciro is away. */
+export function floatingPetOutside(): boolean {
+  try { const n = nativePet(); return Boolean(n?.floating?.() && n?.overlayAllowed?.()); } catch { return false; }
+}
 export const PET_MOODS: Mood[] = ["idle", "happy", "love", "shy", "angry", "sad", "think", "work", "sleep", "wave", "eat"];
 export const PET_ACTIONS = ["wave", "nod", "shake", "bow", "jump", "stretch", "magic", "spin", "lookaround", "yawn", "hum", "doze", "tidy", "giggle", "sparkle", "peek"] as const;
 export type PetCommand = { mood?: Mood; say?: string; action?: typeof PET_ACTIONS[number] };
