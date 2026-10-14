@@ -25,8 +25,8 @@ test("voice command sets an alarm through the phone bridge and speaks the answer
   await page.locator(".cx-history").getByText("语音助手").click();
   await expect(page.getByText("好的，明早七点半叫你起床。")).toBeVisible();
   await expect(page.getByText("<phone")).toHaveCount(0);
-  // Settings shows the voice wake switch only in the Android app (the bridge is there).
+  // Settings → 语音唤醒 shows the switch only in the Android app (the bridge is there).
   await page.keyboard.press("Control+,");
-  await page.locator(".sc-nav").getByRole("button", { name: "桌宠", exact: true }).click();
+  await page.locator(".sc-nav").getByRole("button", { name: "语音唤醒", exact: true }).click();
   await expect(page.getByRole("switch", { name: "语音唤醒" })).toBeVisible();
 });
