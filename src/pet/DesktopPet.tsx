@@ -350,6 +350,13 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     document.addEventListener("pointerdown", close, true);
     return () => document.removeEventListener("pointerdown", close, true);
   }, [menu]);
+  // Android floating pet: her window is just her size (it would block taps on the home screen otherwise), so it
+  // grows only while she says something and shrinks back afterwards.
+  useEffect(() => {
+    if (!FLOATING) return;
+    if (say) bridge?.expand?.(true);
+    else if (!replyRef.current && !menu) bridge?.expand?.(false);
+  }, [say]);
   /** Opens the menu where she is, whatever she is doing (hiding at an edge, asleep…). */
   const openMenu = () => { menuPress.current = true; const d = drag.current; drag.current = null;
     if (d?.moving) { if (!inline) bridge?.drag("end"); } setMenu((v) => !v); };

@@ -85,8 +85,28 @@ final class PetOverlay {
 
     private float density() { return activity.getResources().getDisplayMetrics().density; }
     private float scale() { return Math.max(0.5f, Math.min(1.6f, prefs().getFloat("scale", 0.85f))); }
-    private int widthPx() { float s = scale(); return Math.round(Math.max(expanded ? 280 : 132, 102 * s + 38) * density()); }
-    private int heightPx() { float s = scale(); return Math.round((136 * s + (expanded ? 250 : 64)) * density()); }
+    /** Her window takes touches everywhere inside it (Android has no click-through for overlays), so it hugs her:
+     *  just her sprite (102 × 136 dp at size 1), only the part that shows when she hides at an edge, and the larger
+     *  size only while a bubble, an answer or her menu is open (the page asks for it with expand). */
+    private int[] sizeFor(String edge) {
+        float s = scale(), sw = 102 * s, sh = 136 * s;
+        float w, h;
+        if (expanded) { w = Math.max(280, sw + 38); h = sh + 250; }
+        else if ("left".equals(edge) || "right".equals(edge)) { w = sw * 0.8f + 8; h = sh + 16; }
+        else if ("top".equals(edge) || "bottom".equals(edge)) { w = sw + 16; h = sh * 0.5f + 8; }
+        else { w = sw + 16; h = sh + 16; }
+        return new int[] { Math.round(w * density()), Math.round(h * density()) };
+    }
+    private String currentEdge() { return prefs().getString("edge", ""); }
+    private int widthPx() { return sizeFor(currentEdge())[0]; }
+    private int heightPx() { return sizeFor(currentEdge())[1]; }
+    /** Resizes for a state, keeping her centre where it was (or her bottom, when it grows for a bubble). */
+    private void fitSize(String edge) {
+        int[] size = sizeFor(edge);
+        params.x += (params.width - size[0]) / 2;
+        params.y += params.height - size[1];
+        params.width = size[0]; params.height = size[1];
+    }
     /** System bar heights: the screen edges there belong to the notification shade and home / back gestures. */
     private int dimen(String name) {
         int id = activity.getResources().getIdentifier(name, "dimen", "android");
@@ -98,6 +118,7 @@ final class PetOverlay {
     /** The edge mode leaves part of the sprite available for grabbing; no extra gesture gutter here.
      * Free-floating positions remain clamped away from system gesture areas. */
     private void snapTo(String edge) {
+        fitSize(edge);
         Rect s = screen();
         int w = params.width, h = params.height;
         if (edge.equals("left")) params.x = s.left;
@@ -279,6 +300,8 @@ final class PetOverlay {
         @JavascriptInterface public void beginDrag() {
             main.post(() -> {
                 if (view == null) return;
+                // Picked up from an edge: her whole body shows again while she is carried.
+                if (!currentEdge().isEmpty() && !expanded) { fitSize(""); apply(); }
                 dragStartX = params.x;
                 dragStartY = params.y;
                 dragging = true;
@@ -303,6 +326,7 @@ final class PetOverlay {
                 int w = params.width, h = params.height;
                 // Pulled partly past an edge: she hides there with only her head showing.
                 String edge = params.x < -w / 4 ? "left" : params.x + w > s.right + w / 4 ? "right" : params.y + h > s.bottom + h / 5 ? "bottom" : params.y < -h / 4 ? "top" : "";
+                if (edge.isEmpty()) fitSize("");
                 clamp();
                 if (!edge.isEmpty()) snapTo(edge);
                 apply();
@@ -324,6 +348,7 @@ final class PetOverlay {
                     String prev = prefs().getString("edge", "");
                     if (prev.equals("top")) params.y += Math.round(params.height * 0.25f);
                     else if (prev.equals("bottom")) params.y -= Math.round(params.height * 0.15f);
+                    fitSize("");
                     clamp();
                     prefs().edit().putString("edge", "").apply();
                 }
