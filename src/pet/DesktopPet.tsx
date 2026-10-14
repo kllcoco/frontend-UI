@@ -47,7 +47,8 @@ function gutters(): { side: number; top: number; bottom: number } {
     const cs = getComputedStyle(probe); safeTop = parseFloat(cs.paddingTop) || 0; safeBottom = parseFloat(cs.paddingBottom) || 0;
     probe.remove();
   } catch { /* no env() support */ }
-  return { side: 30, top: safeTop + 48, bottom: safeBottom + 60 };
+  // Sides: she may go right up to the edge (a drag that starts on her is not a system swipe); 8 px like the floating pet.
+  return { side: 8, top: safeTop + 48, bottom: safeBottom + 60 };
 }
 /** In-app position (right / bottom offsets) for hiding at an edge. */
 function edgePos(edge: Exclude<PetEdge, null>, w: number, h: number, p: { x: number; y: number }) {
@@ -58,9 +59,11 @@ function edgePos(edge: Exclude<PetEdge, null>, w: number, h: number, p: { x: num
     : edge === "bottom" ? { x: midX, y: 0 } : { x: midX, y: H - h };
 }
 /** Inside the app and, on touch screens, away from the system gesture areas. */
-function keepIn(p: { x: number; y: number }, w: number, h: number) {
+/** pad: the empty band each side of her inside the box (the box is wider than she is) — it may go past the screen
+ *  edge, so it is her, not her box, that stops at the edge. */
+function keepIn(p: { x: number; y: number }, w: number, h: number, pad = 0) {
   const g = gutters();
-  return { x: Math.max(g.side, Math.min(window.innerWidth - w - g.side, p.x)), y: Math.max(g.bottom, Math.min(window.innerHeight - h - g.top, p.y)) };
+  return { x: Math.max(g.side - pad, Math.min(window.innerWidth - w - g.side + pad, p.x)), y: Math.max(g.bottom, Math.min(window.innerHeight - h - g.top, p.y)) };
 }
 const clampScale = (v: number) => Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, v)) * 100) / 100;
 function stored(key: string): string { try { return localStorage.getItem(key) || ""; } catch { return ""; } }
@@ -90,6 +93,11 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   });
   const edgeRef = useRef(edge);
   edgeRef.current = edge;
+  /** How much wider her box is than she is, on each side (see keepIn). */
+  const sidePad = () => {
+    const r = rootRef.current?.getBoundingClientRect(), s = sprite.current?.getBoundingClientRect();
+    return r && s && r.width > s.width ? (r.width - s.width) / 2 : 0;
+  };
   // Android: one pet, one place. The app's pet and the floating one on the home screen share where she is (and
   // whether she hides at an edge): back in the app she is where you left her outside, and the other way round.
   useEffect(() => {
@@ -102,7 +110,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
         const box = rootRef.current?.getBoundingClientRect();
         const w = box?.width || 150, h = box?.height || 200;
         if (Number.isFinite(p.right) && Number.isFinite(p.bottom)) {
-          const next = keepIn({ x: Math.round(p.right! - w / 2), y: Math.round(p.bottom!) }, w, h);
+          const next = keepIn({ x: Math.round(p.right! - w / 2), y: Math.round(p.bottom!) }, w, h, sidePad());
           if (next.x !== posRef.current.x || next.y !== posRef.current.y) { setPos(next); store(INLINE_POS, JSON.stringify(next)); }
         }
         const e = p.edge === "left" || p.edge === "right" || p.edge === "top" || p.edge === "bottom" ? p.edge : null;
@@ -366,7 +374,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     const id = window.setTimeout(() => {
       const box = rootRef.current?.getBoundingClientRect();
       if (!box) return;
-      const next = edgeRef.current ? edgePos(edgeRef.current, box.width, box.height, posRef.current) : keepIn(posRef.current, box.width, box.height);
+      const next = edgeRef.current ? edgePos(edgeRef.current, box.width, box.height, posRef.current) : keepIn(posRef.current, box.width, box.height, sidePad());
       if (next.x !== posRef.current.x || next.y !== posRef.current.y) { setPos(next); store(INLINE_POS, JSON.stringify(next)); }
     }, 300);
     return () => window.clearTimeout(id);
@@ -525,7 +533,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     holding(false);
     const d = drag.current;
     drag.current = null;
-    if (d?.moving) { if (inline) { const box = rootRef.current?.getBoundingClientRect(); const next = keepIn(posRef.current, box?.width || 150, box?.height || 200); setPos(next); store(INLINE_POS, JSON.stringify(next)); } else bridge?.drag("end"); act("idle", 0); setSay(""); }
+    if (d?.moving) { if (inline) { const box = rootRef.current?.getBoundingClientRect(); const next = keepIn(posRef.current, box?.width || 150, box?.height || 200, sidePad()); setPos(next); store(INLINE_POS, JSON.stringify(next)); } else bridge?.drag("end"); act("idle", 0); setSay(""); }
   }
   function onPointerUp(e: React.PointerEvent) {
     (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
@@ -543,7 +551,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
         const p = posRef.current;
         const hide: PetEdge = p.x < -w * .3 ? "right" : p.x > window.innerWidth - w * .7 ? "left" : p.y < -h * .25 ? "bottom"
           : p.y > window.innerHeight - h * 1.02 ? "top" : null;
-        const next = hide ? edgePos(hide, w, h, p) : keepIn(p, w, h);
+        const next = hide ? edgePos(hide, w, h, p) : keepIn(p, w, h, sidePad());
         setPos(next);
         store(INLINE_POS, JSON.stringify(next));
         if (hide) { setEdge(hide); store(INLINE_EDGE, hide); act("shy", 2200); speak(t("我躲在这里哦。"), 2400); return; }

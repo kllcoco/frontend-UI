@@ -120,7 +120,8 @@ final class PetOverlay {
         int id = activity.getResources().getIdentifier(name, "dimen", "android");
         return id > 0 ? activity.getResources().getDimensionPixelSize(id) : 0;
     }
-    private int gutterSide() { return Math.round(30 * density()); }
+    // Her window is 8 dp wider than her on each side: she reaches 8 dp from the screen edge, like the app's pet.
+    private int gutterSide() { return 0; }
     private int gutterTop() { return dimen("status_bar_height") + Math.round(40 * density()); }
     private int gutterBottom() { return dimen("navigation_bar_height") + Math.round(48 * density()); }
     /** The edge mode leaves part of the sprite available for grabbing; no extra gesture gutter here.

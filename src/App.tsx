@@ -14,7 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
 import { loadCustomInstructions, saveCustomInstructions } from "./lib/instructions";
 import {
-  loadActiveId, loadConversations, loadThemePref, newId, saveActiveId, saveConversations, saveThemePref, systemTheme
+  loadConversations, loadThemePref, newId, saveActiveId, saveConversations, saveThemePref, systemTheme
 } from "./lib/storage";
 import type { ThemePref } from "./lib/storage";
 import type { AnswerVersion, ApiStatus, ChatMessage, Conversation } from "./types";
@@ -182,7 +182,8 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const chat = params.get("chat");
     if (chat) { params.delete("chat"); window.history.replaceState(null, "", window.location.pathname + (params.toString() ? "?" + params : "")); return chat; }
-    return loadActiveId();
+    // Every start opens on a clean home page, not on the last chat (it is one tap away in the list).
+    return null;
   });
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
