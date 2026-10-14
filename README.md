@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **当前版本 v0.10.6**：黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **当前版本 v0.10.6**：多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、语音唤醒（Android）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 安装与运行
 
@@ -59,7 +59,8 @@ CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端�
 - 对话里直接设定时任务（“每天 8 点给我讲讲新闻”“半小时后提醒我喝水”），到点自动完成并由桌宠汇报
 - Android 语音唤醒：喊“Ciro”即可设闹钟、打开应用、导航、打电话 / 发短信（由你确认）等
 - 工作模式：手机扫码控制家里或公司的电脑，在允许的文件夹里运行命令和 AI 任务
-- 融合工作台、协作空间、研究工作台、知识与文件、插件中心、官方应用与技能中心
+- 多模型协作：选择多个已接入的模型一起完成同一个任务——各自作答、互相评审、主笔汇总
+- 融合工作台、协作空间、研究工作台、知识与文件（没有专用服务时直接用当前模型）、插件中心、官方应用与技能中心
 
 **账户与界面**
 - 邮箱或手机号 + 短信验证码注册；CWU 余额、充值与明细；API 控制台

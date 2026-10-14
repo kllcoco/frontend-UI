@@ -1,9 +1,16 @@
 import { localeTag } from "./lib/i18n";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Markdown from "./components/Markdown";
+import { clearToolRuns, hasChatModel, loadToolRuns, runOnModel, saveToolRun } from "./lib/model-tools";
+import type { ToolRun } from "./lib/model-tools";
+import { isCustomModel } from "./lib/custom-models";
+import type { ApiStatus } from "./types";
 import CommercialCenter from "./CommercialCenter";
 import PluginConnections from "./PluginConnections";
 import RemoteWork from "./components/RemoteWork";
-import { MonitorSmartphone } from "lucide-react";
+import { MonitorSmartphone, Network } from "lucide-react";
+import ModelCrew from "./components/ModelCrew";
+import { translate } from "./lib/i18n";
 import {getAccountSession} from "./lib/account-api";
 import type { FormEvent } from "react";
 import {
@@ -22,9 +29,14 @@ import type {
   WorkbenchGoal, GithubFile, WorkbenchResponse
 } from "./lib/workbench-api";
 
-type Props = { language: Language; initialTab?: WorkbenchTab; embedded?: boolean; initialGoal?: string; onNavigate?: (route: string) => void };
+type Props = { language: Language; initialTab?: WorkbenchTab; embedded?: boolean; initialGoal?: string; onNavigate?: (route: string) => void;
+  /** The chat model (server model or "custom:<id>"): plans goals when the execution runtime is not connected. */
+  model?: string; status?: ApiStatus;
+  /** Operators see the runtime plumbing; customers get plain wording. */
+  operator?: boolean };
 const tabs: {id:WorkbenchTab;title:string;Icon:typeof Users}[] = [
   {id:"goals",title:"目标与项目",Icon:Users},
+  {id:"crew",title:"多模型协作",Icon:Network},
   {id:"remote",title:"工作模式",Icon:MonitorSmartphone},
   {id:"schedules",title:"定时任务",Icon:CalendarClock},
   {id:"permissions",title:"权限与沙盒",Icon:ShieldCheck},
@@ -36,7 +48,7 @@ const tabs: {id:WorkbenchTab;title:string;Icon:typeof Users}[] = [
 ];
 /** The tool rail groups related pages; on phones it collapses into a compact tile grid. */
 const tabGroups:{label:string;ids:WorkbenchTab[]}[]=[
-  {label:"任务",ids:["goals","remote","schedules"]},
+  {label:"任务",ids:["goals","crew","remote","schedules"]},
   {label:"连接与权限",ids:["permissions","github","plugins"]},
   {label:"应用与账单",ids:["apps","skills","billing"]}
 ];
@@ -95,7 +107,7 @@ function useWorkbench() {
 function readable(time:string,language:Language){
   const date=new Date(time);return Number.isNaN(date.getTime())?"—":date.toLocaleString(localeTag(language),{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
 }
-export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal="",onNavigate}:Props) {
+export default function WorkbenchCenter({language,initialTab="goals",embedded=false,initialGoal="",onNavigate,model="ciro",status,operator=false}:Props) {
   const w=useWorkbench();
   const [githubMarketOnly,setGithubMarketOnly]=useState(false);
   useEffect(()=>{
@@ -134,10 +146,43 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
     setPolicyLoaded(true);
   },[w.state,policyLoaded]);
   const currentTab=embedded?initialTab:tab;
+  const [planLive,setPlanLive]=useState<{question:string;answer:string;id?:string}|null>(null);
+  const [plans,setPlans]=useState<ToolRun[]>(()=>loadToolRuns("plan"));
+  const planAbort=useRef<AbortController|null>(null);
+  useEffect(()=>()=>planAbort.current?.abort(),[]);
+  const modelReady=hasChatModel(model,status);
+  const runnerReady=Boolean(w.state?.capabilities.runtime.runner);
+  /** No execution runtime: the chat model writes the plan here; executing it needs work mode or the runtime. */
+  async function planWithModel(title:string,goal:string,mode:AgentMode){
+    planAbort.current?.abort();
+    const controller=new AbortController();planAbort.current=controller;
+    const question=(title&&title!==goal.slice(0,55)?title+"\n\n":"")+goal;
+    let answer="";
+    setPlanLive({question,answer:""});w.setError("");w.setNotice("");
+    try{
+      await runOnModel({model,status,kind:"plan",question,signal:controller.signal,
+        onDelta:x=>{answer+=x;setPlanLive(old=>old&&{...old,answer});}});
+      if(!answer.trim())throw new Error(t("模型没有返回内容，请重试。"));
+      const saved=saveToolRun({kind:"plan",question,answer,model});
+      setPlanLive(old=>old&&{...old,id:saved.id});setPlans(loadToolRuns("plan"));
+      setGoalTitle("");setGoalText("");
+      w.setNotice(mode==="goal"?t("执行需要连接电脑（工作模式）或执行引擎；计划已生成"):t("计划已生成"));
+    }catch(error){
+      if(controller.signal.aborted)return;
+      const raw=error instanceof Error?error.message:String(error);
+      w.setError(operator||isCustomModel(model)?raw:t("模型暂时无法回答，请稍后重试。"));
+      if(!answer)setPlanLive(null);
+    }
+  }
   async function submitGoal(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if(!goalText.trim())return;
+    if(!runnerReady&&!modelReady&&!operator){w.setError(t("还没有可用的模型：请在模型菜单添加你自己的模型（API）后再试。"));return;}
     setWorking(true);
+    if(!runnerReady&&modelReady){
+      try{await planWithModel(goalTitle.trim(),goalText.trim(),goalMode);}finally{setWorking(false);}
+      return;
+    }
     try {
       const reply=await w.call<WorkbenchResponse>("/goals",{
         title:goalTitle.trim()||goalText.trim().slice(0,55),goal:goalText,mode:goalMode
@@ -199,12 +244,18 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
       {w.error&&<div role="alert" className="wb-alert wb-alert--error"><CircleAlert size={17}/><span>{w.error}</span><button aria-label={t("关闭设置")} onClick={()=>w.setError("")}><X size={15}/></button></div>}
       {w.notice&&<div role="status" className="wb-alert wb-alert--ok"><Check size={16}/>{w.notice}</div>}
       {currentTab==="remote"&&<RemoteWork t={t}/>}
-      {currentTab!=="remote"&&w.loading&&!state&&<div className="wb-empty"><Activity size={24}/>{t("准备中")}</div>}
-      {currentTab!=="remote"&&!state&&!w.loading&&<div className="wb-empty">{t("无法加载工作台")}<button onClick={()=>void w.refresh()}>{t("刷新")}</button></div>}
+      {currentTab==="crew"&&<ModelCrew t={(s)=>translate(language,s)} language={language} status={status||{configured:false,models:[]}}
+        onAddModel={onNavigate?()=>onNavigate("settings:models"):undefined}/>}
+      {currentTab!=="remote"&&currentTab!=="crew"&&w.loading&&!state&&<div className="wb-empty"><Activity size={24}/>{t("准备中")}</div>}
+      {currentTab!=="remote"&&currentTab!=="crew"&&!state&&!w.loading&&<div className="wb-empty">{t("无法加载工作台")}<button onClick={()=>void w.refresh()}>{t("刷新")}</button></div>}
       {state&&(currentTab==="billing"||currentTab==="apps"||currentTab==="skills")&&
         <CommercialCenter key={currentTab} language={language} section={currentTab} onNavigate={onNavigate}/>}
       {state&&currentTab==="goals"&&<div className="wb-goals">
-        <div className="wb-capabilities">
+        {!operator&&!runtime?.runner?<div className="wb-capabilities">
+          <span className={modelReady?"wb-health wb-health--ready":"wb-health"}>
+            {modelReady?<CheckCircle2 size={16}/>:<CircleAlert size={16}/>}
+            {t(modelReady?"计划由当前对话模型生成":"还没有可用的模型")}</span>
+        </div>:<div className="wb-capabilities">
           <span className={runtime?.runner?"wb-health wb-health--ready":"wb-health"}>
             {runtime?.runner?<CheckCircle2 size={16}/>:<CircleAlert size={16}/>}
             {t(runtime?.runner?"执行引擎已配置":"执行引擎未连接")}
@@ -214,7 +265,7 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
             {t(runtime?.verifier?"独立验证器已配置":"独立验证器未连接")}
           </span>
           <span className="wb-scope"><ShieldCheck size={15}/>{state.policy.repo||t("设置代码仓库")}</span>
-        </div>
+        </div>}
         <div className="wb-hero">
           <div className="wb-hero-top"><Sparkles size={24}/><div>
             <h2>{t("新建自主任务")}</h2><p>{t("让 Ciro 拆解、委派、测试并持续修复任务。")}</p></div></div>
@@ -227,11 +278,23 @@ export default function WorkbenchCenter({language,initialTab="goals",embedded=fa
             <label className="wb-label">{t("详细目标与验收标准")}
               <textarea required rows={4} maxLength={12000} aria-label={t("详细目标与验收标准")} placeholder={t("例如：完成一个可登录的产品网站，并通过测试与安全审计")}
                 value={goalText} onChange={e=>setGoalText(e.target.value)}/></label>
-            <div className="wb-form-bottom"><p>{t("仅在已连接执行器并满足授权时真正执行。")}</p>
+            <div className="wb-form-bottom"><p>{t(!runtime?.runner&&modelReady?"未连接执行时，由当前对话模型生成计划。":"仅在已连接执行器并满足授权时真正执行。")}</p>
               <button className="wb-primary" type="submit" disabled={working||!goalText.trim()}>
-                <ArrowRight size={17}/>{working?t("创建中…"):t(goalMode==="plan"?"生成计划":"创建目标")}</button></div>
+                <ArrowRight size={17}/>{working?t(!runtime?.runner&&modelReady?"生成中…":"创建中…"):t(goalMode==="plan"||(!runtime?.runner&&modelReady)?"生成计划":"创建目标")}</button></div>
           </form>
         </div>
+        {planLive&&<section className="wb-card wb-plan" aria-live="polite"><h3>{t("模型生成的计划")}</h3>
+          <p className="wb-muted">{planLive.question}</p>
+          {planLive.answer?<div className="wb-plan-answer"><Markdown text={planLive.answer} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/></div>
+            :<p className="wb-muted">{t("生成中…")}</p>}
+        </section>}
+        {plans.filter(x=>x.id!==planLive?.id).length>0&&<section className="wb-card"><div className="wb-block-title"><div><h3>{t("计划记录")}</h3></div>
+          <button type="button" className="wb-secondary" onClick={()=>{clearToolRuns("plan");setPlans([]);}}><Trash2 size={15}/>{t("清空记录")}</button></div>
+          {plans.filter(x=>x.id!==planLive?.id).map(run=><details className="stu-run" key={run.id}>
+            <summary><strong>{run.question.slice(0,90)}</strong><small>{readable(new Date(run.createdAt).toISOString(),language)}</small></summary>
+            <div className="wb-plan-answer"><Markdown text={run.answer} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/></div>
+          </details>)}
+        </section>}
         <div className="wb-pipeline" aria-label={t("测试 / 红队 / 修复 / 再测")}>
           {stages.map(({phase,title,role,Icon},i)=><div className="wb-phase" key={phase}>
             <span className="wb-phase-icon"><Icon size={18}/></span>

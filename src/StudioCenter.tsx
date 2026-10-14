@@ -20,11 +20,21 @@ import {probeNativeShell,sendNativeNotification} from "./lib/native-shell";
 import type {NativeShellStatus} from "./lib/native-shell";
 import {commercialApi} from "./lib/commercial-api";
 import type {CommerceState} from "./lib/commercial-api";
+import Markdown from "./components/Markdown";
+import {customById,isCustomModel} from "./lib/custom-models";
+import {clearToolRuns,hasChatModel,loadToolRuns,runOnModel,saveToolRun,searchTerms} from "./lib/model-tools";
+import type {ToolKind,ToolRun} from "./lib/model-tools";
+import type {ApiStatus} from "./types";
 
 type LibraryOp="folder"|"branch"|"checkpoint"|"restore";
 type Props={language:Language;section:StudioTab;conversations:Conversation[];
   onNavigate:(target:string)=>void;
-  onLibraryAction:(op:LibraryOp,id:string,value:string|number)=>void};
+  onLibraryAction:(op:LibraryOp,id:string,value:string|number)=>void;
+  /** The chat model (server model or "custom:<id>"): runs 持续思考 / 研究 / 知识问答 when their native service is not connected. */
+  model?:string;status?:ApiStatus;
+  /** Operators see the server plumbing (.env names); customers get plain wording. */
+  operator?:boolean};
+type LiveRun={kind:ToolKind;question:string;answer:string;reasoning:string;done:boolean;files?:string[];id?:string};
 type RuntimeResult={status:string;jobId?:string;summary?:string|null;verified?:boolean;
   sources?:{title:string;url:string;excerpt:string}[];evidence?:unknown[]};
 
@@ -45,11 +55,12 @@ function serviceState(x:NativeService|undefined):{level:ModuleLevel;label:string
   if(!x)return {level:"unknown",label:"检测中…"};
   return x.configured?(x.verified?{level:"ok",label:"可用"}:{level:"partial",label:"已配置，待验证"}):{level:"off",label:"未连接"};
 }
-function moduleState(id:string,caps:StudioCapabilities|null):{level:ModuleLevel;label:string}{
+function moduleState(id:string,caps:StudioCapabilities|null,modelReady:boolean):{level:ModuleLevel;label:string}{
   if(!caps)return {level:"unknown",label:"检测中…"};
+  const viaModel=(x:NativeService)=>!x.configured&&modelReady?{level:"ok" as const,label:"使用当前模型"}:serviceState(x);
   switch(id){
-    case "thinking":return serviceState(caps.thinking.provider);
-    case "research":return serviceState(caps.research);
+    case "thinking":return viaModel(caps.thinking.provider);
+    case "research":return viaModel(caps.research);
     case "media":return serviceState(caps.media);
     case "compute":return serviceState(caps.compute.modelControl);
     case "ide":return caps.ide.sandboxExecution.configured?{level:"ok",label:"可用"}:{level:"partial",label:"可编辑，运行需连接"};
@@ -87,13 +98,43 @@ function JobResult({job,refresh,language}: {job:RuntimeResult|null;refresh:()=>v
     {job.evidence?.length?<div className="stu-evidence">{job.evidence.length} {t("保留证据")}</div>:null}
   </section>;
 }
-function NativeNote({provider,language}: {provider?:NativeService;language:Language}){
+function NativeNote({provider,language,operator=true}: {provider?:NativeService;language:Language;operator?:boolean}){
   const t=(s:string)=>studioTranslate(language,s);
+  if(!operator&&provider&&!provider.configured)return <Banner>{t("该功能暂未开放")}</Banner>;
   return <Banner>{provider?.configured?t("已配置，待核验"):t("未连接原生运行时")} ·
     {t("已连接服务并不等于已通过独立验收。")}</Banner>;
 }
+function modelName(model:string){
+  return isCustomModel(model)?customById(model)?.name||model:model==="ciro"?"Ciro":model;
+}
+/** A tool run on the chat model: the streaming answer, then the history kept on this device. */
+function ModelAnswer({live,history,busy,language,onStop,onClear}: {live:LiveRun|null;history:ToolRun[];busy:boolean;
+  language:Language;onStop:()=>void;onClear:()=>void}){
+  const t=(s:string)=>studioTranslate(language,s);
+  const past=history.filter(x=>x.id!==live?.id);
+  return <>
+    {live&&<section className="stu-card stu-result stu-model-answer" aria-live="polite">
+      <div className="stu-section-head"><h3><Sparkles size={16}/>{t("模型回答")}</h3>
+        {busy&&<button type="button" className="stu-light-button" onClick={onStop}><X size={14}/>{t("停止")}</button>}</div>
+      <p className="stu-small stu-model-question">{live.question}</p>
+      {live.reasoning&&<details className="stu-model-thought"><summary>{t("思考过程")}</summary><p>{live.reasoning}</p></details>}
+      {live.answer?<div className="stu-answer"><Markdown text={live.answer} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/></div>:
+        busy&&<p className="stu-small"><LoaderCircle size={14} className="stu-spin"/> {t("思考中…")}</p>}
+      {live.files?.length?<p className="stu-small">{t("参考文件")}: {live.files.join(" · ")}</p>:null}
+    </section>}
+    {past.length>0&&<section className="stu-card">
+      <div className="stu-section-head"><h3><History size={16}/>{t("历史记录")}</h3>
+        <button type="button" className="stu-light-button" onClick={onClear}><X size={14}/>{t("清空记录")}</button></div>
+      {past.map(run=><details className="stu-run" key={run.id}>
+        <summary><strong>{run.question.slice(0,90)}</strong>
+          <small>{modelName(run.model)} · {new Date(run.createdAt).toLocaleString(localeTag(language))}</small></summary>
+        <div className="stu-answer"><Markdown text={run.answer} copyLabel={t("复制代码")} copiedLabel={t("已复制")}/></div>
+      </details>)}
+    </section>}
+  </>;
+}
 
-export default function StudioCenter({language,section,conversations,onNavigate,onLibraryAction}:Props){
+export default function StudioCenter({language,section,conversations,onNavigate,onLibraryAction,model="ciro",status,operator=false}:Props){
   const t=(s:string)=>studioTranslate(language,s);
   const [caps,setCaps]=useState<StudioCapabilities|null>(null),[error,setError]=useState(""),[notice,setNotice]=useState("");
   const [loading,setLoading]=useState(false);
@@ -122,14 +163,74 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   const [nativeShell,setNativeShell]=useState<NativeShellStatus|null>(null);
   const [noticePermission,setNoticePermission]=useState(typeof Notification==="undefined"?"unsupported":Notification.permission);
 
-  /** Buttons that need a native adapter stay clickable and explain exactly what to configure. */
+  const runKind:ToolKind|null=section==="thinking"?"think":section==="research"?"research":section==="knowledge"?"knowledge":null;
+  const [live,setLive]=useState<LiveRun|null>(null),[modelBusy,setModelBusy]=useState(false);
+  const [history,setHistory]=useState<ToolRun[]>(()=>runKind?loadToolRuns(runKind):[]);
+  const [askText,setAskText]=useState("");
+  const abortRef=useRef<AbortController|null>(null);
+  useEffect(()=>()=>abortRef.current?.abort(),[]);
+  const modelReady=hasChatModel(model,status);
+  const noModel=t(operator?"推理服务未配置：请先配置服务端模型，或在模型菜单添加自己的模型。":
+    "还没有可用的模型：请在模型菜单添加你自己的模型（API）后再试。");
+  /** A button that cannot work yet stays clickable and says why. */
+  function blockedBy(message:string,title=message){
+    return {"aria-disabled":true as const,title,
+      onClickCapture:(event:{preventDefault:()=>void;stopPropagation:()=>void})=>{
+        event.preventDefault();event.stopPropagation();setNotice("");setError(message);
+      }};
+  }
+  /** Buttons that need a native adapter: operators learn what to configure; customers only see that it is not open yet. */
   function needs(configured:boolean|undefined,env:string){
     if(configured)return {};
-    return {"aria-disabled":true as const,title:t("需要先在服务端配置：")+env,
-      onClickCapture:(event:{preventDefault:()=>void;stopPropagation:()=>void})=>{
-        event.preventDefault();event.stopPropagation();
-        setNotice("");setError(t("该功能需要连接原生服务。请在服务端 .env 配置 ")+env+t(" 后重启。"));
-      }};
+    return operator?blockedBy(t("该功能需要连接原生服务。请在服务端 .env 配置 ")+env+t(" 后重启。"),t("需要先在服务端配置：")+env)
+      :blockedBy(t("该功能暂未开放"));
+  }
+  /** Runs a tool on the chat model (the user's own model or the server model), streaming into the page. */
+  async function askModel(kind:ToolKind,question:string,options:{deep?:boolean;context?:string;files?:string[]}={}){
+    if(!modelReady){setNotice("");setError(noModel);return;}
+    abortRef.current?.abort();
+    const controller=new AbortController();abortRef.current=controller;
+    setError("");setNotice("");setModelBusy(true);
+    let answer="";
+    setLive({kind,question,answer:"",reasoning:"",done:false,files:options.files});
+    try{
+      await runOnModel({model,status,kind,question,deep:options.deep,context:options.context,signal:controller.signal,
+        onDelta:x=>{answer+=x;setLive(old=>old&&{...old,answer});},
+        onReasoning:x=>setLive(old=>old&&{...old,reasoning:old.reasoning+x})});
+      if(!answer.trim())throw new Error(t("模型没有返回内容，请重试。"));
+      const saved=saveToolRun({kind,question,answer,model});
+      setLive(old=>old&&{...old,done:true,id:saved.id});setHistory(loadToolRuns(kind));
+    }catch(e){
+      if(controller.signal.aborted){if(answer.trim()){const saved=saveToolRun({kind,question,answer,model});
+        setLive(old=>old&&{...old,done:true,id:saved.id});setHistory(loadToolRuns(kind));}return;}
+      const raw=e instanceof Error?e.message:String(e);
+      // Your own model's errors are already written for you; the server's stay with the operator.
+      setError(operator||isCustomModel(model)?raw:t("模型暂时无法回答，请稍后重试。"));
+      if(!answer)setLive(null);
+    }finally{if(abortRef.current===controller){abortRef.current=null;setModelBusy(false);}}
+  }
+  /** Q&A over your files: the local keyword search finds the passages, the chat model answers from them. */
+  async function askFiles(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    const question=askText.trim();
+    if(!question)return;
+    if(!documents.length){setError(t("先导入文件，再提问。"));return;}
+    if(!modelReady){setError(noModel);return;}
+    const terms=searchTerms(question);
+    if(!terms.length)terms.push(question.slice(0,120));
+    const found=await Promise.all(terms.map(term=>studioApi<{results:KnowledgeHit[]}>("/knowledge/search?q="+encodeURIComponent(term))
+      .then(x=>x.results).catch(()=>[] as KnowledgeHit[])));
+    const merged=new Map<string,{title:string;hits:number;score:number;excerpts:string[]}>();
+    for(const hits of found)for(const hit of hits){
+      const entry=merged.get(hit.id)||{title:hit.title,hits:0,score:0,excerpts:[]};
+      entry.hits+=1;entry.score+=hit.score;
+      if(!entry.excerpts.some(x=>x===hit.excerpt))entry.excerpts.push(hit.excerpt);
+      merged.set(hit.id,entry);
+    }
+    const top=[...merged.values()].sort((a,b)=>b.hits-a.hits||b.score-a.score).slice(0,5);
+    if(!top.length){setNotice("");setError(t("没有在你的文件里找到相关内容，换个说法试试。"));return;}
+    const context=top.map(x=>"["+x.title+"]\n"+x.excerpts.slice(0,3).join("\n…\n")).join("\n\n");
+    await askModel("knowledge",question,{context,files:top.map(x=>x.title)});
   }
   const chosen=useMemo(()=>selectedProject?.files.find(f=>f.path===selectedPath)||null,[selectedProject,selectedPath]);
   const libraryList=useMemo(()=>conversations.filter(c=>[c.title,...c.messages.map(m=>m.content)]
@@ -261,8 +362,10 @@ export default function StudioCenter({language,section,conversations,onNavigate,
       if(type==="media")setMediaJob(response);
     });
   }
+  const thinkNative=Boolean(caps?.thinking.provider.configured),researchNative=Boolean(caps?.research.configured);
   async function startThinking(event:FormEvent<HTMLFormElement>){
     event.preventDefault();
+    if(!thinkNative){await askModel("think",objective.trim());return;}
     await run(async()=>{
       const data=await studioApi<NativeJob>("/think/jobs","POST",{
         objective:objective.trim(),maxSeconds:minutes*60,priority
@@ -272,6 +375,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
   }
   async function startResearch(event:FormEvent<HTMLFormElement>){
     event.preventDefault();
+    if(!researchNative){await askModel("research",researchQuery.trim(),{deep:researchDepth==="deep"});return;}
     await run(async()=>{
       const data=await studioApi<NativeJob>("/research","POST",{
         query:researchQuery.trim(),depth:researchDepth
@@ -377,7 +481,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
         </button>
         {modules.map(item=>{
           const Icon=item.icon;
-          const state=moduleState(item.id,caps);
+          const state=moduleState(item.id,caps,modelReady);
           return <button className="stu-module" key={item.id} onClick={()=>onNavigate(item.id)}>
             <span className="stu-module-icon"><Icon size={24}/></span>
             <strong>{t(item.name)}</strong><p>{t(item.desc)}</p>
@@ -390,32 +494,36 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     </>}
 
     {section==="thinking"&&<>
-      <NativeNote provider={caps?.thinking.provider} language={language}/>
+      {thinkNative||!caps?<NativeNote provider={caps?.thinking.provider} language={language} operator={operator}/>:
+        modelReady?<Banner>{t("由当前对话模型完成深度思考")}: {modelName(model)} · {t("结果保存在本设备。")}</Banner>:null}
       <div className="stu-feature-grid">
         <section className="stu-card">
           <div className="stu-section-head"><h3><BrainCircuit size={18}/>{t("持续推演任务")}</h3></div>
           <form className="stu-form" onSubmit={e=>void startThinking(e)}>
             <label>{t("问题或目标")}<textarea required maxLength={5000} rows={5} value={objective}
               placeholder={t("问题或目标")} onChange={e=>setObjective(e.target.value)}/></label>
-            <div className="stu-dual">
+            {thinkNative&&<div className="stu-dual">
               <label>{t("时间预算")}<select value={minutes} onChange={e=>setMinutes(Number(e.target.value))}>
                 {[1,2,5,10,20,30,60].map(n=><option key={n} value={n}>{n} {t("分钟")}</option>)}</select></label>
               <label>{t("算力优先级")}<select value={priority} onChange={e=>setPriority(Number(e.target.value))}>
                 {[1,2,5].map(n=><option key={n} value={n}>{n}×</option>)}</select></label>
-            </div>
-            <button className="stu-primary" disabled={loading} {...needs(caps?.thinking.provider.configured,"CIRO_REASONING_URL / CIRO_REASONING_TOKEN")}><Play size={15}/>{t("创建思考任务")}</button>
+            </div>}
+            <button className="stu-primary" disabled={loading||modelBusy} {...(thinkNative||modelReady?{}:blockedBy(noModel))}>
+              <Play size={15}/>{t(thinkNative||!modelReady?"创建思考任务":"开始思考")}</button>
           </form>
         </section>
         <section className="stu-card stu-split-info"><h3>{t("推理策略")}</h3>
           <div className="stu-mode-list">
             <div><span>01</span><strong>{t("快速回答")}</strong><Status ready language={language}/></div>
             <div><span>02</span><strong>{t("深度思考")}</strong><Status ready={Boolean(caps?.thinking.deepChatSupported)} language={language}/></div>
-            <div><span>03</span><strong>{t("持续思考")}</strong><Status ready={Boolean(caps?.thinking.provider.configured)} language={language}/></div>
+            <div><span>03</span><strong>{t("持续思考")}</strong><Status ready={thinkNative||modelReady} language={language}/></div>
           </div>
-          <p>{t("服务未接通，不能开始真实推演。")}</p>
+          {!thinkNative&&<p>{t(modelReady?"由当前对话模型直接完成深度思考，结果保存在本设备。":"服务未接通，不能开始真实推演。")}</p>}
         </section>
       </div>
       <JobResult job={thinkJob} refresh={()=>void poll("think")} language={language}/>
+      {!thinkNative&&<ModelAnswer live={live} history={history} busy={modelBusy} language={language}
+        onStop={()=>abortRef.current?.abort()} onClear={()=>{clearToolRuns("think");setHistory([]);}}/>}
       {thinkJob?.jobId&&caps?.thinking.provider.configured&&<div className="stu-actions stu-job-actions">
         {(["pause","resume","cancel"] as const).map(action=><button className="stu-light-button" key={action}
           onClick={()=>void run(async()=>{
@@ -484,7 +592,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
                 },"保存");}}><RotateCcw size={14}/>{t("恢复此版本")}</button></div>)}
           </section>
           <section className="stu-card"><h3><Terminal size={18}/>{t("安全测试")}</h3>
-            <NativeNote provider={caps?.ide.sandboxExecution} language={language}/>
+            <NativeNote provider={caps?.ide.sandboxExecution} language={language} operator={operator}/>
             <div className="stu-inline-form"><select aria-label={t("运行任务")} value={runnerTask} onChange={e=>setRunnerTask(e.target.value)}>
               <option value="test">{t("运行测试")}</option><option value="build">{t("构建项目")}</option>
               <option value="lint">{t("检查代码")}</option></select>
@@ -528,6 +636,15 @@ export default function StudioCenter({language,section,conversations,onNavigate,
             <p>{hit.excerpt}</p><code>{t("引用位置")}: {hit.citation} · {hit.sha256.slice(0,12)}</code></div>)}
         </section>
       </div>
+      <section className="stu-card"><div className="stu-section-head"><h3><Sparkles size={17}/>{t("基于文件提问")}</h3></div>
+        <form className="stu-inline-form" onSubmit={e=>void askFiles(e)}>
+          <input aria-label={t("基于文件提问")} value={askText} required maxLength={2000}
+            onChange={e=>setAskText(e.target.value)} placeholder={t("问一个关于你文件的问题")}/>
+          <button className="stu-primary" disabled={modelBusy} {...(modelReady?{}:blockedBy(noModel))}><Sparkles size={15}/>{t("提问")}</button></form>
+        <p className="stu-small">{t("先在文件里检索相关片段，再由当前对话模型回答并注明文件名。")}{modelReady?" · "+modelName(model):""}</p>
+      </section>
+      <ModelAnswer live={live} history={history} busy={modelBusy} language={language}
+        onStop={()=>abortRef.current?.abort()} onClear={()=>{clearToolRuns("knowledge");setHistory([]);}}/>
       <section className="stu-card"><div className="stu-section-head"><h3><BookOpen size={17}/>{t("文档数量")}: {documents.length}</h3></div>
         {documents.map(doc=><div className="stu-document" key={doc.id}>
           <FileText size={17}/><span><strong>{doc.title}</strong><small>{humanBytes(doc.bytes,language)} · SHA256 {doc.sha256.slice(0,12)}</small></span>
@@ -545,7 +662,8 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     </>}
 
     {section==="research"&&<>
-      <NativeNote provider={caps?.research} language={language}/>
+      {researchNative||!caps?<NativeNote provider={caps?.research} language={language} operator={operator}/>:
+        modelReady?<Banner>{t("由当前对话模型撰写研究报告")}: {modelName(model)} · {t("模型列出的来源请自行核实。")}</Banner>:null}
       <section className="stu-card">
         <div className="stu-section-head"><h3><Globe2 size={18}/>{t("多来源检索与交叉验证")}</h3></div>
         <form className="stu-form" onSubmit={e=>void startResearch(e)}>
@@ -554,17 +672,19 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           <div className="stu-actions"><label>{t("研究深度")}
             <select value={researchDepth} onChange={e=>setResearchDepth(e.target.value)}>
               <option value="quick">{t("快速")}</option><option value="deep">{t("深入")}</option>
-            </select></label><button className="stu-primary" disabled={loading} {...needs(caps?.research.configured,"CIRO_RESEARCH_SERVICE_URL / CIRO_RESEARCH_SERVICE_TOKEN")}>
+            </select></label><button className="stu-primary" disabled={loading||modelBusy} {...(researchNative||modelReady?{}:blockedBy(noModel))}>
               <Search size={16}/>{t("启动研究")}</button></div>
         </form>
-        {!caps?.research.configured&&<p className="stu-small">{t("模型与搜索服务尚未接入。")}</p>}
+        {caps&&!researchNative&&!modelReady&&<p className="stu-small">{t("模型与搜索服务尚未接入。")}</p>}
       </section>
       <JobResult job={researchJob} refresh={()=>void poll("research")} language={language}/>
       {researchJob&&!researchJob.sources?.length&&<Banner>{t("没有可信来源，不能标记为已验证。")}</Banner>}
+      {!researchNative&&<ModelAnswer live={live} history={history} busy={modelBusy} language={language}
+        onStop={()=>abortRef.current?.abort()} onClear={()=>{clearToolRuns("research");setHistory([]);}}/>}
     </>}
 
     {section==="media"&&<>
-      <NativeNote provider={caps?.media} language={language}/>
+      <NativeNote provider={caps?.media} language={language} operator={operator}/>
       <div className="stu-feature-grid">
         <section className="stu-card">
           <div className="stu-section-head"><h3><Camera size={18}/>{t("选择媒体文件")}</h3></div>
@@ -613,7 +733,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
           <button type="button" className="stu-light-button" {...needs(caps?.compute.modelControl.configured,"CIRO_MODEL_CONTROL_URL / CIRO_MODEL_CONTROL_TOKEN")}
             onClick={()=>void run(async()=>setModelOverview(await studioApi<ModelOverview>("/model-control")))}>
             <RefreshCcw size={15}/>{t("从原生模型读取")}</button></div>
-        <NativeNote provider={caps?.compute.modelControl} language={language}/>
+        <NativeNote provider={caps?.compute.modelControl} language={language} operator={operator}/>
         {!modelOverview?<p className="stu-small">{t("尚无来自 CIRO 的训练数据")}</p>:
           <div className="stu-model-grid">
             <div><h4>{t("模型版本")} · {modelOverview.models.length}</h4>
@@ -695,7 +815,7 @@ export default function StudioCenter({language,section,conversations,onNavigate,
     </>}
 
     {section==="marketplace"&&<>
-      <NativeNote provider={caps?.marketplace.remoteRegistry} language={language}/>
+      <NativeNote provider={caps?.marketplace.remoteRegistry} language={language} operator={operator}/>
       <div className="stu-feature-grid">
         <button className="stu-feature-launch" onClick={()=>onNavigate("apps")}><Layers size={27}/>
           <strong>{t("查看官方应用")}</strong><ChevronRight size={17}/></button>

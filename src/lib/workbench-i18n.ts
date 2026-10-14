@@ -20,6 +20,7 @@ const english: Readonly<Record<string,string>> = {
   "独立验证器未连接": "Independent verifier not connected",
   "执行引擎已配置": "Runner configured",
   "独立验证器已配置": "Independent verifier configured",
+  "多模型协作": "Multi-model team",
   "目标与项目": "Goals & projects",
   "权限与沙盒": "Permissions & sandbox",
   "工作模式": "Work mode",
@@ -169,6 +170,18 @@ const english: Readonly<Record<string,string>> = {
   "设置代码仓库": "Configure repository",
   "已验证连接": "Connection verified",
   "测试 / 红队 / 修复 / 再测": "Test / red-team / repair / retest",
+  "推理服务未配置：请先配置服务端模型，或在模型菜单添加自己的模型。": "No inference service is configured. Configure the server model, or add your own model from the model menu.",
+  "还没有可用的模型：请在模型菜单添加你自己的模型（API）后再试。": "No model is available yet. Add your own model (API) from the model menu, then try again.",
+  "模型没有返回内容，请重试。": "The model returned nothing. Please try again.",
+  "模型暂时无法回答，请稍后重试。": "The model can't answer right now. Please try again later.",
+  "清空记录": "Clear history",
+  "执行需要连接电脑（工作模式）或执行引擎；计划已生成": "Plan ready. Running it needs a connected computer (Work mode) or an execution runtime.",
+  "计划已生成": "Plan ready",
+  "计划由当前对话模型生成": "Plans are written by your chat model",
+  "还没有可用的模型": "No model available yet",
+  "未连接执行时，由当前对话模型生成计划。": "Without an execution runtime, your chat model writes the plan.",
+  "模型生成的计划": "Plan from your model",
+  "计划记录": "Saved plans",
   "全部活动可追溯": "All activity is traceable"
 };
 export function workbenchTranslate(language:Language,text:string):string {

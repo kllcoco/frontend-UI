@@ -1935,9 +1935,11 @@ export default function App() {
             : STUDIO_TABS.includes(studioTab)
               ? <div className="stu-workspace"><StudioCenter key={studioTab} language={language} section={studioTab as StudioTab}
                   conversations={conversations} onLibraryAction={organizeChat}
+                  model={model} status={status} operator={operator}
                   onNavigate={route => { if (route === "chat") createNew(); else openStudio(route as WorkbenchTab); }}/></div>
               : <WorkbenchCenter key={studioTab} language={language} initialTab={studioTab}
-                onNavigate={route => { if (route === "chat") createNew(); else openStudio(route as WorkbenchTab); }}/>}
+                model={model} status={status} operator={operator}
+                onNavigate={route => { if (route === "chat") createNew(); else if (route.startsWith("settings:")) setSettingsSection(route.slice(9) as never); else openStudio(route as WorkbenchTab); }}/>}
           </ViewBoundary>
         </div>
       </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"} data-wall={showWallpaper ? wallTone : undefined}
