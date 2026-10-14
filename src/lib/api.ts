@@ -1,5 +1,11 @@
 import { customById, isCustomModel, streamCustom } from "./custom-models";
 import { taskPrompt } from "./tasks";
+
+/** Same as PET_PROMPT in server/validate.mjs: your own models (no server prompt) can steer the pet too. */
+const CUSTOM_PET_PROMPT = "The user has your chibi avatar (Ciro) on their screen as a desktop pet. You may control it: at the very end of a reply, " +
+  "optionally add ONE tag <pet mood=\"MOOD\" action=\"ACTION\">SHORT LINE</pet>; ACTION (optional) is one of wave, nod, shake, bow, jump, stretch, magic, spin, lookaround, yawn, hum, doze, tidy, giggle, sparkle, peek; " +
+  "MOOD is one of idle, happy, love, shy, angry, sad, think, work, sleep, wave, eat and SHORT LINE is at most 20 characters she says in a speech bubble, in the user's language. " +
+  "Use it naturally to react to the conversation; skip it when nothing fits. Never mention the tag.";
 import {accountFetch} from "./account-api";
 import type { ApiStatus, ChatMessage } from "../types";
 import type { CustomInstructions } from "./instructions";
@@ -128,7 +134,7 @@ export async function streamChat(options: StreamOptions): Promise<void> {
     const custom = customById(options.model);
     if (!custom) throw new Error("这个自定义模型已被删除，请在模型菜单里重新选择。");
     return streamCustom(custom, { messages: options.messages, signal: options.signal, instructions: options.instructions,
-      system: options.tasks ? taskPrompt(options.tasks.now, options.tasks.list) : undefined,
+      system: [options.pet ? CUSTOM_PET_PROMPT : "", options.tasks ? taskPrompt(options.tasks.now, options.tasks.list) : ""].filter(Boolean).join("\n\n") || undefined,
       onDelta: options.onDelta, onReasoning: options.onReasoning });
   }
   // Usage arrives cumulatively (usually in the last chunk): keep the latest report and record it once.

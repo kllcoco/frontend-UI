@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone, PawPrint } from "lucide-react";
+import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone, PawPrint, Mic } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -40,7 +40,7 @@ import type {AccountTab} from "./lib/account-api";
 import type { CustomInstructions } from "./lib/instructions";
 import type { WorkbenchTab } from "./lib/workbench-api";
 
-type Section = "announce" | "users" | "cwu" | "general" | "pet" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
+type Section = "announce" | "users" | "cwu" | "general" | "pet" | "voice" | "instructions" | "appearance" | "models" | "chat" | "usage" | "storage" | "shortcuts" | "security" | "about" | "team" | WorkbenchTab;
 type SettingsProps = {
   onClose: () => void;
   initialSection?: string;
@@ -79,6 +79,7 @@ const sections: SectionInfo[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
   { id: "appearance", label: "外观与背景", icon: Palette, group: "常用", keys: "主题 深色 浅色 背景 壁纸 强调色 字体 theme dark" },
   { id: "pet", label: "桌宠", icon: PawPrint, group: "常用", keys: "桌宠 宠物 Q版 看板娘 pet mascot" },
+  { id: "voice", label: "语音唤醒", icon: Mic, group: "常用", keys: "语音 唤醒 喊 Ciro 闹钟 voice wake" },
   { id: "chat", label: "对话设置", icon: MessageSquare, group: "常用", keys: "通知 时间 紧凑 追问 标题 字号 notification" },
   { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 API 接入 GPT Claude Gemini DeepSeek 通义 Kimi model" },
   { id: "instructions", label: "自定义指令", icon: FileText, group: "常用", keys: "指令 关于你 回答方式 instructions" },
@@ -275,13 +276,9 @@ export default function SettingsCenter({
           {(section==="permissions" || section==="github" || section==="plugins" || section==="schedules" || section==="billing" || section==="apps" || section==="skills") &&
             <WorkbenchCenter key={section} language={language} initialTab={section as WorkbenchTab} embedded />}
           {section === "team" && <TeamCenter t={t} onImportProject={onImportProject}/>}
-          {section === "pet" && <>
-            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。")}>
-              <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
-              {nativePet()?.overlayAllowed && <SettingRow title={t("在手机桌面上显示")} description={t("Ciro 切到后台时，她浮在其他应用上面，继续告诉你回答和工作进度。需要允许“显示在其他应用上层”。")}>
-                {!overlayOk ? <button type="button" className="sc-action-secondary" onClick={() => { nativePet()?.requestOverlay?.(); }}>{t("去允许")}</button>
-                  : <Toggle checked={floatOn} title={t("在手机桌面上显示")} onChange={(v) => { try { nativePet()?.setFloating?.(v); } catch { /* old app */ } setFloatOn(v); }}/>}</SettingRow>}
-              {nativeVoice()?.setWake && <SettingRow title={t("语音唤醒")} description={wakeNote || t("喊一声“Ciro”就能直接跟她说话：设闹钟和倒计时、打开应用、打电话和发短信（由你确认发送）、导航、搜索、手电筒、音量、加日程。开启后通知栏会显示“Ciro 在听”；有些手机每次识别会有提示音。")}>
+          {section === "voice" && <>
+            <SettingBlock title={t("语音唤醒")} subtitle={t("不用点开 Ciro，喊一声“Ciro”就能直接跟她说话，让她帮你操作手机。")}>
+              {nativeVoice()?.setWake ? <SettingRow title={t("语音唤醒")} description={wakeNote || t("喊一声“Ciro”就能直接跟她说话：设闹钟和倒计时、打开应用、打电话和发短信（由你确认发送）、导航、搜索、手电筒、音量、加日程。开启后通知栏会显示“Ciro 在听”；有些手机每次识别会有提示音。")}>
                 <Toggle checked={wakeOn} title={t("语音唤醒")} onChange={(v) => {
                   const r = String(nativeVoice()?.setWake?.(v) ?? "");
                   const done = (status: string) => {
@@ -290,7 +287,18 @@ export default function SettingsCenter({
                       : status === "no-permission" ? t("需要麦克风权限才能听到你叫她。") : "");
                   };
                   if (r === "asking") (window as unknown as { ciroWakeResult?: (s: string) => void }).ciroWakeResult = done; else done(r);
-                }}/></SettingRow>}
+                }}/></SettingRow>
+                : <p className="sc-help-text">{t("语音唤醒目前只在 Ciro 的 Android 应用里可用。电脑和网页上可以用输入框旁的语音对话按钮和她说话。")}</p>}
+              <SettingRow title={t("可以这样说")} description={t("“Ciro，明早七点半叫我起床”“Ciro，打开微信”“Ciro，导航去公司”“Ciro，每天早上 8 点给我讲讲新闻”。")}><span/></SettingRow>
+            </SettingBlock>
+          </>}
+          {section === "pet" && <>
+            <SettingBlock title={t("桌宠")} subtitle={t(window.ciroDesktop?.pet ? "Q 版 Ciro 待在桌面上：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。" : "Q 版 Ciro 待在应用里：可以拖动、点她、摸头、双击提问，回答时她会一起思考，Ciro 也能让她做表情、说话。")}>
+              <SettingRow title={t("显示桌宠")}><Toggle checked={petShown} title={t("显示桌宠")} onChange={(v) => { setPetEnabled(v); setPetShown(v); }}/></SettingRow>
+              {nativePet()?.overlayAllowed && <SettingRow title={t("在手机桌面上显示")} description={t("Ciro 切到后台时，她浮在其他应用上面，继续告诉你回答和工作进度。需要允许“显示在其他应用上层”。")}>
+                {!overlayOk ? <button type="button" className="sc-action-secondary" onClick={() => { nativePet()?.requestOverlay?.(); }}>{t("去允许")}</button>
+                  : <Toggle checked={floatOn} title={t("在手机桌面上显示")} onChange={(v) => { try { nativePet()?.setFloating?.(v); } catch { /* old app */ } setFloatOn(v); }}/>}</SettingRow>}
+
               <SettingRow title={t("更少对话")} description={t("她不再闲聊，拖她、点她也不说话；只有工作需要你做决定、出了问题或有了结果时才开口。这时双击她，就能直接进去给下一步指令。")}>
                 <Toggle checked={quietOn} title={t("更少对话")} onChange={(v) => { setPetQuiet(v); setQuietOn(v); }}/></SettingRow>
               <SettingRow title={t("同步显示回答")} description={t("Ciro 回答时，回答内容会在她的气泡里同步出现；工作模式、后台回答、定时任务和更新下载的进度也由她告诉你。")}>

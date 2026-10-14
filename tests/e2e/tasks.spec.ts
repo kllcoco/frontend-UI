@@ -15,7 +15,7 @@ test("a task set by talking to Ciro runs on time and the pet reports the result"
   await page.reload();
   await page.locator("textarea").first().fill("1 分钟后提醒我喝水");
   await page.keyboard.press("Enter");
-  await expect(page.getByText("好的，一分钟后提醒你。")).toBeVisible();
+  await expect(page.getByRole("main").getByText("好的，一分钟后提醒你。")).toBeVisible();
   await expect(page.getByText("<task")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("ciro.tasks.v1") || "[]").length)).toBe(1);
   await expect(page.getByText("已设定定时任务：喝水")).toBeVisible();
