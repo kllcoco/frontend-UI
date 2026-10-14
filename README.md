@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **当前版本 v0.10.13**：思考深度作用于自己接入的模型、Android 语音输入、原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **当前版本 v0.10.13**：思考深度作用于自己接入的模型（Claude 支持 Workspace ID）、原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、自动记忆（只记长期有用的信息）、“使用我的数据改进模型”开关（默认关闭）、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 上线官方服务（让客户直接注册使用）
 
@@ -95,7 +95,7 @@ CIRO_TRAINING_SALT=自定随机串              # 用户 ID 只以加盐哈希�
 - 流式回答、思考深度五档、可折叠的思考过程、Markdown / 公式 / 代码高亮、代码运行（Python / JS / HTML）
 - 图片、PDF、Office 与代码附件；文档问答会标注页码出处；联网搜索结果显示来源卡片
 - 项目、提示词库、记忆（可自动记住）、分享链接与分享图片、模型对比、⌘K 搜索对话
-- 语音对话与按住说话；临时对话；跨设备同步与完整备份
+- 临时对话；跨设备同步与完整备份（语音功能暂时下线，做好后再上线）
 
 **模型**
 - 默认使用 Ciro 官方服务（按 CWU 计费，额度在手机、电脑、网页和官网之间互通）
