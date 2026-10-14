@@ -2387,7 +2387,7 @@ export default function App() {
           <div className="cx-hold-bars" aria-hidden="true">{Array.from({ length: 9 }, (_, i) =>
             <span key={i} style={{ transform: "scaleY(" + Math.min(1, 0.18 + hold.state.level * (2.4 + (i % 3))) + ")" }}/>)}</div>
           {hold.state.heard && <p className="cx-hold-heard">{hold.state.heard}</p>}
-          <strong>{hold.state.phase === "working" ? t("正在识别…") : hold.state.cancel ? t("松开取消") : t("松开发送，上滑取消")}</strong>
+          <strong>{hold.state.phase === "working" ? t("正在识别…") : hold.state.cancel ? t("松开取消") : hold.state.ready === false ? t("准备中，请稍候…") : t("正在听，松开发送，上滑取消")}</strong>
           {hold.state.phase === "recording" && <small>0:{String(hold.state.seconds).padStart(2, "0")}</small>}
         </div>
       </div>}

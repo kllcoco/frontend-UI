@@ -4,7 +4,7 @@ import CiroMark from "./CiroMark";
 import { accountFetch } from "../lib/account-api";
 import { localeTag } from "../lib/i18n";
 import type { Language } from "../lib/i18n";
-import { nativeListenAvailable, offlineSpeechOnly } from "../lib/native-speech";
+import { nativeListenAvailable, offlineSpeechOnly, speechErrorText } from "../lib/native-speech";
 
 type Phase = "idle" | "listening" | "thinking" | "speaking" | "error";
 type Props = {
@@ -38,6 +38,8 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
   const [error, setError] = useState("");
   const [level, setLevel] = useState(0);
   const alive = useRef(true);
+  // Hands-free: silence just means listening again — up to a few rounds, then it waits for a tap.
+  const quietRounds = useRef(0);
   const stopRef = useRef<() => void>(() => undefined);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const Recognizer = browserRecognition();
@@ -47,6 +49,12 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
     alive.current = true;
     if (canListen) void listen(); else { setPhase("error"); setError(t("当前设备不支持语音对话")); }
     return () => { alive.current = false; stopRef.current(); window.speechSynthesis?.cancel(); audioRef.current?.pause(); };
+  }, []);
+  // First use on a phone without a speech service: the offline model downloads (progress shown here).
+  useEffect(() => {
+    const on = (e: Event) => { const pct = (e as CustomEvent<number>).detail; setHeard(pct >= 100 ? "" : t("正在下载离线语音模型") + " " + pct + "%"); };
+    window.addEventListener("ciro-voice-progress", on);
+    return () => window.removeEventListener("ciro-voice-progress", on);
   }, []);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -152,24 +160,29 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
       // The server's speech-to-text beats the phone's small offline model when both are there.
       const text = Recognizer && !(serverStt && offlineSpeechOnly() && typeof MediaRecorder !== "undefined") ? await listenBrowser() : await listenServer();
       if (!alive.current) return;
-      if (!text) { setPhase("idle"); return; }
+      if (!text) {
+        if (++quietRounds.current <= 4) { void listen(); return; }
+        quietRounds.current = 0; setPhase("idle"); return;
+      }
+      quietRounds.current = 0;
       setPhase("thinking"); setReply("");
       const answer = await onAsk(text);
       if (!alive.current) return;
       setReply(answer);
       setPhase("speaking");
       await speak(answer);
-      if (alive.current) void listen();
+      // A moment of quiet so the end of her own voice is not heard as the next question.
+      if (alive.current) window.setTimeout(() => void listen(), 400);
     } catch (e) {
       if (!alive.current) return;
       setPhase("error");
       const code = e instanceof Error ? e.message : String(e);
-      setError(code === "not-allowed" || /Permission|NotAllowed/i.test(code) ? t("麦克风权限被拒绝") : t("语音暂时不可用，请稍后再试"));
+      setError(/Permission|NotAllowed/i.test(code) ? t(speechErrorText("not-allowed")) : t(speechErrorText(code)));
     }
   }
   function tapOrb() {
     if (phase === "speaking" || phase === "listening") { stopRef.current(); if (phase === "speaking") void listen(); return; }
-    if (phase === "idle" || phase === "error") { if (canListen) void listen(); }
+    if (phase === "idle" || phase === "error") { quietRounds.current = 0; if (canListen) void listen(); }
   }
 
   const label = phase === "listening" ? t("正在聆听…") : phase === "thinking" ? t("正在思考…") : phase === "speaking" ? t("正在回答，点击可打断")

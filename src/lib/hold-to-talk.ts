@@ -7,11 +7,12 @@ import { accountFetch } from "./account-api";
 import { localeTag } from "./i18n";
 import type { Language } from "./i18n";
 
-type Recognition = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; abort: () => void;
+type Recognition = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; abort: () => void; onstart?: (() => void) | null;
   onresult: ((e: { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null; onend: (() => void) | null; onerror: ((e: { error: string }) => void) | null };
 const HOLD_MS = 280, CANCEL_PX = 80;
 
-export type HoldState = { phase: "idle" | "recording" | "working"; cancel: boolean; seconds: number; level: number; heard: string };
+/** ready: the recogniser is listening (the offline one takes a moment to start; words before that are lost). */
+export type HoldState = { phase: "idle" | "recording" | "working"; cancel: boolean; seconds: number; level: number; heard: string; ready?: boolean };
 
 export function useHoldToTalk({ language, browserStt, serverStt, onText, onTap, onError }: {
   language: Language; browserStt: boolean; serverStt: boolean;
@@ -30,7 +31,7 @@ export function useHoldToTalk({ language, browserStt, serverStt, onText, onTap, 
     if (!g) return;
     g.started = true;
     navigator.vibrate?.(15);
-    setState({ phase: "recording", cancel: false, seconds: 0, level: 0, heard: "" });
+    setState({ phase: "recording", cancel: false, seconds: 0, level: 0, heard: "", ready: !browserStt });
     const began = Date.now();
     const clock = window.setInterval(() => setState((s) => s.phase === "recording" ? { ...s, seconds: Math.floor((Date.now() - began) / 1000) } : s), 250);
     const done = (text: string) => { window.clearInterval(clock); setState({ phase: "idle", cancel: false, seconds: 0, level: 0, heard: "" }); if (text.trim()) cbs.current.onText(text.trim()); };
@@ -43,6 +44,7 @@ export function useHoldToTalk({ language, browserStt, serverStt, onText, onTap, 
       rec.onresult = (e) => { text = ""; for (let i = 0; i < e.results.length; i += 1) text += e.results[i][0].transcript; setState((s) => ({ ...s, heard: text })); };
       rec.onerror = (e) => { if (e.error !== "aborted" && e.error !== "no-speech") fail(e.error); };
       rec.onend = () => done(send ? text : "");
+      rec.onstart = () => { navigator.vibrate?.(20); setState((s) => s.phase === "recording" ? { ...s, ready: true } : s); };
       g.finish = (s) => { send = s; if (s) rec.stop(); else rec.abort(); };
       try { rec.start(); } catch { fail("start-failed"); }
       return;

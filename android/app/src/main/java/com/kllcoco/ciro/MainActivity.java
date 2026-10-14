@@ -300,6 +300,8 @@ public class MainActivity extends BridgeActivity {
         }
         @JavascriptInterface public void stop() { runOnUiThread(() -> {
             if (localListen != null) { try { localListen.stop(); } catch (Exception ignored) { /* gone */ } return; } // its final result ends it
+            // Released before the offline recogniser had started: end the session (no "end" would ever come).
+            if (listenLocalEnd != null) { listenSession++; Runnable e = listenLocalEnd; e.run(); return; }
             if (listener != null) listener.stopListening();
         }); }
         @JavascriptInterface public void abort() {
