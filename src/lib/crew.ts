@@ -24,7 +24,7 @@ export function crewModels(server: { configured: boolean; models: string[] }): C
 
 const KEY = "ciro.crew-runs.v1";
 export function loadCrewRuns(): CrewRun[] {
-  try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(v) ? v.slice(0, 20) : []; } catch { return []; }
+  try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(v) ? v.filter((r) => r && typeof r.task === "string" && Array.isArray(r.members) && r.outputs?.draft).slice(0, 20) : []; } catch { return []; }
 }
 export function saveCrewRun(run: CrewRun): void {
   try { localStorage.setItem(KEY, JSON.stringify([run, ...loadCrewRuns().filter((r) => r.id !== run.id)].slice(0, 20))); } catch { /* storage full */ }
@@ -76,11 +76,13 @@ export async function runCrew(opts: { task: string; members: CrewMember[]; lead:
     });
     if (ok("review").length) latest = "review";
   }
-  const pool = ok(latest).length ? ok(latest) : drafted;
+  // Each member's latest good answer: the reviewed one, or its draft when the review failed.
+  const pool = drafted;
   if (!pool.length) return run;
+  const best = (id: string) => (latest === "review" && run.outputs.review[id]?.text) || run.outputs.draft[id].text;
   const leader = pool.some((m) => m.id === lead) ? lead : pool[0].id;
   run.lead = leader;
-  const all = pool.map((x) => `【${x.name}】\n${clip(run.outputs[latest][x.id].text, 8000)}`).join("\n\n");
+  const all = pool.map((x) => `【${x.name}】\n${clip(best(x.id), 8000)}`).join("\n\n");
   await stage("final", [{ id: leader, name: name(leader) }], () => zh
     ? `你是多模型协作小组的主笔。任务：${task}\n\n各成员的答案：\n${all}\n\n请综合所有成员的长处，纠正错误，给出最终的完整结果。最后用一两句话说明采纳了哪些成员的哪些观点。`
     : `You lead a multi-model team. Task: ${task}\n\nThe members' answers:\n${all}\n\nMerge their strengths, fix mistakes and give the final complete result. End with one or two sentences on which members' points you adopted.`);

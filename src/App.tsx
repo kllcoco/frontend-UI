@@ -812,8 +812,25 @@ export default function App() {
     let thought = "";
     const tools: { name: string; args: string }[] = [];
     const sources: { url: string; title?: string; snippet?: string }[] = [];
-    const useWeb = webSearchOn && Boolean(status.webSearch);
-    if (useWeb) patchMessage(conversationId, assistantId, { webSearch: true });
+    // 联网: the server model searches natively when it can; otherwise (your own model, or no native search) the
+    // server looks the question up and the results go to the model with the question.
+    const useWeb = webSearchOn && Boolean(status.webSearch) && !isCustomModel(model);
+    const proxyWeb = webSearchOn && !useWeb && Boolean(status.searchProxy);
+    if (useWeb || proxyWeb) patchMessage(conversationId, assistantId, { webSearch: true });
+    let webContext = "";
+    if (proxyWeb) {
+      const question = [...history].reverse().find((m) => m.role === "user")?.content || "";
+      try {
+        const r = await accountFetch("/api/websearch?q=" + encodeURIComponent(question.slice(0, 200)), { signal: controller.signal });
+        const found = r.ok ? ((await r.json()) as { results?: { url: string; title?: string; snippet?: string }[] }).results || [] : [];
+        if (found.length) {
+          sources.push(...found.slice(0, 6));
+          patchMessage(conversationId, assistantId, { sources: sources.map((x) => ({ ...x })) });
+          webContext = "\n\n" + t("（以下是联网搜索结果，请结合它们回答，并在用到的句子后用 [编号] 标注来源；结果不相关时可忽略。）") + "\n" +
+            found.slice(0, 6).map((x, i) => "[" + (i + 1) + "] " + (x.title || x.url) + " — " + x.url + (x.snippet ? "\n" + x.snippet : "")).join("\n");
+        }
+      } catch { /* search failed: answer without it */ }
+    }
     const started = Date.now();
     let thoughtDone = false, failed = false;
     // While Ciro is in the background the pet tells you how the reply is going (steps, length, done).
@@ -835,7 +852,7 @@ export default function App() {
         instructions,
         reasoning: reasoningRequest(thinkingLevel, status),
         project: projectContext(projects.find((p) => p.id === projectId)),
-        messages: await Promise.all(history.map(async (m) => ({ ...m, content: modelContent(m), ...(m.images?.length
+        messages: await Promise.all(history.map(async (m, i) => ({ ...m, content: modelContent(m) + (i === history.length - 1 && m.role === "user" ? webContext : ""), ...(m.images?.length
           ? { imageUrls: await Promise.all(m.images.map(async (i) => (await getImage(i.id)) || i.thumb)) } : {}) }))),
         signal: controller.signal,
         webSearch: useWeb,
@@ -2304,10 +2321,10 @@ export default function App() {
                     <div><button type="button" className="cx-btn" onClick={() => { setCompareModels([]); setComparePicker(false); }}>{t("关闭对比")}</button>
                       <button type="button" className="cx-btn cx-btn--primary" disabled={compareModels.length < 2} onClick={() => { setComparePicker(false); focusComposer(); }}>{t("完成")}</button></div>
                   </div>}
-                  {composerMode === "chat" && (status.webSearch || operator) && <button type="button" className={webSearchOn && status.webSearch ? "cx-chip cx-chip--on" : "cx-chip"}
-                    aria-pressed={webSearchOn && Boolean(status.webSearch)} title={t("联网搜索")} aria-label={t("联网搜索")}
+                  {composerMode === "chat" && <button type="button" className={webSearchOn && (status.webSearch || status.searchProxy) ? "cx-chip cx-chip--on" : "cx-chip"}
+                    aria-pressed={webSearchOn && Boolean(status.webSearch || status.searchProxy)} title={t("联网搜索")} aria-label={t("联网搜索")}
                     onClick={(e) => { e.stopPropagation();
-                      if (!status.webSearch) { notify(!operator ? "联网搜索暂未开放" : status.configured ? "联网搜索需要服务端开启 CIRO_WEB_SEARCH=on" : "连接推理服务后可使用联网搜索"); return; }
+                      if (!status.webSearch && !status.searchProxy) { notify(!operator ? "联网搜索暂未开放" : status.configured ? "联网搜索需要服务端开启 CIRO_WEB_SEARCH=on" : "连接推理服务后可使用联网搜索"); return; }
                       setWebSearchOn((v) => !v); }}>
                     <Globe size={15}/><span>{t("联网")}</span></button>}
                   {composerMode === "chat" && <div onClick={(e) => e.stopPropagation()}>

@@ -99,10 +99,12 @@ test("image attachments show thumbnails, open in a viewer and persist after relo
   await expect(page.getByRole("dialog", { name: "查看图片" })).toHaveCount(0);
 });
 
-test("chat settings expose notifications and auto titles; web-search chip explains when unavailable", async ({ page }) => {
+test("chat settings expose notifications and auto titles; the web-search chip works without a server model", async ({ page }) => {
   await fresh(page);
+  // The server looks questions up for any model (server/websearch.mjs), so 联网 is always available.
   await page.getByRole("button", { name: "联网搜索" }).click();
-  await expect(page.getByRole("status")).toContainText("连接推理服务后可使用联网搜索");
+  await expect(page.getByRole("button", { name: "联网搜索" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "联网搜索" }).click();
   await go(page, "设置");
   await page.locator(".sc-nav").getByRole("button", { name: "对话设置", exact: true }).click();
   await expect(page.getByRole("switch", { name: "自动生成对话标题" })).toHaveAttribute("aria-checked", "true");

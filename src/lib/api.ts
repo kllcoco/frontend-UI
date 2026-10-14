@@ -29,6 +29,7 @@ export async function getApiStatus(): Promise<ApiStatus> {
     reasoningModes:Array.isArray(value.reasoningModes)?value.reasoningModes.filter((m):m is "fast"|"deep"=>m==="fast"||m==="deep"):["fast"],
     reasoningEffort:value.reasoningEffort===true,
     webSearch:(value as {webSearch?:unknown}).webSearch===true,
+    searchProxy:(value as {searchProxy?:unknown}).searchProxy===true,
     stt:(value as {stt?:unknown}).stt===true,
     tts:(value as {tts?:unknown}).tts===true,
     images:(value as {images?:unknown}).images===true,

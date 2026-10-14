@@ -66,6 +66,8 @@ export type ApiStatus = {
   reasoningModes?: ("fast"|"deep")[];
   reasoningEffort?: boolean;
   webSearch?: boolean;
+  /** The server looks questions up for any model (GET /api/websearch). */
+  searchProxy?: boolean;
   stt?: boolean;
   tts?: boolean;
   images?: boolean;

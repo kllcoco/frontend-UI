@@ -5,7 +5,7 @@ import { startCiro, startMockModel } from "./mock-upstream";
 // Customers never see model / server plumbing: no "connect a model" card, no model settings, no preview notes.
 // The operator turns developer options on (About → tap the version 7 times).
 let mock: Server, ciro: { url: string; stop: () => void };
-test.beforeAll(async () => { mock = await startMockModel(8893); ciro = await startCiro(8792, 8893, { CIRO_API_BASE_URL: "", CIRO_SETUP_HINTS: "" }); });
+test.beforeAll(async () => { mock = await startMockModel(8893); ciro = await startCiro(8792, 8893, { CIRO_API_BASE_URL: "", CIRO_SETUP_HINTS: "", CIRO_WEBSEARCH_DDG_URL: "http://127.0.0.1:8893/ddg" }); });
 test.afterAll(() => { ciro?.stop(); mock?.close(); });
 
 test("customer view hides the model connection; developer options bring it back", async ({ page }) => {
@@ -46,6 +46,12 @@ test("customers add their own model by API and chat with it, even while the Ciro
   await page.locator("textarea").first().fill("你好");
   await page.keyboard.press("Enter");
   await expect(page.getByText("来自 my-model 的回答：你好")).toBeVisible();
+  // 联网 works with your own model too: the server looks it up and the model answers with the results.
+  await page.getByRole("button", { name: "联网搜索" }).click();
+  await page.locator("textarea").first().fill("今天有什么新闻");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("来自 my-model 的回答：今天有什么新闻")).toBeVisible();
+  await expect(page.locator("main")).toContainText("news.example.com");
   // the key stays on this device
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.custom-models.v1") || "[]")[0].apiKey)).toBe("sk-test");
 });

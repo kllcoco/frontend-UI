@@ -374,7 +374,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (v === scaleRef.current) return;
     scaleRef.current = v;
     setScale(v);
-    if (inline) store(INLINE_SCALE, String(v)); else bridge?.resize?.(v);
+    if (inline) { store(INLINE_SCALE, String(v)); try { nativePet()?.setScale?.(v); } catch { /* not the Android app */ } } else bridge?.resize?.(v);
   };
   const leaveEdge = () => {
     if (!edgeRef.current) return;

@@ -22,7 +22,8 @@ export default function ModelCrew({ t, language, status, onAddModel }: { t: (s: 
   // Nothing is picked up front: the user chooses which connected models work on this task (the last choice is remembered).
   const PICK = "ciro.crew-picked.v1";
   const [picked, setPicked] = useState<string[]>(() => { try { const v = JSON.parse(localStorage.getItem(PICK) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } });
-  useEffect(() => { const ids = all.map((m) => m.id); setPicked((p) => p.filter((x) => ids.includes(x))); }, [all]);
+  // Picks are not pruned against `all`: the server's models arrive after the status check (they are missing while it
+  // loads), and pruning then would forget them. `members` below only keeps the ones that are connected now.
   useEffect(() => { try { localStorage.setItem(PICK, JSON.stringify(picked)); } catch { /* storage off */ } }, [picked]);
   const [lead, setLead] = useState("");
   const [review, setReview] = useState(true);
@@ -52,7 +53,7 @@ export default function ModelCrew({ t, language, status, onAddModel }: { t: (s: 
       } });
       saveCrewRun(run); setRuns(loadCrewRuns());
       if (pet) petProgress({ text: run.outputs.final[run.lead]?.text ? t("多模型协作完成了") : t("多模型协作没有完成"), done: true, ok: Boolean(run.outputs.final[run.lead]?.text), source: "work" });
-    } catch { /* stopped */ }
+    } catch { if (pet) petProgress({ text: t("多模型协作没有完成"), done: true, ok: false, source: "work" }); /* stopped */ }
     finally { setStage(""); ctrl.current = null; }
   }
   const view: Out = shown ? shown.outputs : out;
@@ -93,6 +94,8 @@ export default function ModelCrew({ t, language, status, onAddModel }: { t: (s: 
       <button type="button" className="crew-copy" onClick={() => { void navigator.clipboard?.writeText(finalText); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
         {copied ? <Check size={14}/> : <Copy size={14}/>}{t(copied ? "已复制" : "复制")}</button></h4>
       <div className="message-prose"><Markdown text={finalText} copyLabel={t("复制")} copiedLabel={t("已复制")} t={t}/></div></article>}
+    {!finalText && !busy && finalId && view.final[finalId]?.error && <article className="crew-final"><h4><Crown size={15}/>{t("最终结果")} · {name(finalId)}</h4>
+      <p className="crew-error">{view.final[finalId]?.error}</p></article>}
     {(["review", "draft"] as CrewStage[]).map((s) => Object.keys(view[s]).length > 0 && <details key={s} className="crew-stage" open={!finalText}>
       <summary>{STAGES[s]}（{Object.keys(view[s]).length}）</summary>
       <div className="crew-cards">{Object.entries(view[s]).map(([id, o]) => <article key={id} className="crew-card">

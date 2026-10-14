@@ -17,6 +17,7 @@ import {createRemoteRouter} from "./remote.mjs";
 import {createRemoteAgent} from "./remote-agent.mjs";
 import {createApiGateway} from "./api-gateway.mjs";
 import {createAnnouncements} from "./announcements.mjs";
+import {createWebSearch} from "./websearch.mjs";
 
 // The account service (one owner, optional registered users) is intended to sit behind a loopback-only
 // HTTPS reverse proxy. Never expose its raw HTTP listener to the public network.
@@ -92,6 +93,13 @@ const appVersion = (() => {
   try { return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")).version || ""; }
   catch { return ""; }
 })();
+// 联网 for any model: the client sends the question here and gives the results to the model that answers.
+const webSearcher = createWebSearch(process.env);
+app.get("/api/websearch", async (req, res) => {
+  if (!webSearcher.enabled()) return res.status(503).json({ error: "Web search is off on this server" });
+  if (!webSearcher.allow(req.principal?.id || req.socket.remoteAddress || "?")) return res.status(429).json({ error: "搜索太频繁，请稍后再试" });
+  res.set("Cache-Control", "no-store").json({ results: await webSearcher.search(req.query.q) });
+});
 app.get("/api/status", (_req, res) => {
   res.set("Cache-Control", "no-store").json({
     configured,
@@ -101,6 +109,7 @@ app.get("/api/status", (_req, res) => {
     reasoningModes:configured?configuredModes:["fast"],
     reasoningEffort:configured&&forwardEffort,
     webSearch:configured&&webSearch,
+    searchProxy:webSearcher.enabled(),
     ...mediaFeatures(),
     studioVersion:"ciro-studio.v1",
     // Self-hosting / development: show the model connection hints to everyone (the official service leaves this off).

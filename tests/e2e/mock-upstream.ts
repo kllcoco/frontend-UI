@@ -11,6 +11,8 @@ export function startMockModel(port: number): Promise<Server> {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "*");
     if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+    // Stands in for DuckDuckGo's HTML results (server/websearch.mjs, CIRO_WEBSEARCH_DDG_URL).
+    if (/\/ddg$/.test(req.url || "")) { res.writeHead(200, { "Content-Type": "text/html" }); res.end('<a class="result__a" href="https://news.example.com/today">今日新闻</a><a class="result__snippet">一条来自网页的消息</a>'); return; }
     // The provider's model list (我的模型 → 获取模型列表).
     if (req.method === "GET" && /\/models$/.test(req.url || "")) { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "my-model" }, { id: "other-model" }] })); return; }
     let body = "";

@@ -44,7 +44,8 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
       apiKey: form.apiKey.trim(), model: form.model.trim(), api: form.api };
     save(editing ? list.map((x) => x.id === editing ? m : x) : [...list, m]);
     close();
-    onUse(CUSTOM_PREFIX + m.id);
+    // A new model is picked right away; editing one keeps whatever model the chat uses.
+    if (!editing || current === CUSTOM_PREFIX + m.id) onUse(CUSTOM_PREFIX + m.id);
     void test(m);
   }
   function edit(m: CustomModel) {
@@ -71,7 +72,7 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
       // A wrong model name: offer the ones the provider accepts.
       if (!controller.signal.aborted && /model|模型|400|404/i.test(text)) {
         let options = namesFromError(text);
-        if (!options.length) options = await listModels(m).catch(() => []);
+        if (!options.length) options = await listModels(m, controller.signal).catch(() => []);
         options = options.filter((x) => x !== m.model).slice(0, 12);
         if (options.length) setFix({ id: m.id, names: options });
       }

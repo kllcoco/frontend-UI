@@ -116,8 +116,8 @@ export async function listModels(m: Pick<CustomModel, "baseUrl" | "apiKey" | "ap
 }
 /** Model names an error message says are accepted ("supported model names are a, b"). */
 export function namesFromError(text: string): string[] {
-  const m = /(?:supported|available|valid)[^:]*?(?:names?|models?)\s*(?:are|is|:)\s*([^.(]+)/i.exec(text);
-  return m ? m[1].split(/,|\bor\b|\band\b/).map((x) => x.trim().replace(/^[`'"]|[`'"]$/g, "")).filter((x) => /^[\w./:-]{2,80}$/.test(x)).slice(0, 12) : [];
+  const m = /(?:supported|available|valid)[^:]*?(?:names?|models?)\s*(?:are|is|:)\s*((?:[^.(]|\.(?=[\w-]))+)/i.exec(text);
+  return m ? m[1].split(/,|\s+(?:or|and)\s+/).map((x) => x.trim().replace(/^[`'"]|[`'"]$/g, "")).filter((x) => /^[\w./:-]{2,80}$/.test(x)).slice(0, 12) : [];
 }
 
 /** Streams a reply from the provider (Chat Completions SSE, or a JSON body if it ignores stream). */
