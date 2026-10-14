@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Check, KeyRound, ListChecks, Pencil, Plus, Trash2, Wifi } from "lucide-react";
-import { CUSTOM_PREFIX, MODEL_PRESETS, listModels, loadCustomModels, namesFromError, normalizeBaseUrl, saveCustomModels, streamCustom } from "../lib/custom-models";
+import { CUSTOM_PREFIX, MODEL_PRESETS, NEEDS_WORKSPACE, listModels, loadCustomModels, namesFromError, normalizeBaseUrl, saveCustomModels, streamCustom } from "../lib/custom-models";
 import type { CustomModel, ModelApi } from "../lib/custom-models";
 
 /** Settings → 模型设置 → 我的模型: add any model by API (Claude, GPT, Gemini, DeepSeek, 通义, Kimi, 智谱, Grok, Ollama…). */
 export default function CustomModels({ t, current, onUse }: { t: (s: string) => string; current: string; onUse: (id: string) => void }) {
   const [list, setList] = useState<CustomModel[]>(loadCustomModels);
-  const blank = { name: "", baseUrl: "", apiKey: "", model: "", api: "openai" as ModelApi };
+  const blank = { name: "", baseUrl: "", apiKey: "", model: "", api: "openai" as ModelApi, workspace: "" };
   const [form, setForm] = useState(blank);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState("");
@@ -17,18 +17,20 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
   const [loadingNames, setLoadingNames] = useState(false);
   // After a failed test: the right names for that model, one tap to switch.
   const [fix, setFix] = useState<{ id: string; names: string[] } | null>(null);
+  // A Claude key outside any workspace: its Workspace ID, typed right under the error.
+  const [wsFix, setWsFix] = useState<{ id: string; value: string } | null>(null);
   const save = (next: CustomModel[]) => { setList(next); saveCustomModels(next); };
   const close = () => { setAdding(false); setEditing(""); setForm(blank); setNames([]); };
   const preset = (id: string) => {
     const p = MODEL_PRESETS.find((x) => x.id === id);
-    if (p) { setForm({ name: p.name, baseUrl: p.baseUrl, apiKey: form.apiKey, model: p.model, api: p.api || "openai" }); setNames([]); }
+    if (p) { setForm({ name: p.name, baseUrl: p.baseUrl, apiKey: form.apiKey, model: p.model, api: p.api || "openai", workspace: "" }); setNames([]); }
   };
   async function fetchNames() {
     let baseUrl: string;
     try { baseUrl = normalizeBaseUrl(form.baseUrl); } catch { setNote({ ok: false, text: t("接口地址格式不对，例如 https://api.deepseek.com/v1") }); return; }
     setLoadingNames(true); setNote(null);
     try {
-      const got = await listModels({ baseUrl, apiKey: form.apiKey.trim(), api: form.api });
+      const got = await listModels({ baseUrl, apiKey: form.apiKey.trim(), api: form.api, workspace: form.workspace });
       setNames(got);
       if (!got.length) setNote({ ok: false, text: t("这个服务没有提供模型列表，请手动填写模型名。") });
       else if (!got.includes(form.model.trim())) setForm((f) => ({ ...f, model: got[0] }));
@@ -41,7 +43,7 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
     try { baseUrl = normalizeBaseUrl(form.baseUrl); } catch { setNote({ ok: false, text: t("接口地址格式不对，例如 https://api.deepseek.com/v1") }); return; }
     if (!form.model.trim()) { setNote({ ok: false, text: t("请填写模型名") }); return; }
     const m: CustomModel = { id: editing || Math.random().toString(36).slice(2, 10), name: form.name.trim() || form.model.trim(), baseUrl,
-      apiKey: form.apiKey.trim(), model: form.model.trim(), api: form.api };
+      apiKey: form.apiKey.trim(), model: form.model.trim(), api: form.api, ...(form.api === "anthropic" && form.workspace.trim() ? { workspace: form.workspace.trim() } : {}) };
     save(editing ? list.map((x) => x.id === editing ? m : x) : [...list, m]);
     close();
     // A new model is picked right away; editing one keeps whatever model the chat uses.
@@ -50,7 +52,7 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
   }
   function edit(m: CustomModel) {
     setEditing(m.id); setAdding(true); setNote(null); setFix(null); setNames([]);
-    setForm({ name: m.name, baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, api: m.api || "openai" });
+    setForm({ name: m.name, baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, api: m.api || "openai", workspace: m.workspace || "" });
   }
   function useName(m: CustomModel, model: string) {
     const next = { ...m, model };
@@ -59,7 +61,7 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
     void test(next);
   }
   async function test(m: CustomModel) {
-    setTesting(m.id); setNote(null); setFix(null);
+    setTesting(m.id); setNote(null); setFix(null); setWsFix(null);
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 30_000);
     let got = "";
@@ -69,6 +71,7 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
     } catch (e) {
       const text = controller.signal.aborted ? t("等待超时，请检查接口地址。") : e instanceof Error ? e.message : String(e);
       setNote({ ok: false, text });
+      if (text.includes(NEEDS_WORKSPACE)) { setWsFix({ id: m.id, value: m.workspace || "" }); return; }
       // A wrong model name: offer the ones the provider accepts.
       if (!controller.signal.aborted && /model|模型|400|404/i.test(text)) {
         let options = namesFromError(text);
@@ -99,6 +102,14 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
       <span>{t("模型名可能填错了，这个服务可用的模型：")}</span>
       <div className="cm-presets">{fix.names.map((n) => <button type="button" key={n} className="cm-preset" onClick={() => useName(m, n)}>{n}</button>)}</div>
     </div> : null; })()}
+    {wsFix && (() => { const m = list.find((x) => x.id === wsFix.id); return m ? <div className="cm-fix">
+      <label>{t("Workspace ID")}<input className="sc-text-input" autoCapitalize="off" autoCorrect="off" value={wsFix.value} placeholder="wrkspc_…"
+        onChange={(e) => setWsFix({ ...wsFix, value: e.target.value })}/></label>
+      <button type="button" className="sc-action-secondary cm-save" disabled={!wsFix.value.trim()} onClick={() => {
+        const next = { ...m, workspace: wsFix.value.trim() };
+        save(list.map((x) => x.id === m.id ? next : x)); setWsFix(null); void test(next);
+      }}>{t("保存并测试")}</button>
+    </div> : null; })()}
     {!adding ? <button type="button" className="sc-action-secondary cm-add" onClick={() => { setAdding(true); setNote(null); setFix(null); }}><Plus size={15}/> {t("添加模型")}</button> :
       <div className="cm-form">
         {!editing && <div className="cm-presets" role="group" aria-label={t("常用服务")}>
@@ -120,6 +131,8 @@ export default function CustomModels({ t, current, onUse }: { t: (s: string) => 
           </span></label>
         <label>{t("接口类型")}<select className="sc-text-input" value={form.api} onChange={(e) => setForm({ ...form, api: e.target.value as ModelApi })}>
           <option value="openai">{t("OpenAI 兼容（大多数服务）")}</option><option value="anthropic">{t("Claude（Anthropic）")}</option></select></label>
+        {form.api === "anthropic" && <label>{t("Workspace ID（可选）")}<input className="sc-text-input" autoCapitalize="off" autoCorrect="off" value={form.workspace}
+          placeholder="wrkspc_…" onChange={(e) => setForm({ ...form, workspace: e.target.value })}/></label>}
         <div className="cm-actions">
           <button type="button" className="sc-action-secondary" onClick={() => { close(); setNote(null); }}>{t("取消")}</button>
           <button type="button" className="sc-action-secondary cm-save" onClick={submit} disabled={!form.baseUrl.trim() || !form.model.trim()}>{t(editing ? "保存并测试" : "添加并测试")}</button>

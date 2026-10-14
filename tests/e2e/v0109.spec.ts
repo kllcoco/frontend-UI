@@ -107,3 +107,33 @@ test("使用我的数据改进模型 is off by default and only then sends the o
   await expect.poll(() => sent.some((b) => JSON.stringify(b.messages).includes("第二句"))).toBeTruthy();
   expect(sent.find((b) => JSON.stringify(b.messages).includes("第二句"))!.improve).toBe(true);
 });
+
+test("a Claude key outside any workspace: the Workspace ID is asked for right there and then sent", async ({ page }) => {
+  const seen: (string | undefined)[] = [];
+  await page.route("http://127.0.0.1:8907/v1/messages", async (route) => {
+    const ws = route.request().headers()["anthropic-workspace-id"];
+    seen.push(ws);
+    if (route.request().method() === "OPTIONS") { await route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*" } }); return; }
+    if (!ws) { await route.fulfill({ status: 400, contentType: "application/json", headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header." } }) }); return; }
+    await route.fulfill({ status: 200, contentType: "text/event-stream", headers: { "access-control-allow-origin": "*" }, body: [
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"claude-opus-5-5","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"OK"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n'].join("") });
+  });
+  await page.addInitScript(() => localStorage.setItem("ciro.custom-models.v1", JSON.stringify([
+    { id: "c1", name: "Claude", baseUrl: "http://127.0.0.1:8907", apiKey: "sk-ant-x", model: "claude-opus-5-5", api: "anthropic" }])));
+  await page.goto(ciro.url + "/");
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true }).click();
+  await page.getByRole("button", { name: "测试" }).click();
+  await expect(page.getByRole("status")).toContainText("Workspace ID");
+  await page.getByLabel("Workspace ID").fill("wrkspc_123");
+  await page.getByRole("button", { name: "保存并测试" }).click();
+  await expect(page.getByText("「Claude」可以用了。")).toBeVisible();
+  expect(seen).toContain("wrkspc_123");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.custom-models.v1")!)[0].workspace)).toBe("wrkspc_123");
+});

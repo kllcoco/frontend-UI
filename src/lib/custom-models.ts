@@ -6,7 +6,18 @@ import type { CustomInstructions } from "./instructions";
 
 /** "openai": any Chat Completions API (most providers, incl. Gemini / Grok / DeepSeek…); "anthropic": Claude's Messages API. */
 export type ModelApi = "openai" | "anthropic";
-export type CustomModel = { id: string; name: string; baseUrl: string; apiKey: string; model: string; api?: ModelApi };
+/** workspace: Claude only — keys not scoped to a workspace must name one (anthropic-workspace-id). */
+export type CustomModel = { id: string; name: string; baseUrl: string; apiKey: string; model: string; api?: ModelApi; workspace?: string };
+/** Claude keys that are not scoped to a workspace: the Workspace ID has to be filled in. */
+export const NEEDS_WORKSPACE = "需要填写 Workspace ID";
+const workspaceHeaders = (m: Pick<CustomModel, "workspace">): Record<string, string> =>
+  m.workspace?.trim() ? { "anthropic-workspace-id": m.workspace.trim() } : {};
+/** The provider's own message out of "400 {json}". */
+function apiMessage(raw: string): string {
+  const i = raw.indexOf("{");
+  if (i >= 0) { try { const j = JSON.parse(raw.slice(i)); const m = j?.error?.message || j?.message; if (typeof m === "string") return m; } catch { /* not JSON */ } }
+  return raw;
+}
 export const CUSTOM_PREFIX = "custom:";
 const KEY = "ciro.custom-models.v1";
 
@@ -74,7 +85,7 @@ type StreamOpts = { messages: Msg[]; signal: AbortSignal; instructions?: CustomI
 /** Claude through the official SDK (direct browser access, the user's own key). */
 async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void> {
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey: model.apiKey, baseURL: model.baseUrl.replace(/\/v1$/, ""), dangerouslyAllowBrowser: true });
+  const client = new Anthropic({ apiKey: model.apiKey, baseURL: model.baseUrl.replace(/\/v1$/, ""), dangerouslyAllowBrowser: true, defaultHeaders: workspaceHeaders(model) });
   const system = [opts.system, opts.instructions?.enabled && opts.instructions.about.trim() && "About the user: " + opts.instructions.about.trim(),
     opts.instructions?.enabled && opts.instructions.style.trim() && "How to answer: " + opts.instructions.style.trim()].filter(Boolean).join("\n") || undefined;
   const messages = opts.messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => {
@@ -121,17 +132,22 @@ async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void>
     if (opts.signal.aborted) throw e;
     if (e instanceof Anthropic.AuthenticationError) throw new Error("「" + model.name + "」的 API Key 不正确。");
     if (e instanceof Anthropic.RateLimitError) throw new Error("「" + model.name + "」请求太频繁，请稍后再试。");
-    if (e instanceof Anthropic.APIError) throw new Error("「" + model.name + "」返回错误（" + (e.status ?? "?") + "）：" + String(e.message).slice(0, 160));
+    if (e instanceof Anthropic.APIError) {
+      const why = apiMessage(String(e.message));
+      if (/workspace/i.test(why)) throw new Error("「" + model.name + "」的 API Key 没有归属某个工作区，" + NEEDS_WORKSPACE
+        + "（Claude 控制台 → Settings → Workspaces，形如 wrkspc_…），或者在控制台的某个工作区里新建一个 Key。");
+      throw new Error("「" + model.name + "」返回错误（" + (e.status ?? "?") + "）：" + why.slice(0, 300));
+    }
     throw new Error("连不上「" + model.name + "」：请检查接口地址和网络。");
   }
 }
 
 /** The model names the provider offers (GET /models), so nobody has to guess one. Empty when it has no such list. */
-export async function listModels(m: Pick<CustomModel, "baseUrl" | "apiKey" | "api">, signal?: AbortSignal): Promise<string[]> {
+export async function listModels(m: Pick<CustomModel, "baseUrl" | "apiKey" | "api" | "workspace">, signal?: AbortSignal): Promise<string[]> {
   const anthropic = m.api === "anthropic";
   const url = anthropic ? m.baseUrl.replace(/\/v1$/, "") + "/v1/models?limit=100" : m.baseUrl + "/models";
   const headers: Record<string, string> = anthropic
-    ? { "x-api-key": m.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
+    ? { "x-api-key": m.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true", ...workspaceHeaders(m) }
     : m.apiKey ? { Authorization: "Bearer " + m.apiKey } : {};
   const res = await fetch(url, { headers, signal });
   if (!res.ok) return [];
@@ -170,7 +186,7 @@ export async function streamCustom(model: CustomModel, opts: StreamOpts): Promis
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } | string };
     const why = typeof body.error === "string" ? body.error : body.error?.message;
-    throw new Error("「" + model.name + "」返回错误（" + res.status + "）" + (why ? "：" + String(why).slice(0, 160) : "") + (res.status === 401 ? "。请检查 API Key。" : ""));
+    throw new Error("「" + model.name + "」返回错误（" + res.status + "）" + (why ? "：" + String(why).slice(0, 300) : "") + (res.status === 401 ? "。请检查 API Key。" : ""));
   }
   if (!(res.headers.get("content-type") || "").includes("event-stream") || !res.body) {
     const json = await res.json().catch(() => ({})) as { choices?: { message?: { content?: string; reasoning_content?: string } }[] };
