@@ -1,4 +1,4 @@
-# Ciro v0.10.7
+# Ciro v0.10.8
 
 全新设计的 Ciro 客户端：更清爽的界面、完整的个人菜单、项目、思考深度滑杆，以及 Windows / macOS / Linux 桌面端和 Android 移动端安装包。
 
@@ -13,6 +13,10 @@
 | iOS / iPadOS | 用 Safari 打开部署好的 Ciro 网址 → 分享 → “添加到主屏幕”（PWA） |
 
 > 安装包未做商业代码签名：Windows 首次运行若出现 SmartScreen，点“更多信息 → 仍要运行”；macOS 请在“系统设置 → 隐私与安全性”中允许打开；Android 需允许“安装未知应用”。所有文件的 SHA-256 见 `SHA256SUMS.txt`。
+
+## v0.10.8 修复
+
+- 修复：回到手机桌面时，桌宠的位置会一闪而过 Ciro 的启动 logo 和底色——桌宠窗口现在从第一帧起就是透明的。
 
 ## v0.10.7 原生 CIRO Search · 注册入口
 

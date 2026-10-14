@@ -18,9 +18,13 @@
         var dark = p === "dark" || (p === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
       } catch (e) {}
+      // The desktop pet window and the Android floating pet load this page too: transparent from the first frame,
+      // never the launch logo or the app background.
+      if (/[?&]pet=1(&|$)/.test(location.search)) document.documentElement.className += " pet-page";
     </script>
     <style>
       html { background: #f8f5ef; } html[data-theme="dark"] { background: #15120f; }
+      html.pet-page, html.pet-page body { background: transparent !important; } html.pet-page #ciro-boot { display: none !important; }
       #ciro-boot { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: inherit;
         transition: opacity .42s cubic-bezier(.2,.7,.2,1), visibility .42s; }
       #ciro-boot svg { width: 64px; height: 64px; animation: ciro-boot 1.6s cubic-bezier(.4,0,.2,1) infinite; }

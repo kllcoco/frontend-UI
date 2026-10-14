@@ -193,3 +193,10 @@ test("pet: the menu acts where she is — asleep hanging at the edge, a long pre
   await expect(page.locator(".pet-menu")).toHaveCount(0);
   await expect(pet).toHaveClass(/pet-root--edge-bottom/);
 });
+
+test("pet window: transparent from the first frame, never the launch logo", async ({ page }) => {
+  await page.goto(ciro.url + "/?pet=1&overlay=1", { waitUntil: "commit" });
+  await expect(page.locator("html")).toHaveClass(/pet-page/);
+  await expect(page.locator("#ciro-boot")).toBeHidden();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+});
