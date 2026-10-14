@@ -14,7 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import { getApiStatus, streamChat } from "./lib/api";
 import { loadCustomInstructions, saveCustomInstructions } from "./lib/instructions";
 import {
-  loadConversations, loadThemePref, newId, saveActiveId, saveConversations, saveThemePref, systemTheme
+  loadActiveId, loadConversations, loadThemePref, newId, saveActiveId, saveConversations, saveThemePref, systemTheme
 } from "./lib/storage";
 import type { ThemePref } from "./lib/storage";
 import type { AnswerVersion, ApiStatus, ChatMessage, Conversation } from "./types";
