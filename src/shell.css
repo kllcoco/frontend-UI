@@ -188,8 +188,8 @@
 .cx-greeting{margin:0 0 6px;color:var(--cx-muted);font-size:15px}
 .cx-welcome h1{margin:0;font:600 clamp(26px,3vw,34px)/1.35 "Noto Sans SC","Manrope",sans-serif;letter-spacing:-.8px;color:var(--cx-text)}
 .cx-welcome h1 em{font-style:normal;color:var(--cx-accent)}
-.workspace--wallpaper .cx-welcome h1,.workspace--wallpaper .cx-greeting{color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.35)}
-.workspace--wallpaper .cx-welcome h1 em{color:#9df0c3}
+.workspace--wallpaper:not([data-wall="light"]) .cx-welcome h1,.workspace--wallpaper:not([data-wall="light"]) .cx-greeting{color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.workspace--wallpaper:not([data-wall="light"]) .cx-welcome h1 em{color:#ecd09a}
 .cx-suggestions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
 :root[data-theme] .cx-shell .cx-suggestion{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-height:0;padding:12px 13px;
   border-radius:14px;border:1px solid var(--cx-line);background:var(--cx-surface);box-shadow:none;color:var(--cx-text);text-align:left;
@@ -1484,3 +1484,43 @@ html.ciro-quick,html.ciro-quick body{background:var(--cx-bg)}
 .cx-update--side .cx-update-x{background:none;padding:2px;color:inherit;opacity:.7}
 @media (min-width:761px){.cx-update.cx-update--web{display:none}}
 @media (max-width:760px){.cx-update.cx-update--side{display:none}}
+
+/* Text on a wallpaper follows the picture, not the app theme: a dark picture gets the dark palette (light text),
+   a light picture the light one, so answers, the title bar and the thinking line are always readable. */
+.workspace[data-wall="dark"] .message-prose,
+.workspace[data-wall="dark"] .message-time,
+.workspace[data-wall="dark"] .message-actions,
+.workspace[data-wall="dark"] .cx-thought-head,
+.workspace[data-wall="dark"] .cx-thought-body,
+.workspace[data-wall="dark"] .cx-topbar,
+.workspace[data-wall="dark"] .cx-welcome,
+.workspace[data-wall="dark"] .cx-jump,
+.workspace[data-wall="dark"] .message-avatar{
+  --cx-bg:#15120f;--cx-side:#100e0c;--cx-side-hover:#221d18;--cx-side-active:#2b241d;
+  --cx-text:#f0e8da;--cx-text-2:#cfc4b1;--cx-muted:#a3978a;--cx-faint:#756a5c;
+  --cx-line:#2c251e;--cx-line-strong:#3b3229;--cx-surface:#1d1914;--cx-raised:#221d17;
+  --cx-accent:#d9b46a;--cx-accent-strong:#ecd09a;--cx-accent-soft:rgba(217,180,106,.14);--cx-accent-ink:#1a1408;
+  --cx-bubble:#2a231c;--cx-danger:#f0837c;--cx-shadow:0 18px 50px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);
+  --cx-shadow-sm:0 1px 2px rgba(0,0,0,.3);--cx-scrim:rgba(0,0,0,.55);
+  --bg:#15120f;--sidebar:#100e0c;--text:#f0e8da;--muted:#a3978a;--line:#2c251e;--accent:#d9b46a;
+  --accent-light:rgba(217,180,106,.14);--surface:#1d1914;--bubble:#2a231c;--hover:#221d18;--shadow:0 18px 50px rgba(0,0,0,.5);
+  color:var(--cx-text);text-shadow:0 1px 3px rgba(0,0,0,.45)}
+.workspace[data-wall="light"] .message-prose,
+.workspace[data-wall="light"] .message-time,
+.workspace[data-wall="light"] .message-actions,
+.workspace[data-wall="light"] .cx-thought-head,
+.workspace[data-wall="light"] .cx-thought-body,
+.workspace[data-wall="light"] .cx-topbar,
+.workspace[data-wall="light"] .cx-welcome,
+.workspace[data-wall="light"] .cx-jump,
+.workspace[data-wall="light"] .message-avatar{
+  --cx-bg:#f8f5ef;--cx-side:#f1ece3;--cx-side-hover:#e8e1d4;--cx-side-active:#e0d7c6;
+  --cx-text:#1d1914;--cx-text-2:#463f35;--cx-muted:#695f52;--cx-faint:#91887a;
+  --cx-line:#e6dfd2;--cx-line-strong:#d6ccba;--cx-surface:#fffdf9;--cx-raised:#fffdf9;
+  --cx-accent:#946d2b;--cx-accent-strong:#7a5820;--cx-accent-soft:#f3ead8;--cx-accent-ink:#ffffff;
+  --cx-bubble:#efe9de;--cx-danger:#c2453f;--cx-shadow:0 12px 40px rgba(40,36,24,.10),0 2px 6px rgba(40,36,24,.05);
+  --cx-shadow-sm:0 1px 2px rgba(40,36,24,.06);--cx-scrim:rgba(28,27,24,.36);
+  --bg:#f8f5ef;--sidebar:#f1ece3;--text:#1d1914;--muted:#695f52;--line:#e6dfd2;--accent:#946d2b;
+  --accent-light:#f3ead8;--surface:#fffdf9;--bubble:#efe9de;--hover:#e8e1d4;--shadow:0 12px 40px rgba(40,36,24,.10);
+  color:var(--cx-text);text-shadow:0 1px 2px rgba(255,255,255,.5)}
+.workspace[data-wall] .message-prose pre,.workspace[data-wall] .message-prose code,.workspace[data-wall] .message-prose table{text-shadow:none}

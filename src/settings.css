@@ -244,10 +244,13 @@
 /* 我的模型 */
 .cm-root{display:flex;flex-direction:column;gap:10px}
 .cm-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.cm-item{display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border,rgba(0,0,0,.1))}
+.cm-item{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border,rgba(0,0,0,.1))}
+.cm-head{display:flex;align-items:center;gap:10px;flex:1 1 220px;min-width:0}.cm-head>svg{color:var(--accent,#946d2b);flex:none}
+.cm-buttons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cm-model-row{display:flex;gap:6px;align-items:center}.cm-model-row>:first-child{flex:1;min-width:0}
+.cm-fix{display:flex;flex-direction:column;gap:6px;font-size:13px}
 .cm-item--on{border-color:var(--accent,#946d2b);background:color-mix(in srgb,var(--accent,#946d2b) 6%,transparent)}
-.cm-item>svg{color:var(--accent,#946d2b)}
-.cm-item div{display:flex;flex-direction:column;min-width:0}
+.cm-head div{display:flex;flex-direction:column;min-width:0}
 .cm-item small{color:var(--muted,#8a8173);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cm-del{border:0;background:none;color:var(--muted,#8a8173);cursor:pointer;padding:6px;border-radius:8px}
 .cm-del:hover{color:#c0483f;background:rgba(192,72,63,.08)}
@@ -260,7 +263,7 @@
 .cm-preset--on,.cm-preset:hover{border-color:var(--accent,#946d2b);color:var(--accent,#946d2b)}
 .cm-actions{display:flex;justify-content:flex-end;gap:8px}
 .cm-save{background:var(--accent,#946d2b);color:#fff}
-@media (max-width:760px){.cm-item{grid-template-columns:auto 1fr auto;}.cm-item .sc-action-secondary:first-of-type{display:none}}
+@media (max-width:760px){.cm-buttons{width:100%}.cm-model-row{flex-wrap:wrap}}
 .task-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .task-list li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border,rgba(0,0,0,.1))}
 .task-list li>svg{color:var(--accent,#946d2b)}

@@ -16,7 +16,7 @@ export const MODEL_PRESETS: { id: string; name: string; baseUrl: string; model: 
   { id: "gemini", name: "Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash" },
   { id: "grok", name: "Grok", baseUrl: "https://api.x.ai/v1", model: "grok-3-mini" },
   { id: "mistral", name: "Mistral", baseUrl: "https://api.mistral.ai/v1", model: "mistral-small-latest" },
-  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-flash" },
   { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
   { id: "kimi", name: "Kimi", baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
   { id: "glm", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
@@ -99,6 +99,25 @@ async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void>
     if (e instanceof Anthropic.APIError) throw new Error("「" + model.name + "」返回错误（" + (e.status ?? "?") + "）：" + String(e.message).slice(0, 160));
     throw new Error("连不上「" + model.name + "」：请检查接口地址和网络。");
   }
+}
+
+/** The model names the provider offers (GET /models), so nobody has to guess one. Empty when it has no such list. */
+export async function listModels(m: Pick<CustomModel, "baseUrl" | "apiKey" | "api">, signal?: AbortSignal): Promise<string[]> {
+  const anthropic = m.api === "anthropic";
+  const url = anthropic ? m.baseUrl.replace(/\/v1$/, "") + "/v1/models?limit=100" : m.baseUrl + "/models";
+  const headers: Record<string, string> = anthropic
+    ? { "x-api-key": m.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
+    : m.apiKey ? { Authorization: "Bearer " + m.apiKey } : {};
+  const res = await fetch(url, { headers, signal });
+  if (!res.ok) return [];
+  const body = await res.json().catch(() => ({})) as { data?: { id?: string; name?: string }[]; models?: { id?: string; name?: string }[] };
+  const ids = (body.data || body.models || []).map((x) => String(x.id || x.name || "").replace(/^models\//, "")).filter(Boolean);
+  return [...new Set(ids)].sort().slice(0, 200);
+}
+/** Model names an error message says are accepted ("supported model names are a, b"). */
+export function namesFromError(text: string): string[] {
+  const m = /(?:supported|available|valid)[^:]*?(?:names?|models?)\s*(?:are|is|:)\s*([^.(]+)/i.exec(text);
+  return m ? m[1].split(/,|\bor\b|\band\b/).map((x) => x.trim().replace(/^[`'"]|[`'"]$/g, "")).filter((x) => /^[\w./:-]{2,80}$/.test(x)).slice(0, 12) : [];
 }
 
 /** Streams a reply from the provider (Chat Completions SSE, or a JSON body if it ignores stream). */

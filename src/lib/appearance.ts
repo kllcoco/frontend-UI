@@ -117,3 +117,23 @@ export async function saveCustomWallpaper(file: File): Promise<void> {
 export async function removeCustomWallpaper(): Promise<void> {
   await wallpaperTransaction("readwrite", (store) => store.delete(CUSTOM_KEY));
 }
+
+/** Average brightness (0–1) of a wallpaper, from a 24×24 sample; the black-gold presets are dark, ivory light. */
+export function wallpaperLuminance(url: string, preset: PresetId): Promise<number> {
+  const fallback = preset === "white" ? 0.95 : 0.12;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas"); c.width = c.height = 24;
+        const g = c.getContext("2d"); if (!g) return resolve(fallback);
+        g.drawImage(img, 0, 0, 24, 24);
+        const d = g.getImageData(0, 0, 24, 24).data; let sum = 0;
+        for (let i = 0; i < d.length; i += 4) sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+        resolve(sum / (d.length / 4));
+      } catch { resolve(fallback); }
+    };
+    img.onerror = () => resolve(fallback);
+    img.src = url;
+  });
+}

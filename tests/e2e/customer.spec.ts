@@ -49,3 +49,27 @@ test("customers add their own model by API and chat with it, even while the Ciro
   // the key stays on this device
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.custom-models.v1") || "[]")[0].apiKey)).toBe("sk-test");
 });
+
+test("a wrong model name is fixed with one tap; the model list comes from the provider", async ({ page }) => {
+  await page.goto(ciro.url + "/");
+  await page.keyboard.press("Control+,");
+  await page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true }).click();
+  await page.getByRole("button", { name: "添加模型" }).click();
+  await page.getByRole("button", { name: "DeepSeek" }).click();
+  await page.getByLabel("接口地址").fill("http://127.0.0.1:8893/v1");
+  await page.getByLabel("API Key").fill("sk-test");
+  await page.getByLabel("模型名").fill("wrong-model");
+  await page.getByRole("button", { name: "添加并测试" }).click();
+  await expect(page.getByText("模型名可能填错了")).toBeVisible();
+  await page.locator(".cm-fix").getByRole("button", { name: "my-model" }).click();
+  await expect(page.getByText("「DeepSeek」可以用了。")).toBeVisible();
+  await expect(page.locator(".cm-item small")).toContainText("my-model");
+  // Edit: the names come from the provider's list.
+  await page.getByRole("button", { name: "编辑" }).click();
+  await page.getByRole("button", { name: "获取模型列表" }).click();
+  await expect(page.getByRole("combobox", { name: "模型名" })).toBeVisible();
+  await page.getByRole("combobox", { name: "模型名" }).selectOption("other-model");
+  await page.getByRole("button", { name: "保存并测试" }).click();
+  await expect(page.locator(".cm-item small")).toContainText("other-model");
+  await expect(page.getByText("「DeepSeek」可以用了。")).toBeVisible();
+});

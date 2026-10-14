@@ -11,11 +11,14 @@ export function startMockModel(port: number): Promise<Server> {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "*");
     if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+    // The provider's model list (我的模型 → 获取模型列表).
+    if (req.method === "GET" && /\/models$/.test(req.url || "")) { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "my-model" }, { id: "other-model" }] })); return; }
     let body = "";
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
       const payload = JSON.parse(body || "{}") as { model?: string; messages?: { content: string }[]; ciro_web_search?: boolean };
       const model = payload.model || "ciro";
+      if (model === "wrong-model") { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: { message: "The supported API model names are my-model, other-model, but you passed wrong-model." } })); return; }
       const last = payload.messages?.at(-1)?.content || "";
       // Auxiliary prompts (titles, follow-ups) get short answers.
       // Work-mode agent protocol: write a file, run a command (both need approval), then finish.

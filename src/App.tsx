@@ -47,7 +47,7 @@ import UserMenu from "./components/UserMenu";
 import type { UserMenuAction } from "./components/UserMenu";
 import SearchPalette from "./components/SearchPalette";
 import type { PaletteCommand } from "./components/SearchPalette";
-import { backgroundUrl, loadAppearance, loadCustomWallpaper, removeCustomWallpaper, saveAppearance, saveCustomWallpaper } from "./lib/appearance";
+import { backgroundUrl, wallpaperLuminance, loadAppearance, loadCustomWallpaper, removeCustomWallpaper, saveAppearance, saveCustomWallpaper } from "./lib/appearance";
 import { loadChatPreferences, saveChatPreferences } from "./lib/preferences";
 import { ensureTraditional, loadLanguagePref, resolveLanguage, saveLanguagePref, translate, previewText } from "./lib/i18n";
 import type { Language, LanguagePref } from "./lib/i18n";
@@ -1664,6 +1664,13 @@ export default function App() {
 
   const readyLabel = statusLoading ? t("正在检查") : status.configured ? t("推理接口已配置") : t("界面预览模式");
   const showWallpaper = appearance.preset !== "white" && (appearance.scope === "all" || !current);
+  // Text drawn straight on the wallpaper takes the palette that reads on it (see .workspace[data-wall] in shell.css).
+  const [wallLum, setWallLum] = useState<number | null>(null);
+  const wallSrc = showWallpaper ? backgroundUrl(appearance.preset, customImageUrl) : "";
+  useEffect(() => { let alive = true; if (!wallSrc) { setWallLum(null); return; }
+    void wallpaperLuminance(wallSrc, appearance.preset).then((v) => { if (alive) setWallLum(v); }); return () => { alive = false; }; }, [wallSrc, appearance.preset]);
+  const wallTone = wallLum === null ? undefined
+    : wallLum * (appearance.brightness / 100) * (1 - appearance.overlay / 100) < 0.45 ? "dark" : "light";
   const wallpaperStyle: CSSProperties = {
     backgroundImage: "url('" + backgroundUrl(appearance.preset, customImageUrl) + "')",
     filter: "blur(" + appearance.blur + "px) brightness(" + appearance.brightness + "%)"
@@ -1933,7 +1940,7 @@ export default function App() {
                 onNavigate={route => { if (route === "chat") createNew(); else openStudio(route as WorkbenchTab); }}/>}
           </ViewBoundary>
         </div>
-      </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"}
+      </main> : <main className={showWallpaper ? "workspace workspace--wallpaper" : "workspace"} data-wall={showWallpaper ? wallTone : undefined}
         data-font={preferences.fontSize} data-compact={preferences.compactMessages ? "true" : "false"}
         onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
         onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
