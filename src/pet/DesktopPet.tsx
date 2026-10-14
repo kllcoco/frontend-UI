@@ -260,10 +260,11 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     const onWindowCommand = (e: Event) => { if (inline) command((e as CustomEvent<PetCommand>).detail || {}); };
     const onWindowSignal = (e: Event) => { if (inline) signalled((e as CustomEvent<{ signal: string; focused: boolean }>).detail); };
     const onWindowProgress = (e: Event) => { if (inline) progressed((e as CustomEvent<PetProgress>).detail); };
-    // The reply streams into her bubble as it is written (Settings → 桌宠 → 同步显示回答), also while its chat is open.
+    // In the app the reply is already on screen when its chat is open; she only mirrors it when you are elsewhere.
     const onWindowStream = (e: Event) => {
       const r = (e as CustomEvent<PetStream>).detail;
       if (!inline || !r) return;
+      if (r.onScreen && !replyRef.current) return;
       streamed(r);
     };
     window.addEventListener("ciro-pet-stream", onWindowStream);

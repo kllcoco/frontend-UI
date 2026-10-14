@@ -25,8 +25,7 @@ test("pet: off by default, turned on in settings, reacts, and follows the model'
   await page.keyboard.press("Enter");
   await expect(page.getByRole("main").getByText("来自 ciro 的回答：你好")).toBeVisible({ timeout: 15000 });
   await expect(page.getByText("<pet")).toHaveCount(0);
-  // The answer streams into her bubble too (同步显示回答, on by default), also while the chat is open.
-  await expect(pet.locator(".pet-reply-text")).toContainText("来自 ciro 的回答：你好", { timeout: 10000 });
+  await expect(pet.locator(".pet-say")).toHaveText("我一直在这里", { timeout: 10000 });
   await expect(pet.locator(".pet-sprite--love")).toBeVisible();
   // Still on after a reload; turning it off removes it.
   await page.reload();
