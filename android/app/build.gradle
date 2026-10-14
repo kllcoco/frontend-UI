@@ -7,8 +7,8 @@ android {
         applicationId "com.kllcoco.ciro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1012
-        versionName "0.10.12"
+        versionCode 1013
+        versionName "0.10.13"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

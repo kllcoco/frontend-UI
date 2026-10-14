@@ -228,6 +228,7 @@ public class MainActivity extends BridgeActivity {
     }
     private Runnable listenLocalEnd;
     private int micWaits = 0;
+    private volatile boolean listenStopRequested = false;
 
     /** One utterance with the phone's speech recogniser; partial / final text, errors and the end go to the web app. */
     private void startListening(String lang) {
@@ -237,15 +238,32 @@ public class MainActivity extends BridgeActivity {
         stopLocalListen(true);
         listenLocalEnd = null;
         // No system speech service (most phones sold in China) or it failed before: the offline recogniser.
+        if (!systemSpeechBroken) systemSpeechBroken = getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean("speech_offline", false)
+            || getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean("wake_local", false); // the wake listener found it broken too
         if (systemSpeechBroken || !android.speech.SpeechRecognizer.isRecognitionAvailable(this)) { startLocalListening(); return; }
         final boolean[] heardAny = { false };
+        final boolean[] ready = { false }, began = { false };
+        final long startedAt = System.currentTimeMillis();
+        listenStopRequested = false;
         if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } }
         listener = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
         listener.setRecognitionListener(new android.speech.RecognitionListener() {
             boolean ended = false;
             private void end() { if (ended) return; ended = true; listenEvent("end", ""); ui.postDelayed(resumeWake, 1500); }
-            @Override public void onReadyForSpeech(Bundle b) { listenEvent("start", ""); }
-            @Override public void onBeginningOfSpeech() {}
+            @Override public void onReadyForSpeech(Bundle b) { ready[0] = true; listenEvent("start", ""); }
+            @Override public void onBeginningOfSpeech() { began[0] = true; }
+            /** A service that "finishes" before it ever listened (common with half-working phone speech services). */
+            private boolean brokenService(boolean emptyEnd) {
+                if (heardAny[0] || began[0] || listenStopRequested) return false;
+                return !ready[0] || (emptyEnd && System.currentTimeMillis() - startedAt < 2500);
+            }
+            private void goOffline() {
+                systemSpeechBroken = true;
+                getSharedPreferences("ciro_pet", MODE_PRIVATE).edit().putBoolean("speech_offline", true).apply();
+                ended = true;
+                if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } listener = null; }
+                startLocalListening();
+            }
             @Override public void onRmsChanged(float db) {}
             @Override public void onBufferReceived(byte[] b) {}
             @Override public void onEndOfSpeech() {}
@@ -257,19 +275,16 @@ public class MainActivity extends BridgeActivity {
             }
             @Override public void onResults(Bundle b) {
                 ArrayList<String> r = b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                boolean empty = r == null || r.isEmpty() || r.get(0) == null || r.get(0).trim().isEmpty();
+                if (empty && !ended && brokenService(true)) { goOffline(); return; }
                 listenEvent("final", r == null || r.isEmpty() ? "" : r.get(0));
                 end();
             }
             @Override public void onError(int e) {
                 // The system service itself fails (not just silence or a denied microphone): offline instead.
-                if (!heardAny[0] && !ended && e != android.speech.SpeechRecognizer.ERROR_NO_MATCH && e != android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                        && e != android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS && e != android.speech.SpeechRecognizer.ERROR_CLIENT) {
-                    systemSpeechBroken = true;
-                    ended = true;
-                    if (listener != null) { try { listener.destroy(); } catch (Exception ignored) { /* gone */ } listener = null; }
-                    startLocalListening();
-                    return;
-                }
+                boolean quiet = e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
+                if (!ended && e != android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+                        && (brokenService(quiet) || (!heardAny[0] && !quiet && e != android.speech.SpeechRecognizer.ERROR_CLIENT))) { goOffline(); return; }
                 String code = e == android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? "not-allowed"
                     : e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT ? "no-speech"
                     : e == android.speech.SpeechRecognizer.ERROR_AUDIO ? "audio-capture"
@@ -307,7 +322,7 @@ public class MainActivity extends BridgeActivity {
                 startListening(lang);
             });
         }
-        @JavascriptInterface public void stop() { runOnUiThread(() -> {
+        @JavascriptInterface public void stop() { listenStopRequested = true; runOnUiThread(() -> {
             if (localListen != null) { try { localListen.stop(); } catch (Exception ignored) { /* gone */ } return; } // its final result ends it
             // Released before the offline recogniser had started: end the session (no "end" would ever come).
             if (listenLocalEnd != null) { listenSession++; Runnable e = listenLocalEnd; e.run(); return; }
