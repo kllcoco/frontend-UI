@@ -158,7 +158,8 @@ for (const size of SIZES) {
 
     await page.keyboard.press("Control+,");
     const back = page.getByRole("button", { name: "返回设置列表" });
-    if (mobile) { await back.click(); await check("settings list"); }
+    // Phones open on the list of settings (nothing to go back from yet).
+    if (mobile) { await expect(page.locator(".sc-shell--list")).toHaveCount(1); await check("settings list"); }
     const names = (await page.locator(".sc-nav .sc-nav-item").allInnerTexts()).map((x) => x.trim());
     for (const name of names) {
       if (mobile && !(await page.locator(".sc-shell--list").count())) await back.click();

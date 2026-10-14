@@ -130,7 +130,7 @@ test("a Claude key outside any workspace: the Workspace ID is asked for right th
   await page.keyboard.press("Control+,");
   await page.locator(".sc-nav").getByRole("button", { name: "模型设置", exact: true }).click();
   await page.getByRole("button", { name: "测试" }).click();
-  await expect(page.getByRole("status")).toContainText("Workspace ID");
+  await expect(page.locator(".cm-note")).toContainText("Workspace ID");
   await page.getByLabel("Workspace ID").fill("wrkspc_123");
   await page.getByRole("button", { name: "保存并测试" }).click();
   await expect(page.getByText("「Claude」可以用了。")).toBeVisible();
