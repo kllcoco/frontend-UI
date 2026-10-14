@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { Server } from "node:http";
 import { startCiro, startMockModel } from "./mock-upstream";
 
-// Phone hold-to-talk: press and hold the voice button, release to send; slide up to cancel; a short tap opens voice mode.
+// Phone hold-to-talk: press and hold the voice button, release to send; slide up to cancel; a short tap says how; voice mode is in the + menu.
 let mock: Server, ciro: { url: string; stop: () => void };
 test.beforeAll(async () => { mock = await startMockModel(8877); ciro = await startCiro(8776, 8877); });
 test.afterAll(() => { ciro?.stop(); mock?.close(); });
@@ -11,7 +11,7 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true
     ...(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}) } });
 
 async function hold(page: Page, ms: number, slideUp = 0) {
-  const box = (await page.getByRole("button", { name: "语音对话" }).boundingBox())!;
+  const box = (await page.getByRole("button", { name: "按住说话" }).boundingBox())!;
   const x = box.x + box.width / 2, y = box.y + box.height / 2;
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
@@ -20,7 +20,7 @@ async function hold(page: Page, ms: number, slideUp = 0) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
-test("hold to talk sends what was said; sliding up cancels; a tap opens voice mode", async ({ page }) => {
+test("hold to talk sends what was said; sliding up cancels; a tap explains, voice mode from the + menu", async ({ page }) => {
   let transcribed = 0;
   await page.route("**/api/status", async (route) => { const r = await route.fetch(); route.fulfill({ response: r, json: { ...(await r.json()), stt: true } }); });
   await page.route("**/api/voice/transcribe*", (route) => { transcribed += 1; return route.fulfill({ json: { text: "语音测试内容" } }); });
@@ -36,7 +36,11 @@ test("hold to talk sends what was said; sliding up cancels; a tap opens voice mo
   await page.waitForTimeout(500);
   expect(transcribed).toBe(before);
   await expect(page.locator(".cx-hold")).toHaveCount(0);
-  // A short tap still opens the full-screen voice mode.
+  // A short tap only explains how; the full-screen voice mode is in the + menu.
   await hold(page, 60);
+  await expect(page.getByText("按住说话，松开发送，上滑取消")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /语音对话/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "添加附件与模式" }).click();
+  await page.getByRole("menuitem", { name: /语音对话/ }).click();
   await expect(page.getByRole("dialog", { name: /语音对话/ })).toBeVisible();
 });

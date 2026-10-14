@@ -39,6 +39,8 @@ public class WakeService extends Service {
     static volatile boolean running = false;
     /** The app is taking speech input itself: let go of the microphone until it is done. */
     static volatile boolean paused = false;
+    /** Set once the wake listener has let go of the microphone (or is not listening). */
+    static volatile boolean micFree = true;
     /** The last sentence the recogniser heard (shown in Settings, so a custom wake word can be copied from it). */
     static volatile String lastHeard = "";
     private String[] custom = new String[0];
@@ -52,6 +54,11 @@ public class WakeService extends Service {
     private org.vosk.android.SpeechService localSvc;
     private int hardErrors = 0;
     private boolean everHeard = false;
+    // Offline: listening for the wake word only (grammar) or, right after it, for the command (free speech).
+    private boolean localCommand = false;
+    // How "Ciro" sounds to a Chinese recogniser (the offline model does not know the word itself).
+    private static final String[] WAKE_SOUNDS = { "西罗", "希罗", "赛罗", "塞罗", "思罗", "斯罗", "席罗", "西洛", "希洛", "喜罗", "吸罗",
+        "西若", "细罗", "肌肉", "鸡肉", "基罗", "吉罗", "西柔", "赛洛", "丝罗", "四罗", "息肉", "希若", "习罗" };
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private SpeechRecognizer recognizer;
@@ -108,6 +115,7 @@ public class WakeService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        micFree = true;
         main.removeCallbacksAndMessages(null);
         stopLocal();
         status = "";
@@ -146,6 +154,7 @@ public class WakeService extends Service {
         if (!running || local) return;
         if (paused) {
             if (listening && recognizer != null) { try { recognizer.cancel(); } catch (Exception ignored) { /* gone */ } listening = false; }
+            micFree = true;
             main.postDelayed(this::listen, 500); return;
         }
         if (listening) return;
@@ -162,7 +171,7 @@ public class WakeService extends Service {
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 1200L)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
-        try { recognizer.startListening(i); listening = true; main.removeCallbacks(checkPause); main.postDelayed(checkPause, 300); }
+        try { recognizer.startListening(i); listening = true; micFree = false; main.removeCallbacks(checkPause); main.postDelayed(checkPause, 300); }
         catch (Exception e) { listening = false; main.postDelayed(this::listen, 2000); }
     }
 
@@ -185,7 +194,12 @@ public class WakeService extends Service {
                 if (!running || localSvc != null) return;
                 if (paused || Speaker.speaking()) { main.postDelayed(WakeService.this::listenLocal, 500); return; }
                 try {
-                    localSvc = LocalAsr.listen(m, new LocalListener(), 0);
+                    localCommand = System.currentTimeMillis() < awaitingUntil;
+                    // Waiting for the wake word: only its sounds (and the user's own words) can come out, anything
+                    // else is "[unk]" — far fewer false matches than free recognition of a word the model lacks.
+                    localSvc = localCommand ? LocalAsr.listen(m, new LocalListener(), 9000)
+                        : LocalAsr.listen(m, new LocalListener(), 0, wakeGrammar());
+                    micFree = false;
                     setStatus("");
                     main.removeCallbacks(watchLocal); main.postDelayed(watchLocal, 400);
                 } catch (Exception e) { localSvc = null; setStatus("麦克风打不开：" + e.getMessage()); main.postDelayed(WakeService.this::listenLocal, 5000); }
@@ -203,9 +217,10 @@ public class WakeService extends Service {
     };
     private void stopLocal() {
         main.removeCallbacks(watchLocal);
-        if (localSvc == null) return;
+        if (localSvc == null) { micFree = true; return; }
         try { localSvc.stop(); localSvc.shutdown(); } catch (Exception ignored) { /* gone */ }
         localSvc = null;
+        micFree = true;
     }
     private void setStatus(String text) {
         status = text;
@@ -220,21 +235,50 @@ public class WakeService extends Service {
         listening = false;
         main.post(this::listenLocal);
     }
+    /** The wake grammar: Ciro's sounds plus the custom wake words, one character per word, and "[unk]". */
+    private String wakeGrammar() {
+        org.json.JSONArray g = new org.json.JSONArray();
+        for (String w : WAKE_SOUNDS) g.put(spaced(w));
+        for (String w : custom) if (w.matches("[\\u4e00-\\u9fff]{2,8}")) g.put(spaced(w));
+        g.put("[unk]");
+        return g.toString();
+    }
+    private static String spaced(String w) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < w.length(); i++) { if (i > 0) b.append(' '); b.append(w.charAt(i)); }
+        return b.toString();
+    }
     private final class LocalListener implements org.vosk.android.RecognitionListener {
         @Override public void onPartialResult(String hypothesis) {}
         @Override public void onResult(String hypothesis) {
-            String text = LocalAsr.text(hypothesis);
+            String text = LocalAsr.text(hypothesis).replace("[unk]", "").trim();
             if (text.isEmpty()) return;
+            if (!localCommand) {
+                // A wake sound heard with little certainty is more often other speech.
+                if (LocalAsr.confidence(hypothesis) < 0.6) { heardNote(text + "（不确定）"); return; }
+                text = "西罗"; // any of Ciro's sounds or a custom word: she was called
+                boolean custom = false;
+                String said = LocalAsr.text(hypothesis).replace("[unk]", "").replace(" ", "");
+                for (String w : WakeService.this.custom) if (said.contains(w)) custom = true;
+                if (custom) text = said;
+            }
             ArrayList<String> list = new ArrayList<>();
             list.add(text);
             heard(list);
+            // Called: listen for the command next (free speech); after the command: back to the wake word.
+            boolean wantCommand = System.currentTimeMillis() < awaitingUntil;
+            if (wantCommand != localCommand) { stopLocal(); main.postDelayed(WakeService.this::listenLocal, 300); }
         }
         @Override public void onFinalResult(String hypothesis) {}
         @Override public void onError(Exception e) { stopLocal(); main.postDelayed(WakeService.this::listenLocal, 3000); }
-        @Override public void onTimeout() { stopLocal(); main.postDelayed(WakeService.this::listenLocal, 300); }
+        @Override public void onTimeout() {
+            // No command after "我在": back to waiting for the wake word.
+            if (localCommand) awaitingUntil = 0;
+            stopLocal(); main.postDelayed(WakeService.this::listenLocal, 300);
+        }
     }
 
-    private void again(long delay) { listening = false; main.postDelayed(this::listen, delay); }
+    private void again(long delay) { listening = false; micFree = true; main.postDelayed(this::listen, delay); }
 
     private void heard(ArrayList<String> results) {
         if (results == null || results.isEmpty()) return;

@@ -4,7 +4,7 @@ import CiroMark from "./CiroMark";
 import { accountFetch } from "../lib/account-api";
 import { localeTag } from "../lib/i18n";
 import type { Language } from "../lib/i18n";
-import { nativeListenAvailable } from "../lib/native-speech";
+import { nativeListenAvailable, offlineSpeechOnly } from "../lib/native-speech";
 
 type Phase = "idle" | "listening" | "thinking" | "speaking" | "error";
 type Props = {
@@ -149,7 +149,8 @@ export default function VoiceMode({ t, language, serverStt, serverTts, onAsk, on
     if (!alive.current) return;
     setPhase("listening"); setHeard(""); setError("");
     try {
-      const text = Recognizer ? await listenBrowser() : await listenServer();
+      // The server's speech-to-text beats the phone's small offline model when both are there.
+      const text = Recognizer && !(serverStt && offlineSpeechOnly() && typeof MediaRecorder !== "undefined") ? await listenBrowser() : await listenServer();
       if (!alive.current) return;
       if (!text) { setPhase("idle"); return; }
       setPhase("thinking"); setReply("");

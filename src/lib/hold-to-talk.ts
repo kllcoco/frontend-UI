@@ -99,7 +99,14 @@ export function useHoldToTalk({ language, browserStt, serverStt, onText, onTap, 
       g.finish?.(!g.cancel);
       if (g.cancel) setState({ phase: "idle", cancel: false, seconds: 0, level: 0, heard: "" });
     },
-    onPointerCancel: () => { const g = live.current; if (!g) return; window.clearTimeout(g.timer); live.current = null; g.finish?.(false); setState({ phase: "idle", cancel: false, seconds: 0, level: 0, heard: "" }); },
+    // A tiny finger movement can make the WebView start a scroll gesture and cancel the press (no click follows):
+    // a press that was not yet a hold still counts as a tap, so the button never "does nothing".
+    onPointerCancel: () => {
+      const g = live.current; if (!g) return;
+      window.clearTimeout(g.timer); live.current = null;
+      if (!g.started) { touched.current = true; cbs.current.onTap(); return; }
+      g.finish?.(false); setState({ phase: "idle", cancel: false, seconds: 0, level: 0, heard: "" });
+    },
     onContextMenu: (e: { preventDefault: () => void }) => e.preventDefault()
   };
   /** For the button's onClick: false when the touch gesture already handled this press. */

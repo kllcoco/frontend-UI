@@ -1526,3 +1526,5 @@ html.ciro-quick,html.ciro-quick body{background:var(--cx-bg)}
 .workspace[data-wall] .message-prose pre,.workspace[data-wall] .message-prose code,.workspace[data-wall] .message-prose table{text-shadow:none}
 .sc-wake-words{display:flex;flex-direction:column;align-items:flex-end;gap:6px;width:220px;max-width:100%}
 .sc-wake-words textarea.sc-text-input{height:auto;min-height:64px;width:100%;padding:7px 10px;resize:vertical;line-height:1.5}
+/* Voice buttons: a press must never turn into a scroll gesture (that cancelled taps on Android). */
+.cx-mic{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}

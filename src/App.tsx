@@ -71,7 +71,7 @@ import AndroidUpdate from "./components/AndroidUpdate";
 import { reportUpdate } from "./lib/update-result";
 import ShareImage from "./components/ShareImage";
 import { useHoldToTalk } from "./lib/hold-to-talk";
-import { speechErrorText } from "./lib/native-speech";
+import { offlineSpeechOnly, speechErrorText } from "./lib/native-speech";
 import SourceCards from "./components/SourceCards";
 import { findCitations } from "./lib/office";
 import type { Citation } from "./lib/office";
@@ -239,6 +239,7 @@ export default function App() {
   const [moveMenuId, setMoveMenuId] = useState<string | null>(null);
   const [temporaryMode, setTemporaryMode] = useState(false);
   const canDictate = useMemo(speechInputSupported, []);
+  const coarsePointer = useMemo(() => typeof window !== "undefined" && Boolean(window.matchMedia?.("(pointer: coarse)").matches), []);
   const canSpeak = useMemo(speechOutputSupported, []);
   const [session, setSession] = useState<SessionSnapshot | null>(null);
   // Registered members of a hosted server get their own chats, keys, sync and work mode; the shared
@@ -664,8 +665,10 @@ export default function App() {
   // Phones: press and hold the voice button to talk, release to send, slide up to cancel.
   const sendRef = useRef<(text: string) => void>(() => {});
   sendRef.current = (text: string) => sendMessage(text);
-  const hold = useHoldToTalk({ language, browserStt: canDictate, serverStt: Boolean(status.stt),
-    onText: (text) => sendRef.current(text), onTap: () => setVoiceOpen(true),
+  // Android with only the offline recogniser: hold-to-talk uses the server's speech-to-text when it has one (more accurate).
+  const hold = useHoldToTalk({ language, browserStt: canDictate && !(status.stt && offlineSpeechOnly()), serverStt: Boolean(status.stt),
+    // Phones: press and hold to talk; a short tap only says so (voice mode stays in the + menu).
+    onText: (text) => sendRef.current(text), onTap: () => notify("按住说话，松开发送，上滑取消"),
     onError: (code) => notify(speechErrorText(code)) });
   const openStudioRef = useRef<(tab: WorkbenchTab) => void>(() => {});
   // The pet (or her floating window on Android) asks to show the work that waits for a decision.
@@ -2303,6 +2306,8 @@ export default function App() {
                       <div className="cx-menu-sep"/>
                       {(status.images || operator) && <button role="menuitemradio" aria-checked={composerMode === "image"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "image" ? "chat" : "image"); focusComposer(); }}>
                         <ImagePlus size={16}/><span><strong>{t("生成图片")}</strong><small>{status.images ? t("用文字描述，生成一张图片") : t("需服务端开启 CIRO_IMAGES=on")}</small></span>{composerMode === "image" && <Check size={15}/>}</button>}
+                      {(canDictate || status.stt) && <button role="menuitem" onClick={() => { setPlusOpen(false); setVoiceOpen(true); }}>
+                        <AudioLines size={16}/><span><strong>{t("语音对话")}</strong><small>{t("免提和 Ciro 连续对话")}</small></span></button>}
                       <button role="menuitem" onClick={() => { setPlusOpen(false); openCanvas("markdown", ""); }}>
                         <PanelRight size={16}/><span><strong>{t("新建画布")}</strong><small>{t("在右侧编辑文档或代码，并让 Ciro 协助修改")}</small></span></button>
                       {(operator || (status.configured && status.models.length >= 2)) && <button role="menuitem" onClick={() => {
@@ -2350,7 +2355,7 @@ export default function App() {
                 <div className={draft.trim() || attachments.length ? "cx-send-group cx-send-group--typing" : "cx-send-group"}>
                 {composerMode === "chat" && (canDictate || status.stt) && <button type="button" className="cx-mic cx-mic--voice" {...hold.handlers}
                   onClick={(e) => { e.stopPropagation(); if (hold.clickAllowed()) setVoiceOpen(true); }}
-                  aria-label={t("语音对话")} title={t("语音对话") + (hold.supported ? " · " + t("按住说话，松开发送") : "")}><AudioLines size={17}/></button>}
+                  aria-label={t(hold.supported && coarsePointer ? "按住说话" : "语音对话")} title={t("语音对话") + (hold.supported ? " · " + t("按住说话，松开发送") : "")}><AudioLines size={17}/></button>}
                 {canDictate && composerMode === "chat" && <button type="button" className={dictation.listening ? "cx-mic cx-mic--dictate cx-mic--on" : "cx-mic cx-mic--dictate"}
                   onClick={(e) => { e.stopPropagation(); dictation.toggle(); }} aria-pressed={dictation.listening}
                   aria-label={dictation.listening ? t("停止语音输入") : t("语音输入")} title={dictation.listening ? t("停止语音输入") : t("语音输入")}>

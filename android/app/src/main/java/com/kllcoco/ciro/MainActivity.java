@@ -138,6 +138,7 @@ public class MainActivity extends BridgeActivity {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode == REQ_MIC) {
             boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+            if (!ok) micSettingsIfBlocked();
             String status = ok && wakeAfterPermission ? WakeService.start(this) : ok ? "ok" : "no-permission";
             wakeAfterPermission = false;
             evaluate("(function(){try{window.ciroWakeResult&&window.ciroWakeResult(" + JSONObject.quote(status) + ");}catch(e){}})()");
@@ -148,11 +149,21 @@ public class MainActivity extends BridgeActivity {
             String lang = listenLang;
             listenLang = null;
             if (ok && lang != null) startListening(lang);
-            else { listenEvent("error", "not-allowed"); listenEvent("end", ""); }
+            else { listenEvent("error", "not-allowed"); listenEvent("end", ""); if (!ok) micSettingsIfBlocked(); }
             return;
         }
         if (requestCode != REQ_NOTIFY) return;
         evaluate("(function(){try{window.ciroNotifyResult&&window.ciroNotifyResult('" + notifyStatus() + "');}catch(e){}})()");
+    }
+
+    /** The microphone was refused with "don't ask again": Android shows no dialog any more, so open Ciro's
+     *  permission page in the system settings instead of silently doing nothing. */
+    private void micSettingsIfBlocked() {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) return;
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+            android.widget.Toast.makeText(this, "请在“权限”里允许 Ciro 使用麦克风", android.widget.Toast.LENGTH_LONG).show();
+        } catch (Exception ignored) { /* no such settings page */ }
     }
 
     private void listenEvent(String type, String data) {
@@ -175,6 +186,14 @@ public class MainActivity extends BridgeActivity {
 
     /** One utterance with the offline recogniser (LocalAsr); downloads its model the first time. */
     private void startLocalListening() {
+        // The wake listener may still hold the microphone: wait (up to 2 s) until it has let go (it checks every 400 ms).
+        if (WakeService.running && !WakeService.micFree && micWaits < 5) {
+            micWaits++;
+            final int waitFor = listenSession;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> { if (waitFor == listenSession) startLocalListening(); }, 400);
+            return;
+        }
+        micWaits = 0;
         final int session = ++listenSession;
         android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
         final boolean[] ended = { false };
@@ -199,6 +218,7 @@ public class MainActivity extends BridgeActivity {
         listenLocalEnd = end;
     }
     private Runnable listenLocalEnd;
+    private int micWaits = 0;
 
     /** One utterance with the phone's speech recogniser; partial / final text, errors and the end go to the web app. */
     private void startListening(String lang) {
@@ -264,6 +284,10 @@ public class MainActivity extends BridgeActivity {
     private class ListenBridge {
         // Always: without a system speech service the offline recogniser is used.
         @JavascriptInterface public boolean available() { return true; }
+        /** "system" (the phone's speech service) or "offline" (LocalAsr, less accurate). */
+        @JavascriptInterface public String engine() {
+            return systemSpeechBroken || !android.speech.SpeechRecognizer.isRecognitionAvailable(MainActivity.this) ? "offline" : "system";
+        }
         @JavascriptInterface public void start(String lang) {
             runOnUiThread(() -> {
                 if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {

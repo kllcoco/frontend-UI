@@ -1,10 +1,12 @@
 /* Android app: the WebView has a SpeechRecognition object but it cannot reach any speech service, so the phone's
    own recogniser (window.CiroListen, MainActivity) stands in for it — the composer's dictation, hold-to-talk and
    voice mode all keep using the standard API. Asks for the microphone the first time. */
-type Native = { start: (lang: string) => void; stop: () => void; abort: () => void; available?: () => boolean };
+type Native = { start: (lang: string) => void; stop: () => void; abort: () => void; available?: () => boolean; engine?: () => string };
 type Result = { isFinal: boolean; 0: { transcript: string }; length: 1 };
 const native = (): Native | undefined => (window as unknown as { CiroListen?: Native }).CiroListen;
 
+/** Android app without a system speech service: only the (less accurate) offline recogniser. */
+export const offlineSpeechOnly = () => { try { return native()?.engine?.() === "offline"; } catch { return false; } };
 export const nativeListenAvailable = () => { try { const n = native(); return Boolean(n && (n.available ? n.available() : true)); } catch { return false; } };
 
 let active: NativeRecognition | null = null;

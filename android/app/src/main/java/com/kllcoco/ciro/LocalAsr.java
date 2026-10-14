@@ -144,9 +144,26 @@ final class LocalAsr {
 
     /** Starts listening with the model (16 kHz microphone); stop with service.stop() then shutdown(). */
     static SpeechService listen(Model m, RecognitionListener listener, int timeoutMs) throws Exception {
-        SpeechService s = new SpeechService(new Recognizer(m, 16000.0f), 16000.0f);
+        return listen(m, listener, timeoutMs, null);
+    }
+    /** With a grammar (JSON list of phrases plus "[unk]") only those phrases can come out: keyword spotting. */
+    static SpeechService listen(Model m, RecognitionListener listener, int timeoutMs, String grammar) throws Exception {
+        Recognizer rec = grammar == null ? new Recognizer(m, 16000.0f) : new Recognizer(m, 16000.0f, grammar);
+        if (grammar != null) rec.setWords(true);
+        SpeechService s = new SpeechService(rec, 16000.0f);
         if (timeoutMs > 0) s.startListening(listener, timeoutMs); else s.startListening(listener);
         return s;
+    }
+
+    /** How sure the recogniser is of a result's words (0–1, average); 1 when it does not say. */
+    static double confidence(String hypothesis) {
+        try {
+            org.json.JSONArray words = new JSONObject(hypothesis).optJSONArray("result");
+            if (words == null || words.length() == 0) return 1;
+            double sum = 0;
+            for (int i = 0; i < words.length(); i++) sum += words.getJSONObject(i).optDouble("conf", 1);
+            return sum / words.length();
+        } catch (Exception e) { return 1; }
     }
 
     /** The text in a Vosk result ({"text": …} or {"partial": …}); Chinese words come with spaces between them. */
