@@ -183,7 +183,8 @@ test("mobile navigation and settings stay inside the viewport", async ({ page })
   await page.getByRole("button", { name: "打开侧栏" }).click();
   await go(page, "设置");
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "通用设置" })).toBeVisible();
+  // Phones open on the list of settings; the user picks a page.
+  await expect(page.locator(".sc-nav").getByRole("button", { name: "通用设置", exact: true })).toBeVisible();
   await page.screenshot({ path: imageDir + "/09-mobile-settings.png", fullPage: true, animations: "disabled" });
   await page.locator('button[aria-label="关闭设置"]:visible').click();
   await expect(page.locator(".connection-text")).toBeHidden();
