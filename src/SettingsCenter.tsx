@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone, PawPrint, Mic } from "lucide-react";
+import { Activity, ArrowDownToLine, CalendarClock, Check, ChevronLeft, ChevronRight, Clock3, Code2, Database, FileText, GitBranch, Image as ImageIcon, Info, Keyboard, LayoutGrid, MessageSquare, Moon, Palette, PlugZap, RefreshCcw, RotateCcw, Settings2, ShieldCheck, Sparkles, Sun, Trash2, UploadCloud, UserRound, Users, Wallet, X, Monitor, Search, Megaphone, PawPrint } from "lucide-react";
 import CiroMark from "./components/CiroMark";
 import type { AppearanceSettings } from "./lib/appearance";
 import { backgroundUrl, DEFAULT_APPEARANCE, WALLPAPER_PRESETS } from "./lib/appearance";
@@ -79,7 +79,7 @@ const sections: SectionInfo[] = [
   { id: "general", label: "通用设置", icon: Settings2, group: "常用", keys: "名字 语言 language 发送 回车 动画" },
   { id: "appearance", label: "外观与背景", icon: Palette, group: "常用", keys: "主题 深色 浅色 背景 壁纸 强调色 字体 theme dark" },
   { id: "pet", label: "桌宠", icon: PawPrint, group: "常用", keys: "桌宠 宠物 Q版 看板娘 pet mascot" },
-  { id: "voice", label: "语音唤醒", icon: Mic, group: "常用", keys: "语音 唤醒 喊 Ciro 闹钟 voice wake" },
+  // 语音唤醒 is off for now (the page below stays for when it returns).
   { id: "chat", label: "对话设置", icon: MessageSquare, group: "常用", keys: "通知 时间 紧凑 追问 标题 字号 notification" },
   { id: "models", label: "模型设置", icon: Sparkles, group: "常用", keys: "模型 API 接入 GPT Claude Gemini DeepSeek 通义 Kimi model" },
   { id: "instructions", label: "自定义指令", icon: FileText, group: "常用", keys: "指令 关于你 回答方式 instructions" },

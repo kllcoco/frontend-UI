@@ -89,8 +89,8 @@ public class MainActivity extends BridgeActivity {
         }
         current = new java.lang.ref.WeakReference<>(this);
         Speaker.init(this);
-        // Voice wake was on last time: keep listening (allowed: the app is in the foreground now).
-        if (getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean("wake", false) && !WakeService.running) WakeService.start(this);
+        // Voice wake is withdrawn for now: one that was turned on earlier is switched off.
+        if (getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean("wake", false) || WakeService.running) WakeService.stop(this);
         petOverlay = new PetOverlay(this);
         captureShare(getIntent());
         captureChat(getIntent());
