@@ -137,3 +137,39 @@ test("a Claude key outside any workspace: the Workspace ID is asked for right th
   expect(seen).toContain("wrkspc_123");
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("ciro.custom-models.v1")!)[0].workspace)).toBe("wrkspc_123");
 });
+
+test("own models: no empty or repeated turns, text-only retry for models without vision, errors inside the stream shown", async ({ page }) => {
+  const bodies: { model: string; messages: { role: string; content: unknown }[] }[] = [];
+  await page.route("http://127.0.0.1:8908/v1/chat/completions", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}");
+    bodies.push(body);
+    const hasImage = JSON.stringify(body.messages).includes("image_url");
+    if (body.model === "blind" && hasImage) { await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify([{ error: { message: "Image input is not supported for this model" } }]) }); return; }
+    if (body.model === "broken") { await route.fulfill({ status: 200, contentType: "text/event-stream", body: 'data: {"error":{"message":"upstream overloaded"}}\n\n' }); return; }
+    await route.fulfill({ status: 200, contentType: "text/event-stream", body: 'data: {"choices":[{"delta":{"content":"收到"}}]}' }); // no trailing newline
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem("ciro.custom-models.v1", JSON.stringify([
+      { id: "x1", name: "Blind", baseUrl: "http://127.0.0.1:8908/v1", apiKey: "k", model: "blind", api: "openai" },
+      { id: "x2", name: "Broken", baseUrl: "http://127.0.0.1:8908/v1", apiKey: "k", model: "broken", api: "openai" }]));
+  });
+  await page.goto(ciro.url + "/");
+  await page.getByRole("button", { name: "切换模型" }).click();
+  await page.getByRole("button", { name: "Blind" }).first().click();
+  await page.locator('input[type="file"]').first().setInputFiles({ name: "a.png", mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64") });
+  await page.locator("textarea").first().fill("看图");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".message-prose", { hasText: "不支持图片" })).toContainText("收到");
+  const chat = bodies.filter((b) => JSON.stringify(b.messages).includes("看图"));
+  expect(JSON.stringify(chat.at(-1)!.messages)).not.toContain("image_url");
+  // roles alternate, one system message at most
+  const roles = chat.at(-1)!.messages.map((m) => m.role);
+  expect(roles.filter((r) => r === "system").length).toBeLessThanOrEqual(1);
+  expect(roles.some((r, i) => i > 0 && r === roles[i - 1])).toBeFalsy();
+  await page.getByRole("button", { name: "切换模型" }).click();
+  await page.getByRole("button", { name: "Broken" }).first().click();
+  await page.locator("textarea").first().fill("再问");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/upstream overloaded/)).toBeVisible();
+});
