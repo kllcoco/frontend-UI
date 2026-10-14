@@ -176,3 +176,20 @@ test("home: a reachable unconfigured model is not a network outage, and a true o
   await warning.getByRole("button", { name: "关闭" }).click();
   await expect(warning).toHaveCount(0);
 });
+
+test("pet: the menu acts where she is — asleep hanging at the edge, a long press is not a tap", async ({ page }) => {
+  await page.addInitScript(() => { localStorage.setItem("ciro.pet.v1", "on"); localStorage.setItem("ciro.pet-edge.v1", "bottom"); });
+  await page.goto(ciro.url + "/");
+  const pet = page.locator(".pet-root--inline");
+  await expect(pet).toHaveClass(/pet-root--edge-bottom/);
+  await pet.locator(".pet-sprite").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "让她睡一会儿" }).click();
+  await expect(pet).toHaveClass(/pet-root--edge-bottom/);
+  await expect(pet.locator(".pet-sprite--sleep")).toBeVisible();
+  await pet.locator(".pet-sprite").click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "叫醒她" })).toBeVisible();
+  // A tap elsewhere closes the menu without moving her.
+  await page.mouse.click(20, 20);
+  await expect(page.locator(".pet-menu")).toHaveCount(0);
+  await expect(pet).toHaveClass(/pet-root--edge-bottom/);
+});

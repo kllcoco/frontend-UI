@@ -522,6 +522,7 @@ const translations: Readonly<Record<string,string>> = {
   "回到默认位置": "Reset her place",
   "她躲在角落里拖不出来、或者大小不合适时，用这个把她叫回来。": "If she is stuck in a corner or the wrong size, call her back here.",
   "叫她回来": "Call her back",
+  "叫醒她": "Wake her up",
   "最近的协作": "Recent team runs",
   "输出中…": "Writing…",
   "最终结果": "Final result",

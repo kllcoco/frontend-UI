@@ -50,9 +50,17 @@ html.pet-page #ciro-boot{display:none}
 .pet-say--dots{letter-spacing:3px;animation:pet-pop .25s cubic-bezier(.3,1.5,.5,1),pet-dots 1.2s ease-in-out infinite}
 @keyframes pet-pop{0%{opacity:0;transform:translateX(-50%) scale(.8)}100%{opacity:1;transform:translateX(-50%) scale(1)}}
 @keyframes pet-dots{0%,100%{opacity:.55}50%{opacity:1}}
-.pet-menu{position:absolute;left:50%;top:6px;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;min-width:140px;padding:5px;border-radius:12px;
-  background:rgba(22,18,14,.96);border:1px solid rgba(217,180,106,.5);box-shadow:0 10px 26px rgba(0,0,0,.45)}
-.pet-menu button{border:0;background:none;color:#f3e7cf;text-align:left;padding:7px 10px;border-radius:8px;font:inherit;cursor:pointer}
+/* Her menu (right-click / long press): a compact card that always fits inside her window or the screen. */
+.pet-menu{position:absolute;left:50%;top:6px;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;gap:2px;
+  width:max-content;min-width:132px;max-width:calc(100% - 8px);max-height:calc(100% - 12px);overflow-y:auto;padding:6px;border-radius:14px;
+  background:rgba(22,18,14,.97);border:1px solid rgba(217,180,106,.55);box-shadow:0 12px 30px rgba(0,0,0,.5);
+  animation:pet-menu-in .16s cubic-bezier(.2,.8,.2,1);font-size:13.5px}
+@keyframes pet-menu-in{0%{opacity:0;transform:translateX(-50%) scale(.94)}100%{opacity:1;transform:translateX(-50%) scale(1)}}
+.pet-menu button{border:0;background:none;color:#f3e7cf;text-align:left;padding:9px 12px;min-height:38px;border-radius:9px;font:inherit;cursor:pointer;white-space:nowrap}
+/* Hanging from the top edge: the menu opens below the top of her window. */
+.pet-root--edge-top .pet-menu{top:auto;bottom:6px}
+/* First frame where she already is: no slide in from the middle when the floating pet reappears. */
+.pet-root--settling .pet-sprite{transition:none!important}
 .pet-menu button:hover,.pet-menu button:focus-visible{background:rgba(217,180,106,.18);color:#fbe9c0;outline:none}
 @media (prefers-reduced-motion:reduce){.pet-root *{animation:none!important}}
 

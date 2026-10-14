@@ -118,6 +118,11 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   const [blink, setBlink] = useState(false);
   const [look, setLook] = useState({ x: 0, y: 0 });
   const [menu, setMenu] = useState(false);
+  // A long press opens the menu; lifting that finger is not a tap (she must not jump out of her spot or react).
+  const menuPress = useRef(false);
+  // Shows where she already is on the first frame (no slide in from the middle when the floating pet reappears).
+  const [settled, setSettled] = useState(false);
+  useEffect(() => { const id = window.setTimeout(() => setSettled(true), 700); return () => window.clearTimeout(id); }, []);
   const [art, setArt] = useState<Art | null>(null);
   const moodTimer = useRef(0), sayTimer = useRef(0), progressTimer = useRef(0);
   const lastActive = useRef(Date.now());
@@ -211,7 +216,8 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     const preview = new URLSearchParams(window.location.search).get("mood") as Mood | null;
     const previewAction = new URLSearchParams(window.location.search).get("action") as PetAction | null;
     if (preview && PET_MOODS.includes(preview)) { act(preview, 0); setSay(""); }
-    else { act("wave", 3200); speak(greeting(t), 5200); window.setTimeout(() => play("wave"), 400); }
+    // The Android floating pet reappears each time the app goes to the background: she just carries on, no new hello.
+    else if (!FLOATING) { act("wave", 3200); speak(greeting(t), 5200); window.setTimeout(() => play("wave"), 400); }
     if (previewAction) window.setTimeout(() => play(previewAction), 300);
     // ?pet=1&demo=reply shows the reply bubble, &demo=progress a work step (previews and screenshots)
     const demo = new URLSearchParams(window.location.search).get("demo");
@@ -324,7 +330,18 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
 
   // Click-through everywhere except on her (and the menu / bubble while shown).
   const hover = (over: boolean) => { if (!drag.current) bridge?.setIgnore(!over && !menu); };
-  useEffect(() => { if (menu) bridge?.setIgnore(false); }, [menu]);
+  useEffect(() => {
+    if (menu) bridge?.setIgnore(false);
+    // Room for the menu in her small window (desktop pet window, Android floating pet); the bubble keeps it open.
+    if (!inline) { if (menu) bridge?.expand?.(true); else if (!replyRef.current) bridge?.expand?.(false); }
+    if (!menu) return;
+    const close = (e: Event) => { if (!(e.target as HTMLElement | null)?.closest?.(".pet-menu, .pet-sprite")) setMenu(false); };
+    document.addEventListener("pointerdown", close, true);
+    return () => document.removeEventListener("pointerdown", close, true);
+  }, [menu]);
+  /** Opens the menu where she is, whatever she is doing (hiding at an edge, asleep…). */
+  const openMenu = () => { menuPress.current = true; const d = drag.current; drag.current = null;
+    if (d?.moving) { if (!inline) bridge?.drag("end"); } setMenu((v) => !v); };
 
   /** A short walk left or right (60–220 px), staying on the screen / inside the app. */
   function stroll() {
@@ -387,6 +404,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     stopWalk();
     // Only the first finger drags; a second one (anywhere) turns it into a pinch, handled by the touch listeners below.
     if (!e.isPrimary || pinch.current) return;
+    menuPress.current = false;
     if (e.pointerType === "touch") touchingPet.current = true;
     holding(true);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -398,7 +416,8 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (pinch.current || !e.isPrimary) return;
     const d = drag.current;
     if (d) {
-      if (!d.moving && Math.hypot(e.screenX - d.x, e.screenY - d.y) > 4) {
+      // A finger wobbles during a long press: it takes a real move (more on touch screens) to start dragging.
+      if (!d.moving && Math.hypot(e.screenX - d.x, e.screenY - d.y) > (e.pointerType === "touch" ? 12 : 4)) {
         d.moving = true; bridge?.drag("start"); act("drag", 0); speak(t("哇，要带我去哪里？"), 0);
         if (edgeRef.current) { setEdge(null); if (inline) store(INLINE_EDGE, ""); }
       }
@@ -436,6 +455,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     if (pinch.current) { drag.current = null; return; }
     const d = drag.current;
     drag.current = null;
+    if (menuPress.current) { menuPress.current = false; return; }
     if (d?.moving) {
       if (inline) {
         const box = rootRef.current?.getBoundingClientRect();
@@ -528,7 +548,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     else onAsk?.();
   };
 
-  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "")}
+  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "") + (settled ? "" : " pet-root--settling") + (menu ? " pet-root--menu" : "")}
     onMouseLeave={() => hover(false)}
     style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale }}>
     {reply && <div className={"pet-reply" + (reply.error ? " pet-reply--error" : "")} role="log" aria-live="polite" aria-label={t("Ciro 的回答")}
@@ -544,7 +564,10 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     {menu && <div className="pet-menu" role="menu" onMouseEnter={() => hover(true)}>
       <button type="button" role="menuitem" onClick={() => run("quick")}>{t("快速提问")}</button>
       {!inline && <button type="button" role="menuitem" onClick={() => run("open")}>{t("打开 Ciro")}</button>}
-      <button type="button" role="menuitem" onClick={() => { setMenu(false); act("sleep", 0); speak("Zzz…", 0); }}>{t("让她睡一会儿")}</button>
+      {/* Right where she is: at an edge she naps hanging there. */}
+      {mood === "sleep"
+        ? <button type="button" role="menuitem" onClick={() => { setMenu(false); wake(); }}>{t("叫醒她")}</button>
+        : <button type="button" role="menuitem" onClick={() => { setMenu(false); lastActive.current = Date.now(); act("sleep", 0); speak("Zzz…", 0); }}>{t("让她睡一会儿")}</button>}
       {edge ? <button type="button" role="menuitem" onClick={() => { setMenu(false); leaveEdge(); }}>{t("出来吧")}</button>
         : !inline && <button type="button" role="menuitem" onClick={() => { setMenu(false); bridge?.toEdge?.(); }}>{t("躲到屏幕边上")}</button>}
       <button type="button" role="menuitem" onClick={() => { setMenu(false); resize(scaleRef.current > .75 ? .65 : 1); }}>{t(scale > .75 ? "缩小一点" : "放大一点")}</button>
@@ -565,7 +588,7 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
         speak(t("想问什么？"), 2000);
         if (inline) onAsk?.(); else bridge?.action("quick");
       }}
-      onContextMenu={(e) => { e.preventDefault(); wake(); setMenu((v) => !v); }}>
+      onContextMenu={(e) => { e.preventDefault(); openMenu(); }}>
       {image ? <LivePet src={image} mood={shown} look={look} action={gesture} walking={walking}/> : <Chibi mood={shown} blink={blink} look={look}/>}
       {(shown === "happy" || shown === "love") && <span className="pet-fx pet-heart">♥</span>}
       {shown === "sleep" && <span className="pet-fx pet-zzz">z<i>z</i><b>z</b></span>}
