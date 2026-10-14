@@ -77,6 +77,15 @@ public class MainActivity extends BridgeActivity {
             view.addJavascriptInterface(new VoiceBridge(), "CiroVoice");
             view.addJavascriptInterface(new ListenBridge(), "CiroListen");
             view.addJavascriptInterface(new PhoneBridge(), "CiroPhone");
+            view.addJavascriptInterface(new ServerCheckBridge(), "CiroServerCheck");
+            // Connected to a Ciro server, the WebView shows that server's interface — not the one in this app. When
+            // the server is older than the app, new features seem to "do nothing": say so plainly, once per version.
+            getBridge().addWebViewListener(new com.getcapacitor.WebViewListener() {
+                @Override public void onPageLoaded(WebView w) {
+                    w.evaluateJavascript("(function(){try{if(location.origin==='https://localhost')return;fetch('/api/status').then(function(r){return r.json();})"
+                        + ".then(function(s){window.CiroServerCheck&&window.CiroServerCheck.server(String(s&&s.version||''),location.host);}).catch(function(){});}catch(e){}})()", null);
+                }
+            });
         }
         current = new java.lang.ref.WeakReference<>(this);
         Speaker.init(this);
@@ -597,6 +606,36 @@ public class MainActivity extends BridgeActivity {
         if (a == null || a.isDestroyed()) return false;
         a.evaluate("(function(){try{window.ciroVoiceCommand&&window.ciroVoiceCommand(" + JSONObject.quote(text) + ");}catch(e){}})()");
         return true;
+    }
+
+    private static int[] versionParts(String v) {
+        String[] p = v.replaceFirst("^v", "").split("[.-]");
+        int[] out = new int[3];
+        for (int i = 0; i < 3 && i < p.length; i++) { try { out[i] = Integer.parseInt(p[i]); } catch (Exception e) { out[i] = 0; } }
+        return out;
+    }
+    private static boolean older(String a, String b) {
+        int[] x = versionParts(a), y = versionParts(b);
+        for (int i = 0; i < 3; i++) if (x[i] != y[i]) return x[i] < y[i];
+        return false;
+    }
+    /** window.CiroServerCheck: the connected server's version, compared with this app's. */
+    private class ServerCheckBridge {
+        @JavascriptInterface public void server(String version, String host) {
+            String app;
+            try { app = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return; }
+            if (version == null || version.isEmpty() || app == null || !older(version, app)) return;
+            String key = "server_old_" + host + "_" + version + "_" + app;
+            if (getSharedPreferences("ciro_pet", MODE_PRIVATE).getBoolean(key, false)) return;
+            getSharedPreferences("ciro_pet", MODE_PRIVATE).edit().putBoolean(key, true).apply();
+            runOnUiThread(() -> new android.app.AlertDialog.Builder(MainActivity.this)
+                .setTitle("服务器需要更新")
+                .setMessage("你连接的服务器（" + host + "）是 v" + version + "，比这个 App（v" + app + "）旧。连接服务器时，"
+                    + "手机上显示的是服务器上的界面，所以 App 的新功能（例如语音输入的修复）要等服务器更新后才会出现。\n\n"
+                    + "更新方法：一键部署的服务器运行 sudo bash install.sh upgrade；Docker 部署的拉取 ghcr.io/kllcoco/ciro-client:latest 后重建容器。")
+                .setPositiveButton("知道了", null)
+                .show());
+        }
     }
 
     /** window.CiroVoice: read answers aloud, turn voice wake on / off. */
