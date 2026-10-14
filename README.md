@@ -2,7 +2,7 @@
 
 CIRO / NCPA 的 AI 对话客户端：网页、Windows / macOS / Linux 桌面端与 Android 端。
 
-> **当前版本 v0.10.13**：所有安卓手机都能用的离线语音（输入、按住说话）、思考深度作用于自己接入的模型、Android 语音输入、原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
+> **当前版本 v0.10.13**：思考深度作用于自己接入的模型、Android 语音输入、原生 CIRO Search 联网搜索（内置 6000+ 常用网站目录）、多模型协作（多个模型一起完成同一任务）、黑金主题、Q 版桌宠（同步显示回答、贴边躲藏、手机桌面悬浮）、对话里设定时任务、CWU 额度与账户（邮箱 / 手机号注册）、接入自己的模型（GPT、Claude、Gemini、DeepSeek 等），以及 Windows / macOS / Linux / Android 安装包。下载见 [Releases](https://github.com/kllcoco/frontend-UI/releases/latest)，每个版本的更新说明见 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)。
 
 ## 上线官方服务（让客户直接注册使用）
 

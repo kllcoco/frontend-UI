@@ -129,7 +129,7 @@ test("team page explains setup and project export/import round-trips", async ({ 
   await expect(page.getByRole("textbox", { name: "项目指令" })).toHaveValue("团队约定");
 });
 
-test("voice mode opens full screen and closes with Escape; Alt+arrows switch chats", async ({ page }) => {
+test("no voice input for now (withdrawn); Alt+arrows switch chats", async ({ page }) => {
   await fresh(page);
   await send(page, "第一条");
   await page.getByRole("button", { name: "新对话", exact: true }).click();
@@ -138,8 +138,7 @@ test("voice mode opens full screen and closes with Escape; Alt+arrows switch cha
   await expect(page.locator(".user-bubble")).toHaveText("第一条");
   await page.keyboard.press("Alt+ArrowUp");
   await expect(page.locator(".user-bubble")).toHaveText("第二条");
-  await page.getByRole("button", { name: "语音对话" }).click();
-  await expect(page.getByRole("dialog", { name: "语音对话" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "语音对话" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /语音对话|语音输入|按住说话/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "添加附件与模式" }).click();
+  await expect(page.getByRole("menuitem", { name: /语音对话/ })).toHaveCount(0);
 });

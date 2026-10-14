@@ -41,29 +41,11 @@ test("thinking depth is sent to your own model as reasoning_effort; a service th
   expect(picky[1].reasoning_effort).toBeUndefined(); // … and asked again without it
 });
 
-test("Android app: the composer mic uses the phone's recogniser and asks for nothing more", async ({ page }) => {
-  await page.addInitScript(() => {
-    const w = window as unknown as Record<string, unknown> & { ciroListenEvent?: (t: string, d: string) => void };
-    let starts = 0;
-    w.__starts = () => starts;
-    w.CiroListen = {
-      available: () => true,
-      start: () => { starts += 1; const first = starts === 1;
-        setTimeout(() => { w.ciroListenEvent?.("start", ""); if (first) { w.ciroListenEvent?.("partial", "你好"); w.ciroListenEvent?.("final", "你好世界"); } else w.ciroListenEvent?.("error", "no-speech"); w.ciroListenEvent?.("end", ""); }, 30); },
-      stop: () => setTimeout(() => w.ciroListenEvent?.("end", ""), 10),
-      abort: () => setTimeout(() => w.ciroListenEvent?.("end", ""), 10),
-    };
-  });
+test("Android app: voice input is withdrawn — no voice buttons even with the phone's recogniser", async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as Record<string, unknown>).CiroListen = { available: () => true, start: () => {}, stop: () => {}, abort: () => {} }; });
   await page.goto(ciro.url + "/");
-  const mic = page.getByRole("button", { name: "语音输入" });
-  await expect(mic).toBeVisible();
-  await mic.click();
-  await expect(page.locator("textarea").first()).toHaveValue(/你好世界/);
-  // continuous: it keeps listening through silence until stopped
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __starts: () => number }).__starts())).toBeGreaterThan(1);
-  await page.getByRole("button", { name: "停止语音输入" }).click();
-  await expect(page.getByRole("button", { name: "语音输入" })).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByRole("button", { name: "语音对话" })).toBeVisible();
+  await expect(page.locator("textarea").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /语音对话|语音输入|按住说话/ })).toHaveCount(0);
 });
 
 test("floating pet: the window grows by exactly her bubble, which sits right above her, and shrinks back", async ({ page }) => {

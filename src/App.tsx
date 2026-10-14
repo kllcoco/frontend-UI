@@ -238,7 +238,9 @@ export default function App() {
   const [projectDraft, setProjectDraft] = useState("");
   const [moveMenuId, setMoveMenuId] = useState<string | null>(null);
   const [temporaryMode, setTemporaryMode] = useState(false);
-  const canDictate = useMemo(speechInputSupported, []);
+  // Voice input (dictation, hold to talk, voice mode) is withdrawn for now; flip back to bring it back.
+  const VOICE_INPUT = false;
+  const canDictate = useMemo(() => VOICE_INPUT && speechInputSupported(), []);
   const coarsePointer = useMemo(() => typeof window !== "undefined" && Boolean(window.matchMedia?.("(pointer: coarse)").matches), []);
   const canSpeak = useMemo(speechOutputSupported, []);
   const [session, setSession] = useState<SessionSnapshot | null>(null);
@@ -1777,7 +1779,7 @@ export default function App() {
     { id: "prompts", label: t("提示词库"), icon: <BookMarked size={16}/>, run: () => setPromptsOpen(true) },
     ...(!member || status.team ? [{ id: "team", label: t("团队"), icon: <Users size={16}/>, run: () => setSettingsSection("team") }] : []),
     { id: "pet", label: petOn ? t("隐藏桌宠") : t("显示桌宠"), icon: <PawPrint size={16}/>, run: togglePet },
-    { id: "voice", label: t("语音对话"), icon: <AudioLines size={16}/>, run: () => setVoiceOpen(true) },
+    ...(VOICE_INPUT ? [{ id: "voice", label: t("语音对话"), icon: <AudioLines size={16}/>, run: () => setVoiceOpen(true) }] : []),
     { id: "find", label: t("在对话中查找"), icon: <Search size={16}/>, hint: MOD + " F", run: () => runCommand("find") },
     { id: "sync", label: t("跨设备同步"), icon: <Cloud size={16}/>, run: () => openStudio("sync") }
   ];
@@ -2306,7 +2308,7 @@ export default function App() {
                       <div className="cx-menu-sep"/>
                       {(status.images || operator) && <button role="menuitemradio" aria-checked={composerMode === "image"} onClick={() => { setPlusOpen(false); setComposerMode(composerMode === "image" ? "chat" : "image"); focusComposer(); }}>
                         <ImagePlus size={16}/><span><strong>{t("生成图片")}</strong><small>{status.images ? t("用文字描述，生成一张图片") : t("需服务端开启 CIRO_IMAGES=on")}</small></span>{composerMode === "image" && <Check size={15}/>}</button>}
-                      {(canDictate || status.stt) && <button role="menuitem" onClick={() => { setPlusOpen(false); setVoiceOpen(true); }}>
+                      {VOICE_INPUT && (canDictate || status.stt) && <button role="menuitem" onClick={() => { setPlusOpen(false); setVoiceOpen(true); }}>
                         <AudioLines size={16}/><span><strong>{t("语音对话")}</strong><small>{t("免提和 Ciro 连续对话")}</small></span></button>}
                       <button role="menuitem" onClick={() => { setPlusOpen(false); openCanvas("markdown", ""); }}>
                         <PanelRight size={16}/><span><strong>{t("新建画布")}</strong><small>{t("在右侧编辑文档或代码，并让 Ciro 协助修改")}</small></span></button>
@@ -2353,7 +2355,7 @@ export default function App() {
                   </div>}
                 </div>
                 <div className={draft.trim() || attachments.length ? "cx-send-group cx-send-group--typing" : "cx-send-group"}>
-                {composerMode === "chat" && (canDictate || status.stt) && <button type="button" className="cx-mic cx-mic--voice" {...hold.handlers}
+                {VOICE_INPUT && composerMode === "chat" && (canDictate || status.stt) && <button type="button" className="cx-mic cx-mic--voice" {...hold.handlers}
                   onClick={(e) => { e.stopPropagation(); if (hold.clickAllowed()) setVoiceOpen(true); }}
                   aria-label={t(hold.supported && coarsePointer ? "按住说话" : "语音对话")} title={t("语音对话") + (hold.supported ? " · " + t("按住说话，松开发送") : "")}><AudioLines size={17}/></button>}
                 {canDictate && composerMode === "chat" && <button type="button" className={dictation.listening ? "cx-mic cx-mic--dictate cx-mic--on" : "cx-mic cx-mic--dictate"}
