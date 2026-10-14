@@ -19,8 +19,11 @@ export default function ModelCrew({ t, language, status, onAddModel }: { t: (s: 
     window.addEventListener("ciro-custom-models", again);
     return () => window.removeEventListener("ciro-custom-models", again);
   }, [status.configured, status.models.join(",")]);
-  const [picked, setPicked] = useState<string[]>([]);
-  useEffect(() => { setPicked((p) => { const ids = all.map((m) => m.id); const kept = p.filter((x) => ids.includes(x)); return kept.length ? kept : ids; }); }, [all]);
+  // Nothing is picked up front: the user chooses which connected models work on this task (the last choice is remembered).
+  const PICK = "ciro.crew-picked.v1";
+  const [picked, setPicked] = useState<string[]>(() => { try { const v = JSON.parse(localStorage.getItem(PICK) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } });
+  useEffect(() => { const ids = all.map((m) => m.id); setPicked((p) => p.filter((x) => ids.includes(x))); }, [all]);
+  useEffect(() => { try { localStorage.setItem(PICK, JSON.stringify(picked)); } catch { /* storage off */ } }, [picked]);
   const [lead, setLead] = useState("");
   const [review, setReview] = useState(true);
   const [task, setTask] = useState("");
@@ -66,6 +69,8 @@ export default function ModelCrew({ t, language, status, onAddModel }: { t: (s: 
       <p>{t("所有已接入的模型一起完成同一个任务：先各自作答，再互相评审改进，最后由主笔模型汇总出最终结果。")}</p></div></header>
     <div className="crew-form">
       <textarea value={task} onChange={(e) => setTask(e.target.value)} rows={3} placeholder={t("描述要一起完成的任务，例如：为新产品写一份上线方案")} aria-label={t("协作任务")} disabled={busy}/>
+      <div className="crew-pick-head"><span>{t("选择本次参与的模型")}（{members.length}/{all.length}）</span>
+        <button type="button" className="crew-link" disabled={busy} onClick={() => setPicked(members.length === all.length ? [] : all.map((m) => m.id))}>{t(members.length === all.length ? "全不选" : "全选")}</button></div>
       <div className="crew-members" role="group" aria-label={t("参与的模型")}>
         {all.map((m) => { const on = picked.includes(m.id); return <button type="button" key={m.id} disabled={busy} aria-pressed={on}
           className={on ? "crew-chip crew-chip--on" : "crew-chip"} onClick={() => setPicked((p) => on ? p.filter((x) => x !== m.id) : [...p, m.id])}>
@@ -78,6 +83,7 @@ export default function ModelCrew({ t, language, status, onAddModel }: { t: (s: 
         {busy ? <button type="button" className="cx-btn" onClick={() => ctrl.current?.abort()}><Square size={14}/>{t("停止")}</button>
           : <button type="button" className="cx-btn cx-btn--primary crew-go" onClick={() => void start()} disabled={!task.trim() || !members.length}><Play size={14}/>{t("开始协作")}</button>}
       </div>
+      {members.length === 0 && <p className="crew-note">{t("先在上面点选要一起干活的模型。")}</p>}
       {members.length === 1 && <p className="crew-note">{t("只选了一个模型；接入或选择两个以上，才能互相评审。")}</p>}
       <p className="crew-note">{t("Ciro 官方模型按 CWU 计费；我的模型直接调用对应服务，不消耗 CWU。")}</p>
     </div>

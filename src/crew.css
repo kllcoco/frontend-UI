@@ -4,6 +4,8 @@
 .crew-head h3{margin:0;color:var(--cx-text);font-size:17px}.crew-head p{margin:4px 0 0;color:var(--cx-muted);font-size:13px}
 .crew-form{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:14px;border:1px solid var(--cx-line);background:var(--cx-surface)}
 .crew-form textarea{width:100%;resize:vertical;min-height:72px;border:1px solid var(--cx-line);border-radius:10px;padding:10px 12px;background:var(--cx-bg);color:var(--cx-text);font:inherit}
+.crew-pick-head{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--cx-text-2)}
+.crew-link{border:0;background:none;color:var(--cx-accent);font:inherit;font-size:12.5px;cursor:pointer}
 .crew-members{display:flex;flex-wrap:wrap;gap:6px}
 .crew-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--cx-line-strong);background:none;color:var(--cx-text-2);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
 .crew-chip--on{border-color:var(--cx-accent);color:var(--cx-accent);background:var(--cx-accent-soft)}
