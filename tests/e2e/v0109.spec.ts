@@ -223,7 +223,6 @@ test("app pet near the top of the screen: an answer or error opens below her, fu
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ciro.url + "/");
   await expect(page.locator(".pet-root--inline")).toBeVisible();
-  await page.getByRole("button", { name: "新对话", exact: true }).first().click().catch(() => {});
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-stream", { detail: { id: "e1", text: "「Claude」返回错误（400）：一段很长的错误信息".repeat(4), done: true, error: true } })));
   const reply = page.locator(".pet-reply");
   await expect(reply).toBeVisible();
