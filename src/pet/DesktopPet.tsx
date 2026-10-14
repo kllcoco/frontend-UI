@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Chibi from "./Chibi";
 import LivePet from "./LivePet";
 import { IDLE_ACTIONS } from "./LivePet";
@@ -93,6 +93,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
   });
   const edgeRef = useRef(edge);
   edgeRef.current = edge;
+  // In the app: an answer (or an error) opens above her; near the top of the screen there is no room for it there,
+  // so it opens below her instead — she stays exactly where she is, the box grows downwards.
+  const [flipBottom, setFlipBottom] = useState<number | null>(null);
   /** How much wider her box is than she is, on each side (see keepIn). */
   const sidePad = () => {
     const r = rootRef.current?.getBoundingClientRect(), s = sprite.current?.getBoundingClientRect();
@@ -397,6 +400,16 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     document.addEventListener("pointerdown", close, true);
     return () => document.removeEventListener("pointerdown", close, true);
   }, [menu]);
+  useLayoutEffect(() => {
+    if (!inline || !reply) { if (flipBottom !== null) setFlipBottom(null); return; }
+    if (flipBottom !== null) return;
+    const r = rootRef.current?.getBoundingClientRect(), sp = sprite.current?.getBoundingClientRect();
+    if (!r || !sp) return;
+    const g = gutters();
+    if (r.top >= Math.max(8, g.top - 40)) return;
+    // root top = her top; the answer goes underneath
+    setFlipBottom(Math.max(8, window.innerHeight - sp.top - r.height));
+  }, [Boolean(reply), pos.y]);
   // Android floating pet: her window is just her size (it would block taps on the home screen otherwise), so it
   // grows only while she says something and shrinks back afterwards.
   // Android floating pet: her window is just her size (it would block taps on the home screen otherwise) plus exactly
@@ -636,9 +649,9 @@ export default function DesktopPet({ inline = false, onAsk }: { inline?: boolean
     else onAsk?.();
   };
 
-  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "") + (settled ? "" : " pet-root--settling") + (menu ? " pet-root--menu" : "") + (FLOATING && below ? " pet-root--below" : "")}
+  return <div ref={rootRef} className={(inline ? "pet-root pet-root--inline" : "pet-root") + (FLOATING ? " pet-root--floating" : "") + (edge ? " pet-root--edge pet-root--edge-" + edge : "") + (peeking ? " pet-root--peek" : "") + (reply ? " pet-root--reply" : "") + (walking ? " pet-root--walk" : "") + (facing < 0 ? " pet-root--face-left" : "") + (settled ? "" : " pet-root--settling") + (menu ? " pet-root--menu" : "") + (FLOATING && below ? " pet-root--below" : "") + (inline && flipBottom !== null && reply ? " pet-root--flip" : "")}
     onMouseLeave={() => hover(false)}
-    style={{ ...(inline ? { right: pos.x, bottom: pos.y } : {}), ["--pet-scale" as string]: scale,
+    style={{ ...(inline ? { right: pos.x, bottom: flipBottom !== null && reply ? flipBottom : pos.y } : {}), ["--pet-scale" as string]: scale,
       ...(FLOATING ? { ["--pet-base-h" as string]: (edge === "top" || edge === "bottom" ? 68 * scale + 8 : 136 * scale + 16) + "px", ["--pet-shift" as string]: shift + "px" } : {}) }}>
     {reply && <div className={"pet-reply" + (reply.error ? " pet-reply--error" : "")} role="log" aria-live="polite" aria-label={t("Ciro 的回答")}
       onMouseEnter={() => { replyHover.current = true; hover(true); }} onMouseLeave={() => { replyHover.current = false; hover(false); }}>

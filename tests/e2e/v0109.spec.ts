@@ -214,3 +214,20 @@ test("Android: one pet — the app's pet takes the floating pet's place and give
   expect(Math.round(last[0])).toBe(200);
   expect(Math.round(last[1])).toBe(320);
 });
+
+test("app pet near the top of the screen: an answer or error opens below her, fully on screen", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("ciro.pet.v1", "on");
+    localStorage.setItem("ciro.pet-pos.v1", JSON.stringify({ x: 40, y: 600 }));
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(ciro.url + "/");
+  await expect(page.locator(".pet-root--inline")).toBeVisible();
+  await page.getByRole("button", { name: "新对话", exact: true }).first().click().catch(() => {});
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("ciro-pet-stream", { detail: { id: "e1", text: "「Claude」返回错误（400）：一段很长的错误信息".repeat(4), done: true, error: true } })));
+  const reply = page.locator(".pet-reply");
+  await expect(reply).toBeVisible();
+  const box = (await reply.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
+});

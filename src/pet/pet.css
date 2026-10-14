@@ -198,3 +198,6 @@ html.pet-page #ciro-boot{display:none}
 .pet-root--floating.pet-root--below.pet-root--edge-bottom .pet-sprite{bottom:calc(100% - var(--pet-base-h))}
 .pet-root--floating.pet-root--below .pet-say,.pet-root--floating.pet-root--below .pet-reply,
 .pet-root--floating.pet-root--below .pet-menu{top:calc(var(--pet-base-h) + 2px);bottom:auto}
+/* In the app near the top of the screen: the answer opens below her (she stays where she is). */
+.pet-root--inline.pet-root--flip .pet-sprite{top:0;bottom:auto}
+.pet-root--inline.pet-root--flip .pet-reply{top:auto;bottom:6px}

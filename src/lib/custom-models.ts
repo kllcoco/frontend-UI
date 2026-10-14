@@ -202,7 +202,14 @@ async function streamClaude(model: CustomModel, opts: StreamOpts): Promise<void>
       const why = apiMessage(String(e.message));
       if (/workspace/i.test(why)) throw new Error("「" + model.name + "」的 API Key 没有归属某个工作区，" + NEEDS_WORKSPACE
         + "（Claude 控制台 → Settings → Workspaces，形如 wrkspc_…），或者在控制台的某个工作区里新建一个 Key。");
-      throw new Error("「" + model.name + "」返回错误（" + (e.status ?? "?") + "）：" + why.slice(0, 300) + hint(Number(e.status) || 0));
+      // Claude's common failures in plain words (the raw message is kept after them).
+      const plain = /credit balance is too low/i.test(why) ? "Claude 账户余额不足，请在 Claude 控制台（Plans & Billing）充值后再试。"
+        : /overloaded/i.test(why) || e.status === 529 ? "Claude 服务现在太忙，请稍后再试。"
+        : /not_found_error|model:/i.test(why) && e.status === 404 ? "模型名不对：可以点“编辑 → 获取模型列表”选择一个。"
+        : /permission|not allowed|organization.*disabled/i.test(why) ? "这个 API Key 没有权限使用该模型。"
+        : /max_tokens|thinking|output_config|effort/i.test(why) ? "这个模型不支持当前的思考深度设置，请把思考深度调到“即时”后再试。"
+        : /prompt is too long|too many tokens/i.test(why) ? "对话太长了，请新开一个对话再问。" : "";
+      throw new Error("「" + model.name + "」" + (plain ? plain + "\n（原始信息：" + why.slice(0, 200) + "）" : "返回错误（" + (e.status ?? "?") + "）：" + why.slice(0, 300) + hint(Number(e.status) || 0)));
     }
     throw new Error(unreachable(model));
   }
